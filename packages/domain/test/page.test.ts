@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import { createPage } from "../src/page.ts";
+import { createPage, updatePage } from "../src/page.ts";
 
 test("creates independently identified page, revision, and audit event", () => {
   const generatedIds = [
@@ -93,4 +93,47 @@ test("rejects an actor category outside the audit contract", () => {
       ),
     /actor type is not supported/,
   );
+});
+
+test("updates a page while preserving identity and recording revision history", () => {
+  const original = createPage(
+    {
+      title: "Control Centre",
+      actorType: "user",
+      actorId: "user-1",
+      source: "human-ui",
+    },
+    {
+      newId: () => "11111111-1111-4111-8111-111111111111",
+      now: () => new Date("2026-09-14T12:00:00.000Z"),
+    },
+  ).page;
+  const generatedIds = [
+    "22222222-2222-4222-8222-222222222222",
+    "33333333-3333-4333-8333-333333333333",
+  ];
+
+  const mutation = updatePage(
+    original,
+    1,
+    {
+      title: "Life Control Centre",
+      actorType: "user",
+      actorId: "user-1",
+      source: "human-ui",
+    },
+    {
+      newId: () => generatedIds.shift() ?? "",
+      now: () => new Date("2026-09-14T13:00:00.000Z"),
+    },
+  );
+
+  assert.equal(mutation.page.id, original.id);
+  assert.equal(mutation.page.title, "Life Control Centre");
+  assert.equal(mutation.page.createdAt, original.createdAt);
+  assert.equal(mutation.page.modifiedAt, "2026-09-14T13:00:00.000Z");
+  assert.equal(mutation.revision.revisionNumber, 2);
+  assert.equal(mutation.audit.action, "page.updated");
+  assert.deepEqual(mutation.audit.before, original);
+  assert.deepEqual(mutation.audit.after, mutation.page);
 });

@@ -2,8 +2,20 @@
 
 ## Current baseline
 
-Run `npm test` for the dependency-free domain suite. The current M0 stack is
-not yet installable because dependency installation is pending user approval.
+Run `npm run verify` for formatting, linting, strict type checking, and all
+non-live tests. Dependencies are pinned by `package-lock.json`.
+
+The PostgreSQL repository contract is opt-in so a missing local database cannot
+be mistaken for a passing integration test:
+
+```powershell
+$env:TEST_DATABASE_URL = "postgresql://pos_native:password@localhost:5432/pos_native_test"
+npm test -- packages/database/test/postgres-page-repository.integration.test.ts
+```
+
+Without `TEST_DATABASE_URL`, the live suite reports one skipped test. Do not
+claim restart persistence or transactional PostgreSQL verification from the
+in-memory repository tests.
 
 ## Docker database after Docker is installed
 

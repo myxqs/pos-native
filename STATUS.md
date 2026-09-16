@@ -18,16 +18,25 @@ M1 — Sovereign canonical core (in progress).
 - Argon2id password service, Fastify health/version API endpoints, M1 Drizzle
   schema and two generated PostgreSQL migrations created.
 - Idempotency replay/conflict domain service created and tested.
+- Page update commands now preserve stable identity and emit sequential
+  revisions plus before/after audit events.
+- Transactional page repository contract implemented with atomic rollback
+  tests; the PostgreSQL adapter writes page/revision/audit state in one
+  transaction.
+- Versioned create/list/read/update page API and a restrained responsive browser
+  shell are implemented behind an injected repository/actor boundary.
 
 ## In progress
 
-- Transactional PostgreSQL repositories, account/session/token persistence,
-  CSRF/session lifecycle, asset storage, backup/restore and live database tests.
+- Account/session/token persistence, CSRF/session lifecycle, production runtime
+  composition, asset storage, backup/restore and live database tests.
 
 ## Verification state
 
-- `npm run verify`: PASS — format, lint, strict typecheck and 12 tests across
-  five suites (fresh baseline run 2026-09-16).
+- `npm run verify`: PASS — format, lint, strict typecheck and 20 tests across
+  eight passing suites (fresh run 2026-09-16).
+- PostgreSQL page repository contract: present but one live integration test is
+  SKIPPED because `TEST_DATABASE_URL` is unavailable.
 - `npm audit --omit=dev --json`: PASS — 0 vulnerabilities.
 - `git diff --check`: no whitespace errors in the verified foundation.
 - Docker development stack: unverified because Docker is not installed on this
@@ -55,9 +64,9 @@ M1 — Sovereign canonical core (in progress).
 
 ## Exact next action
 
-Implement the transactional page repository boundary test-first, including
-atomic page/revision/audit persistence and read/update contracts. Run all
-non-live tests now; retain live PostgreSQL tests as an explicit environment gate.
+Implement secure local account/session authentication and production runtime
+composition test-first. Do not enable browser/API mutation routes without an
+authenticated actor and CSRF boundary.
 
 ## Commands to resume
 

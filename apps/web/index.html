@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#171717" />
+    <title>NativePOS</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside>
+        <div class="brand">NativePOS</div>
+        <form id="create-page" aria-label="Create page">
+          <label for="new-page-title">New page</label>
+          <div class="form-row">
+            <input id="new-page-title" name="title" maxlength="500" required />
+            <button type="submit">Create</button>
+          </div>
+        </form>
+        <nav aria-label="Pages">
+          <ul id="page-list"></ul>
+        </nav>
+      </aside>
+      <main>
+        <p class="eyebrow">Private workspace</p>
+        <h1>NativePOS</h1>
+        <section id="editor" hidden>
+          <label for="page-title">Page title</label>
+          <div class="form-row">
+            <input id="page-title" maxlength="500" />
+            <button id="save-page" type="button">Save</button>
+          </div>
+        </section>
+        <p id="empty-state">Create a page to begin.</p>
+        <p id="status" role="status" aria-live="polite"></p>
+      </main>
+    </div>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

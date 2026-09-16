@@ -4,9 +4,21 @@ import rateLimit from "@fastify/rate-limit";
 import Fastify, { type FastifyInstance } from "fastify";
 import { readFileSync } from "node:fs";
 
-import { registerPageRoutes, type PageRouteOptions } from "./page-routes.ts";
+import type { AuthenticationService } from "../../../packages/auth/src/session.ts";
+import type { CreatePageDependencies } from "../../../packages/domain/src/page.ts";
+import type { PageRepository } from "../../../packages/database/src/page-repository.ts";
+import { registerAuthenticationRoutes } from "./auth-routes.ts";
+import { registerPageRoutes, type PageAuthorizer } from "./page-routes.ts";
 
-export function buildApp(options?: PageRouteOptions): FastifyInstance {
+export interface AppOptions {
+  readonly authenticationService?: AuthenticationService;
+  readonly secureCookies?: boolean;
+  readonly pageRepository?: PageRepository;
+  readonly pageDependencies?: CreatePageDependencies;
+  readonly authorize?: PageAuthorizer;
+}
+
+export function buildApp(options: AppOptions = {}): FastifyInstance {
   const app = Fastify({ logger: false });
 
   void app.register(cookie);
@@ -35,8 +47,19 @@ export function buildApp(options?: PageRouteOptions): FastifyInstance {
 
   registerWebShell(app);
 
-  if (options) {
-    registerPageRoutes(app, options);
+  const authorize = options.authenticationService
+    ? registerAuthenticationRoutes(app, {
+        authenticationService: options.authenticationService,
+        secureCookies: options.secureCookies ?? false,
+      })
+    : options.authorize;
+
+  if (options.pageRepository && options.pageDependencies && authorize) {
+    registerPageRoutes(app, {
+      pageRepository: options.pageRepository,
+      pageDependencies: options.pageDependencies,
+      authorize,
+    });
   }
 
   return app;

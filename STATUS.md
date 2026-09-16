@@ -25,16 +25,20 @@ M1 — Sovereign canonical core (in progress).
   transaction.
 - Versioned create/list/read/update page API and a restrained responsive browser
   shell are implemented behind an injected repository/actor boundary.
+- Local login/session service stores only SHA-256 token hashes, enforces expiry
+  and revocation, and validates CSRF tokens with constant-time hash comparison.
+- Fastify authentication routes set strict cookies, rate-limit login, derive the
+  audit actor from the server-side session, and fail page routes closed.
 
 ## In progress
 
-- Account/session/token persistence, CSRF/session lifecycle, production runtime
-  composition, asset storage, backup/restore and live database tests.
+- PostgreSQL account/session persistence, production runtime composition,
+  browser login UX, asset storage, backup/restore and live database tests.
 
 ## Verification state
 
-- `npm run verify`: PASS — format, lint, strict typecheck and 20 tests across
-  eight passing suites (fresh run 2026-09-16).
+- `npm run verify`: PASS — format, lint, strict typecheck and 25 tests across
+  ten passing suites (fresh run 2026-09-16).
 - PostgreSQL page repository contract: present but one live integration test is
   SKIPPED because `TEST_DATABASE_URL` is unavailable.
 - `npm audit --omit=dev --json`: PASS — 0 vulnerabilities.
@@ -64,9 +68,10 @@ M1 — Sovereign canonical core (in progress).
 
 ## Exact next action
 
-Implement secure local account/session authentication and production runtime
-composition test-first. Do not enable browser/API mutation routes without an
-authenticated actor and CSRF boundary.
+Provide an approved live PostgreSQL environment (Docker or native PostgreSQL),
+then implement and verify persistent account/session runtime composition and
+the restart-persistence acceptance path. Frontend/editor package installation
+also requires explicit approval before M2.
 
 ## Commands to resume
 

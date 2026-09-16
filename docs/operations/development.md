@@ -17,6 +17,11 @@ Without `TEST_DATABASE_URL`, the live suite reports one skipped test. Do not
 claim restart persistence or transactional PostgreSQL verification from the
 in-memory repository tests.
 
+Page routes are registered only when both a repository and a server-side
+authorizer are supplied. The default `buildApp()` exposes health, manifest, and
+static shell routes but does not expose canonical reads or writes. Test-only
+authorizers must never be used by a production runtime.
+
 ## Docker database after Docker is installed
 
 1. Copy `.env.example` to `.env` and replace the placeholder password locally.

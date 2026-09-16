@@ -17,7 +17,10 @@ function pageApp() {
       newId: () => generatedIds.shift() ?? "",
       now: () => new Date("2026-09-16T12:00:00.000Z"),
     },
-    actor: { actorType: "user", actorId: "user-1", source: "human-ui" },
+    authorize: async () => ({
+      ok: true,
+      actor: { actorType: "user", actorId: "user-1", source: "human-ui" },
+    }),
   });
 }
 

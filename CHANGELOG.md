@@ -10,3 +10,5 @@
 - Product-first v2 specification reconciliation and explicit migration gates.
 - Atomic page create/update repository contract with PostgreSQL adapter.
 - Versioned page API and responsive create/select/rename browser shell.
+- Fail-closed local login, hashed server-side sessions, strict cookies, CSRF
+  validation, login rate limiting, and authenticated audit attribution.

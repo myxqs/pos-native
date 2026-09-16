@@ -1,4 +1,4 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 
 import type { AuditActorType } from "../../../packages/domain/src/audit.ts";
@@ -18,35 +18,68 @@ const pageParams = z.object({ id: z.string().uuid() });
 export interface PageRouteOptions {
   readonly pageRepository: PageRepository;
   readonly pageDependencies: CreatePageDependencies;
-  readonly actor: {
-    readonly actorType: AuditActorType;
-    readonly actorId: string;
-    readonly source: string;
-  };
+  readonly authorize: PageAuthorizer;
 }
+
+type Actor = {
+  readonly actorType: AuditActorType;
+  readonly actorId: string;
+  readonly source: string;
+};
+
+export type PageAuthorization =
+  | { readonly ok: true; readonly actor: Actor }
+  | {
+      readonly ok: false;
+      readonly statusCode: 401 | 403;
+      readonly error: string;
+    };
+
+export type PageAuthorizer = (
+  request: FastifyRequest,
+  requireCsrf: boolean,
+) => Promise<PageAuthorization>;
 
 export function registerPageRoutes(
   app: FastifyInstance,
   options: PageRouteOptions,
 ): void {
   app.post("/api/v1/pages", async (request, reply) => {
+    const authorization = await options.authorize(request, true);
+    if (!authorization.ok) {
+      return reply
+        .code(authorization.statusCode)
+        .send({ error: authorization.error });
+    }
     const parsed = pageBody.safeParse(request.body);
     if (!parsed.success) {
       return reply.code(400).send({ error: "invalid page request" });
     }
     const mutation = createPage(
-      { ...parsed.data, ...options.actor },
+      { ...parsed.data, ...authorization.actor },
       options.pageDependencies,
     );
     await options.pageRepository.create(mutation);
     return reply.code(201).send({ page: mutation.page, revisionNumber: 1 });
   });
 
-  app.get("/api/v1/pages", async () => ({
-    pages: await options.pageRepository.list(),
-  }));
+  app.get("/api/v1/pages", async (request, reply) => {
+    const authorization = await options.authorize(request, false);
+    if (!authorization.ok) {
+      return reply
+        .code(authorization.statusCode)
+        .send({ error: authorization.error });
+    }
+    return { pages: await options.pageRepository.list() };
+  });
 
   app.get("/api/v1/pages/:id", async (request, reply) => {
+    const authorization = await options.authorize(request, false);
+    if (!authorization.ok) {
+      return reply
+        .code(authorization.statusCode)
+        .send({ error: authorization.error });
+    }
     const id = parsePageId(request.params);
     if (!id) return reply.code(400).send({ error: "invalid page ID" });
     const page = await options.pageRepository.getById(id);
@@ -55,6 +88,12 @@ export function registerPageRoutes(
   });
 
   app.patch("/api/v1/pages/:id", async (request, reply) => {
+    const authorization = await options.authorize(request, true);
+    if (!authorization.ok) {
+      return reply
+        .code(authorization.statusCode)
+        .send({ error: authorization.error });
+    }
     const id = parsePageId(request.params);
     if (!id) return reply.code(400).send({ error: "invalid page ID" });
     const parsed = pageBody.safeParse(request.body);
@@ -66,7 +105,7 @@ export function registerPageRoutes(
     const mutation = updatePage(
       current.page,
       current.revisionNumber,
-      { ...parsed.data, ...options.actor },
+      { ...parsed.data, ...authorization.actor },
       options.pageDependencies,
     );
     await options.pageRepository.update(mutation);

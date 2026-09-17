@@ -43,12 +43,14 @@ M1 — Sovereign canonical core (in progress).
   SKIPPED because `TEST_DATABASE_URL` is unavailable.
 - `npm audit --omit=dev --json`: PASS — 0 vulnerabilities.
 - `git diff --check`: no whitespace errors in the verified foundation.
-- Docker development stack: unverified because Docker is not installed on this
-  host; no installation has been performed.
+- Docker Desktop 4.91.0, Docker CLI 29.8.0, and Compose 5.5.1 were installed
+  from the verified official Winget package on 2026-09-17. WSL 2 platform
+  enablement is pending a required Windows reboot before engine verification.
 
 ## Known failures / blockers
 
-- Docker CLI is unavailable.
+- Docker engine remains unavailable until the pending WSL/Windows reboot is
+  completed and Docker Desktop has initialised.
 - PostgreSQL CLI/server is unavailable on this host, so live migration,
   transaction, restart-persistence, and restore verification are blocked until
   an approved PostgreSQL/Docker environment is available.

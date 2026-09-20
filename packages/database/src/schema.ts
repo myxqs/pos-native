@@ -17,6 +17,7 @@ const createdAt = () =>
 export const users = pgTable("users", {
   id: uuid("id").primaryKey(),
   email: text("email").notNull().unique(),
+  ownerSlot: integer("owner_slot").notNull().default(1).unique(),
   passwordHash: text("password_hash").notNull(),
   createdAt: createdAt(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
@@ -32,6 +33,7 @@ export const sessions = pgTable(
     tokenHash: text("token_hash").notNull().unique(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    csrfTokenHash: text("csrf_token_hash").notNull(),
     createdAt: createdAt(),
   },
   (table) => [index("sessions_user_id_idx").on(table.userId)],

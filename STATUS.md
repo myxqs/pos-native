@@ -13,7 +13,7 @@ M1 — Sovereign canonical core and first visible vertical slice (in progress).
   ADRs, threat model, PostgreSQL Compose foundation, and status handover.
 - Native UUID page identity; page create/update domain commands; immutable
   revision snapshots; append-oriented audit envelopes; atomic repository port.
-- Drizzle PostgreSQL schema and migrations through 0002, including page revision
+- Drizzle PostgreSQL schema and migrations through 0004, including page revision
   compare-and-swap state derived from any existing page history; the migration
   aborts safely rather than inventing revision history for legacy pages.
 - Versioned page create/list/read/update API, with runtime validation,
@@ -25,20 +25,32 @@ M1 — Sovereign canonical core and first visible vertical slice (in progress).
 - Independent M1 review findings were fixed: browser CSRF headers, stale write
   prevention, source-layout-only asset serving, legacy revision migration safety,
   and configured-asset symlink containment.
+- PostgreSQL authentication adapter with parameterised queries, persisted CSRF
+  token hashes, strict row mapping, and idempotent session revocation.
+- Compiled, fail-closed API runtime: validated database and web-asset
+  configuration, secure cookies, loopback default, and safe pool close on a
+  failed listener start.
+- Single-owner bootstrap is protected by a database-unique owner slot, including
+  fail-closed handling of a concurrent unique-constraint conflict.
+- Independent persistent-runtime review finding fixed: failed web-shell
+  composition closes the already-created persistence adapter before rethrowing.
 
 ## In progress
 
-- PostgreSQL-backed account/session store, production server composition, browser
-  login UX, asset storage, backup/restore, and live database/restart tests.
+- Browser login UX, asset storage, backup/restore, and live database/restart
+  tests.
 
 ## Verification state
 
 - npm run verify: PASS on 2026-09-20 — format, lint, strict typecheck, and
-  31 tests passed across ten suites; two PostgreSQL integration tests skipped
+  43 tests passed across thirteen suites; two PostgreSQL integration tests skipped
   because TEST_DATABASE_URL is not set.
 - npm audit --omit=dev --json: PASS on 2026-09-20 — zero production
   vulnerabilities.
 - npm run db:generate: PASS on 2026-09-20 — no ungenerated schema changes.
+- npm run build: PASS on 2026-09-20 — compiled API starts only from emitted
+  JavaScript; compilation excludes test source and the entry point fails closed
+  without runtime configuration.
 - Docker client 29.8.0 and Compose 5.5.1 are present, but the Docker Desktop
   Linux-engine pipe is absent, so no database container has been started.
 
@@ -48,10 +60,14 @@ M1 — Sovereign canonical core and first visible vertical slice (in progress).
   be completed by a user-approved reboot; no reboot has been initiated here.
 - Without a PostgreSQL runtime, migrations, transactional persistence, restart
   persistence, account/session persistence, backup, and restore are unverified.
-- The browser shell is not yet an end-to-end login experience and no production
-  runtime composition exists. It must not be presented as a usable persistent POS.
+- The browser shell is not yet an end-to-end login experience. The runtime
+  composition is code-complete but cannot be presented as persistent until it
+  runs against a live PostgreSQL database.
 - The live PostgreSQL suite is intentionally skipped until TEST_DATABASE_URL is
   supplied; this is an environment gate, not a passing integration result.
+- No owner account has been created. The local interactive bootstrap command is
+  implemented but must wait for a live database plus the owner's chosen email
+  and password.
 
 ## Key decisions
 
@@ -61,13 +77,16 @@ M1 — Sovereign canonical core and first visible vertical slice (in progress).
 - Browser deployment resolves a configurable POS_WEB_ASSET_ROOT rather than
   assuming the TypeScript source directory structure, canonicalising the asset
   root and rejecting escapes through asset symlinks.
+- API runtime uses an emitted JavaScript build rather than Node's experimental
+  TypeScript execution mode; its listener defaults to loopback and secure
+  cookies are always enabled.
 
 ## Exact next action
 
-Implement the persistent PostgreSQL account/session store and a fail-closed
-server composition using unit-contract tests. After the user approves a Windows
-reboot and Docker starts, run migration, live integration, restart-persistence,
-and authenticated browser-flow acceptance tests.
+Implement browser login UX using the existing session API, then continue M1
+asset and backup/restore design. After the user approves a Windows reboot and
+Docker starts, run migration, live integration, restart-persistence, owner
+bootstrap, and authenticated browser-flow acceptance tests.
 
 ## Commands to resume
 

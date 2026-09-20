@@ -42,3 +42,34 @@ unavailable when an expected file is missing.
 This makes the asset location an explicit runtime boundary. It does not yet
 supply a production server composition or prove browser persistence; those
 remain M1 acceptance work.
+
+## Compiled API runtime
+
+The production-shaped runtime is fail-closed. It requires DATABASE_URL and
+POS_WEB_ASSET_ROOT before it constructs a pool, registers authenticated page
+routes, or starts a listener. It uses secure cookies, so run it only behind
+HTTPS (for example, a private Tailscale HTTPS reverse proxy), not plain HTTP.
+
+1. Run npm run build.
+2. Set DATABASE_URL and POS_WEB_ASSET_ROOT in the local process environment.
+3. Run npm run start:api.
+
+POS_LISTEN_HOST defaults to 127.0.0.1. Only set it to 0.0.0.0 or :: as an
+explicit private-network deployment choice; this does not authorise public
+internet exposure. POS_PORT defaults to 3000.
+
+## One-time local owner bootstrap
+
+After PostgreSQL migrations have been verified live, create the first and only
+local owner from an interactive terminal:
+
+```powershell
+$env:DATABASE_URL = "postgresql://pos_native:local-password@localhost:5432/pos_native"
+npm run bootstrap:owner -- --email "owner@example.test"
+```
+
+The command compiles the current sources, prompts twice without echoing the
+password, stores only its Argon2id hash, and refuses to insert when any user
+already exists. Never put the password in a command argument, environment
+variable, .env file, or source-controlled document. Do not execute this step
+until the Docker and live-migration gates are available.

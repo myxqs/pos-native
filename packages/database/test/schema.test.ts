@@ -21,12 +21,23 @@ test("defines the M1 canonical entity tables with durable identity constraints",
   expect(email?.notNull).toBe(true);
   expect(email?.isUnique).toBe(true);
 
+  const ownerSlot = userColumns.find((column) => column.name === "owner_slot");
+  expect(ownerSlot?.notNull).toBe(true);
+  expect(ownerSlot?.hasDefault).toBe(true);
+  expect(ownerSlot?.isUnique).toBe(true);
+
   const pageColumns = getTableConfig(schemaModule.pages).columns;
   const currentRevisionNumber = pageColumns.find(
     (column) => column.name === "current_revision_number",
   );
   expect(currentRevisionNumber?.notNull).toBe(true);
   expect(currentRevisionNumber?.hasDefault).toBe(true);
+
+  const sessionColumns = getTableConfig(schemaModule.sessions).columns;
+  const csrfTokenHash = sessionColumns.find(
+    (column) => column.name === "csrf_token_hash",
+  );
+  expect(csrfTokenHash?.notNull).toBe(true);
 
   expect(getTableConfig(schemaModule.pages).foreignKeys).toHaveLength(2);
   expect(getTableConfig(schemaModule.blocks).foreignKeys).toHaveLength(2);
@@ -40,4 +51,15 @@ test("fails migration rather than creating pages without revision history", () =
     "utf8",
   );
   expect(migration).toContain("RAISE EXCEPTION");
+});
+test("revokes legacy sessions before requiring a CSRF token hash", () => {
+  const migration = readFileSync(
+    fileURLToPath(
+      new URL("../drizzle/0003_right_vertigo.sql", import.meta.url),
+    ),
+    "utf8",
+  );
+  expect(migration).toContain('UPDATE "sessions"');
+  expect(migration).toContain('"revoked_at"');
+  expect(migration).toContain("SET NOT NULL");
 });

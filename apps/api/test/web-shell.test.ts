@@ -33,20 +33,27 @@ test("browser client sends create and update requests to versioned routes", asyn
       ),
     );
 
-  await expect(createPageRequest(apiFetch, "Domain")).resolves.toMatchObject({
-    page: { title: "Domain" },
-  });
   await expect(
-    updatePageRequest(apiFetch, "page-1", "Projects"),
+    createPageRequest(apiFetch, "Domain", "csrf-token"),
+  ).resolves.toMatchObject({ page: { title: "Domain" } });
+  await expect(
+    updatePageRequest(apiFetch, "page-1", "Projects", 1, "csrf-token"),
   ).resolves.toMatchObject({ page: { title: "Projects" } });
   expect(apiFetch).toHaveBeenNthCalledWith(1, "/api/v1/pages", {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: {
+      "content-type": "application/json",
+      "x-pos-csrf": "csrf-token",
+    },
     body: JSON.stringify({ title: "Domain" }),
   });
   expect(apiFetch).toHaveBeenNthCalledWith(2, "/api/v1/pages/page-1", {
     method: "PATCH",
-    headers: { "content-type": "application/json" },
+    headers: {
+      "content-type": "application/json",
+      "if-match": "1",
+      "x-pos-csrf": "csrf-token",
+    },
     body: JSON.stringify({ title: "Projects" }),
   });
 });

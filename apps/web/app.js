@@ -1,19 +1,43 @@
 /* global document, fetch */
 
-export async function createPageRequest(apiFetch, title) {
+export async function createPageRequest(apiFetch, title, csrfToken) {
   return requestJson(apiFetch, "/api/v1/pages", {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: unsafeHeaders(csrfToken),
     body: JSON.stringify({ title }),
   });
 }
 
-export async function updatePageRequest(apiFetch, id, title) {
-  return requestJson(apiFetch, `/api/v1/pages/${id}`, {
+export async function updatePageRequest(
+  apiFetch,
+  id,
+  title,
+  revisionNumber,
+  csrfToken,
+) {
+  return requestJson(apiFetch, "/api/v1/pages/" + id, {
     method: "PATCH",
-    headers: { "content-type": "application/json" },
+    headers: unsafeHeaders(csrfToken, {
+      "if-match": String(revisionNumber),
+    }),
     body: JSON.stringify({ title }),
   });
+}
+
+function unsafeHeaders(csrfToken, extraHeaders = {}) {
+  if (!csrfToken) throw new Error("CSRF token is unavailable");
+  return {
+    "content-type": "application/json",
+    "x-pos-csrf": csrfToken,
+    ...extraHeaders,
+  };
+}
+
+function csrfTokenFromDocument() {
+  const cookie = document.cookie
+    .split("; ")
+    .find((value) => value.startsWith("pos_csrf="));
+  return cookie ? decodeURIComponent(cookie.slice("pos_csrf=".length)) : "";
 }
 
 async function requestJson(apiFetch, url, options) {
@@ -33,6 +57,23 @@ async function start() {
   const empty = document.querySelector("#empty-state");
   const status = document.querySelector("#status");
   let selectedId = null;
+  let selectedRevisionNumber = null;
+
+  async function selectPage(id) {
+    try {
+      const result = await requestJson(fetch, "/api/v1/pages/" + id, {
+        method: "GET",
+      });
+      selectedId = result.page.id;
+      selectedRevisionNumber = result.revisionNumber;
+      pageTitle.value = result.page.title;
+      editor.hidden = false;
+      empty.hidden = true;
+    } catch (error) {
+      status.textContent =
+        error instanceof Error ? error.message : "Could not load page.";
+    }
+  }
 
   async function refresh() {
     const response = await fetch("/api/v1/pages");
@@ -45,10 +86,7 @@ async function start() {
         button.type = "button";
         button.textContent = page.title;
         button.addEventListener("click", () => {
-          selectedId = page.id;
-          pageTitle.value = page.title;
-          editor.hidden = false;
-          empty.hidden = true;
+          void selectPage(page.id);
         });
         item.append(button);
         return item;
@@ -59,9 +97,14 @@ async function start() {
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     try {
-      const result = await createPageRequest(fetch, newTitle.value);
+      const result = await createPageRequest(
+        fetch,
+        newTitle.value,
+        csrfTokenFromDocument(),
+      );
       newTitle.value = "";
       selectedId = result.page.id;
+      selectedRevisionNumber = result.revisionNumber;
       pageTitle.value = result.page.title;
       editor.hidden = false;
       empty.hidden = true;
@@ -74,9 +117,16 @@ async function start() {
   });
 
   save.addEventListener("click", async () => {
-    if (!selectedId) return;
+    if (!selectedId || !selectedRevisionNumber) return;
     try {
-      await updatePageRequest(fetch, selectedId, pageTitle.value);
+      const result = await updatePageRequest(
+        fetch,
+        selectedId,
+        pageTitle.value,
+        selectedRevisionNumber,
+        csrfTokenFromDocument(),
+      );
+      selectedRevisionNumber = result.revisionNumber;
       status.textContent = "Page saved.";
       await refresh();
     } catch (error) {

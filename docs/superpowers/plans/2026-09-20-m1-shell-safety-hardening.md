@@ -39,7 +39,7 @@
 - Consumes: pos_csrf cookie and GET /api/v1/pages/:id response with page and revisionNumber.
 - Produces: createPageRequest(apiFetch, title, csrfToken) and updatePageRequest(apiFetch, id, title, revisionNumber, csrfToken).
 
-- [ ] Step 1: Write a failing request-shape test.
+- [x] Step 1: Write a failing request-shape test.
 
   expect(apiFetch).toHaveBeenNthCalledWith(2, "/api/v1/pages/page-1", {
   method: "PATCH",
@@ -51,10 +51,10 @@
   body: JSON.stringify({ title: "Projects" }),
   });
 
-- [ ] Step 2: Run npm test -- apps/api/test/web-shell.test.ts. It must fail because the current client sends only content-type.
-- [ ] Step 3: Read pos_csrf from document.cookie, fetch the selected page revision, send x-pos-csrf on POST/PATCH and if-match on PATCH, then update the selected revision after a save.
-- [ ] Step 4: Run npm test -- apps/api/test/web-shell.test.ts and npm test.
-- [ ] Step 5: Commit with fix: send browser CSRF and revision headers.
+- [x] Step 2: Run npm test -- apps/api/test/web-shell.test.ts. It must fail because the current client sends only content-type.
+- [x] Step 3: Read pos_csrf from document.cookie, fetch the selected page revision, send x-pos-csrf on POST/PATCH and if-match on PATCH, then update the selected revision after a save.
+- [x] Step 4: Run npm test -- apps/api/test/web-shell.test.ts and npm test.
+- [x] Step 5: Commit with fix: send browser CSRF and revision headers.
 
 ### Task 2: Optimistic revision control
 
@@ -73,7 +73,7 @@
 - Consumes: positive-integer If-Match equal to the current revision.
 - Produces: PageRevisionConflictError, pages.current_revision_number, and 409 with page revision conflict.
 
-- [ ] Step 1: Write failing missing, malformed, and stale API tests.
+- [x] Step 1: Write failing missing, malformed, and stale API tests.
 
   const stale = await app.inject({
   method: "PATCH",
@@ -84,11 +84,11 @@
   expect(stale.statusCode).toBe(409);
   expect(stale.json()).toEqual({ error: "page revision conflict" });
 
-- [ ] Step 2: Run npm test -- apps/api/test/page-routes.test.ts packages/database/test/page-repository.test.ts. It must fail because headerless writes are accepted.
-- [ ] Step 3: Add a non-null currentRevisionNumber, generate a new migration, persist 1 on creates, read the counter with pages, and update WHERE id and current_revision_number match. A zero-row update throws PageRevisionConflictError and rolls back all writes.
-- [ ] Step 4: Reject missing/malformed If-Match with 400; map pre-read and repository conflicts to 409.
-- [ ] Step 5: Run the focused tests, npm run db:generate, then npm test.
-- [ ] Step 6: Commit with fix: reject stale page revisions.
+- [x] Step 2: Run npm test -- apps/api/test/page-routes.test.ts packages/database/test/page-repository.test.ts. It must fail because headerless writes are accepted.
+- [x] Step 3: Add a non-null currentRevisionNumber, generate a new migration, persist 1 on creates, read the counter with pages, and update WHERE id and current_revision_number match. A zero-row update throws PageRevisionConflictError and rolls back all writes.
+- [x] Step 4: Reject missing/malformed If-Match with 400; map pre-read and repository conflicts to 409.
+- [x] Step 5: Run the focused tests, npm run db:generate, then npm test.
+- [x] Step 6: Commit with fix: reject stale page revisions.
 
 ### Task 3: Explicit web asset root
 
@@ -104,23 +104,23 @@
 - Consumes: optional AppOptions.webAssetRoot and optional POS_WEB_ASSET_ROOT.
 - Produces: slash, slash app.js, and slash styles.css routes, or NativePOS web assets are unavailable.
 
-- [ ] Step 1: Write a failing resolver test.
+- [x] Step 1: Write a failing resolver test.
 
   expect(() => resolveWebAssetRoot("C:/missing-nativepos-assets")).toThrow(
   "NativePOS web assets are unavailable",
   );
 
-- [ ] Step 2: Run npm test -- apps/api/test/web-shell.test.ts. It must fail because the resolver is missing.
-- [ ] Step 3: Implement the resolver with resolve, relative, and existsSync, validating index.html, app.js, and styles.css below a single root. Keep Fastify routes allowlisted.
-- [ ] Step 4: Document that production composition must supply POS_WEB_ASSET_ROOT for a copied/package-managed apps/web directory; do not claim an emitted runtime yet.
-- [ ] Step 5: Run npm test -- apps/api/test/web-shell.test.ts then npm run verify.
-- [ ] Step 6: Commit with fix: make web asset root explicit.
+- [x] Step 2: Run npm test -- apps/api/test/web-shell.test.ts. It must fail because the resolver is missing.
+- [x] Step 3: Implement the resolver with resolve, relative, and existsSync, validating index.html, app.js, and styles.css below a single root. Keep Fastify routes allowlisted.
+- [x] Step 4: Document that production composition must supply POS_WEB_ASSET_ROOT for a copied/package-managed apps/web directory; do not claim an emitted runtime yet.
+- [x] Step 5: Run npm test -- apps/api/test/web-shell.test.ts then npm run verify.
+- [x] Step 6: Commit with fix: make web asset root explicit.
 
 ### Task 4: Checkpoint and review
 
-- [ ] Step 1: Run npm run verify, npm audit --omit=dev --json, and git diff --check.
-- [ ] Step 2: Record test counts plus the still-blocked live PostgreSQL and production runtime gates in STATUS.md and CHANGELOG.md.
-- [ ] Step 3: Commit with docs: record M1 safety hardening.
+- [x] Step 1: Run npm run verify, npm audit --omit=dev --json, and git diff --check.
+- [x] Step 2: Record test counts plus the still-blocked live PostgreSQL and production runtime gates in STATUS.md and CHANGELOG.md.
+- [x] Step 3: Commit with docs: record M1 safety hardening.
 - [ ] Step 4: Request a fresh branch review, fix critical or important findings test-first, and rerun evidence.
 
 ## Self-review

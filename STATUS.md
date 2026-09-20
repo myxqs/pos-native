@@ -2,90 +2,81 @@
 
 ## Current milestone
 
-M1 — Sovereign canonical core (in progress).
+M1 — Sovereign canonical core and first visible vertical slice (in progress).
 
 ## Completed
 
-- Verified M0/M1 foundation committed on `main` as `c9e610a`.
-- Authoritative v2 product-first prompt located in Google Drive as file
-  `16G3GN1fLvRg8d5n4BizdDj7ECp_saWMR`, fully read and reconciled on 2026-09-16.
-- M0 monorepo/tooling foundation: exact dependency lockfile, strict TypeScript,
-  ESLint, Prettier, Vitest and the unified `npm run verify` command.
-- Monorepo foundation, canonical native-ID contract, validated `createPage`
-  command, revision envelope and audit-event envelope implemented.
-- Architecture foundation, threat model, ADR framework, initial plan, source
-  manifest, Docker compose foundation and operational documentation created.
-- Argon2id password service, Fastify health/version API endpoints, M1 Drizzle
-  schema and two generated PostgreSQL migrations created.
-- Idempotency replay/conflict domain service created and tested.
-- Page update commands now preserve stable identity and emit sequential
-  revisions plus before/after audit events.
-- Transactional page repository contract implemented with atomic rollback
-  tests; the PostgreSQL adapter writes page/revision/audit state in one
-  transaction.
-- Versioned create/list/read/update page API and a restrained responsive browser
-  shell are implemented behind an injected repository/actor boundary.
-- Local login/session service stores only SHA-256 token hashes, enforces expiry
-  and revocation, and validates CSRF tokens with constant-time hash comparison.
-- Fastify authentication routes set strict cookies, rate-limit login, derive the
-  audit actor from the server-side session, and fail page routes closed.
+- Authoritative v2 product-first brief reconciled: Notion is untouched and
+  canonical. Migration, reconciliation, dual write, and cutover remain dormant
+  until the explicit Usable Product Gate.
+- M0 TypeScript monorepo, strict checks, deterministic lockfile, documentation,
+  ADRs, threat model, PostgreSQL Compose foundation, and status handover.
+- Native UUID page identity; page create/update domain commands; immutable
+  revision snapshots; append-oriented audit envelopes; atomic repository port.
+- Drizzle PostgreSQL schema and migrations through 0002, including page revision
+  compare-and-swap state derived from any existing page history.
+- Versioned page create/list/read/update API, with runtime validation,
+  authenticated route boundary, CSRF enforcement, and explicit stale-update 409s.
+- Argon2id passwords, hashed and revocable sessions, strict cookies, login rate
+  limiting, server-derived human audit identity, and constant-time CSRF check.
+- Restrained responsive browser shell plus separately packaged web-asset root.
+  Browser writes send the double-submit CSRF proof and If-Match revision header.
+- Independent M1 review findings were fixed: browser CSRF headers, stale write
+  prevention, and source-layout-only asset serving.
 
 ## In progress
 
-- PostgreSQL account/session persistence, production runtime composition,
-  browser login UX, asset storage, backup/restore and live database tests.
+- PostgreSQL-backed account/session store, production server composition, browser
+  login UX, asset storage, backup/restore, and live database/restart tests.
 
 ## Verification state
 
-- `npm run verify`: PASS — format, lint, strict typecheck and 25 tests across
-  ten passing suites (fresh run 2026-09-16).
-- PostgreSQL page repository contract: present but one live integration test is
-  SKIPPED because `TEST_DATABASE_URL` is unavailable.
-- `npm audit --omit=dev --json`: PASS — 0 vulnerabilities.
-- `git diff --check`: no whitespace errors in the verified foundation.
-- Docker Desktop 4.91.0, Docker CLI 29.8.0, and Compose 5.5.1 were installed
-  from the verified official Winget package on 2026-09-17. WSL 2 platform
-  enablement is pending a required Windows reboot before engine verification.
+- npm run verify: PASS on 2026-09-20 — format, lint, strict typecheck, and
+  29 tests passed across ten suites; two PostgreSQL integration tests skipped
+  because TEST_DATABASE_URL is not set.
+- npm audit --omit=dev --json: PASS on 2026-09-20 — zero production
+  vulnerabilities.
+- npm run db:generate: PASS on 2026-09-20 — no ungenerated schema changes.
+- Docker client 29.8.0 and Compose 5.5.1 are present, but the Docker Desktop
+  Linux-engine pipe is absent, so no database container has been started.
 
 ## Known failures / blockers
 
-- Docker engine remains unavailable until the pending WSL/Windows reboot is
-  completed and Docker Desktop has initialised.
-- PostgreSQL CLI/server is unavailable on this host, so live migration,
-  transaction, restart-persistence, and restore verification are blocked until
-  an approved PostgreSQL/Docker environment is available.
-- M0/M1 external package installation is pending the specifically scoped
-  approval required by the operating charter. Resolved: the approved Node
-  package set is installed and pinned in `package-lock.json`.
-- `npm audit` reports four moderate development-only advisory paths through
-  `drizzle-kit`'s older esbuild loader. The installed `drizzle-kit@0.31.10` is
-  current; npm proposes an unsafe anomalous downgrade, so no forced fix was run.
+- The Docker engine is unavailable. Its pending Windows/WSL initialisation must
+  be completed by a user-approved reboot; no reboot has been initiated here.
+- Without a PostgreSQL runtime, migrations, transactional persistence, restart
+  persistence, account/session persistence, backup, and restore are unverified.
+- The browser shell is not yet an end-to-end login experience and no production
+  runtime composition exists. It must not be presented as a usable persistent POS.
+- The live PostgreSQL suite is intentionally skipped until TEST_DATABASE_URL is
+  supplied; this is an environment gate, not a passing integration result.
 
 ## Key decisions
 
-- ADR-0001: TypeScript npm-workspaces monorepo and contract-first domain core.
-- ADR-0002: defer editor and persistence library finalisation to phase gates.
-- Proposed M1 persistence stack: PostgreSQL 18.6, Drizzle ORM/Kit and `pg`.
-- ADR-0004: M0 toolchain and audit mitigation.
+- ADR-0001: TypeScript npm-workspaces and contract-first domain core.
+- ADR-0002: editor and persistence library selection remains a phase gate.
+- PostgreSQL 18.6, Drizzle ORM/Kit, and pg remain the M1 persistence stack.
+- Browser deployment resolves a configurable POS_WEB_ASSET_ROOT rather than
+  assuming the TypeScript source directory structure.
 
 ## Exact next action
 
-Provide an approved live PostgreSQL environment (Docker or native PostgreSQL),
-then implement and verify persistent account/session runtime composition and
-the restart-persistence acceptance path. Frontend/editor package installation
-also requires explicit approval before M2.
+Implement the persistent PostgreSQL account/session store and a fail-closed
+server composition using unit-contract tests. After the user approves a Windows
+reboot and Docker starts, run migration, live integration, restart-persistence,
+and authenticated browser-flow acceptance tests.
 
 ## Commands to resume
 
-```powershell
-npm test
-git status --short --branch
-docker compose config
-```
+    npm run verify
+    npm audit --omit=dev --json
+    docker version
+    docker compose config
 
 ## Important paths
 
-- `docs/specs/pos-native-v1.md`
-- `docs/plans/2026-09-14-m0-m1.md`
-- `docs/architecture/`
-- `packages/domain/`
+- docs/specs/pos-native-v1.md
+- docs/superpowers/plans/2026-09-20-m1-shell-safety-hardening.md
+- docs/operations/development.md
+- apps/api/src/
+- packages/database/

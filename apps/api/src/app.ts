@@ -2,17 +2,21 @@ import cookie from "@fastify/cookie";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import Fastify, { type FastifyInstance } from "fastify";
-import { readFileSync } from "node:fs";
-
 import type { AuthenticationService } from "../../../packages/auth/src/session.ts";
 import type { CreatePageDependencies } from "../../../packages/domain/src/page.ts";
 import type { PageRepository } from "../../../packages/database/src/page-repository.ts";
 import { registerAuthenticationRoutes } from "./auth-routes.ts";
 import { registerPageRoutes, type PageAuthorizer } from "./page-routes.ts";
+import {
+  readWebAsset,
+  resolveWebAssetRoot,
+  type WebAssetName,
+} from "./web-assets.ts";
 
 export interface AppOptions {
   readonly authenticationService?: AuthenticationService;
   readonly secureCookies?: boolean;
+  readonly webAssetRoot?: string;
   readonly pageRepository?: PageRepository;
   readonly pageDependencies?: CreatePageDependencies;
   readonly authorize?: PageAuthorizer;
@@ -45,7 +49,10 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
     mutationAccess: "not-enabled",
   }));
 
-  registerWebShell(app);
+  registerWebShell(
+    app,
+    resolveWebAssetRoot(options.webAssetRoot ?? process.env.POS_WEB_ASSET_ROOT),
+  );
 
   const authorize = options.authenticationService
     ? registerAuthenticationRoutes(app, {
@@ -65,18 +72,16 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
   return app;
 }
 
-function registerWebShell(app: FastifyInstance): void {
-  const assets = {
-    "/": ["../../web/index.html", "text/html; charset=utf-8"],
-    "/app.js": ["../../web/app.js", "text/javascript; charset=utf-8"],
-    "/styles.css": ["../../web/styles.css", "text/css; charset=utf-8"],
-  } as const;
+function registerWebShell(app: FastifyInstance, webAssetRoot: string): void {
+  const assets: Readonly<Record<string, readonly [WebAssetName, string]>> = {
+    "/": ["index.html", "text/html; charset=utf-8"],
+    "/app.js": ["app.js", "text/javascript; charset=utf-8"],
+    "/styles.css": ["styles.css", "text/css; charset=utf-8"],
+  };
 
-  for (const [route, [path, contentType]] of Object.entries(assets)) {
+  for (const [route, [assetName, contentType]] of Object.entries(assets)) {
     app.get(route, { config: { rateLimit: false } }, (_request, reply) =>
-      reply
-        .type(contentType)
-        .send(readFileSync(new URL(path, import.meta.url), "utf8")),
+      reply.type(contentType).send(readWebAsset(webAssetRoot, assetName)),
     );
   }
 }

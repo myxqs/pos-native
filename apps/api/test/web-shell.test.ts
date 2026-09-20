@@ -1,3 +1,7 @@
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { expect, test, vi } from "vitest";
 
 import { createPageRequest, updatePageRequest } from "../../web/app.js";
@@ -12,6 +16,30 @@ test("serves an accessible NativePOS browser shell", async () => {
   expect(response.body).toContain("<h1>NativePOS</h1>");
   expect(response.body).toContain('aria-label="Create page"');
   await app.close();
+});
+
+test("serves shell files from an explicit packaged asset root", async () => {
+  const root = mkdtempSync(join(tmpdir(), "nativepos-web-assets-"));
+  writeFileSync(join(root, "index.html"), "<h1>Packaged NativePOS</h1>");
+  writeFileSync(join(root, "app.js"), "console.log('packaged');");
+  writeFileSync(join(root, "styles.css"), "body { color: black; }");
+  const app = buildApp({ webAssetRoot: root });
+
+  try {
+    const response = await app.inject({ method: "GET", url: "/" });
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toContain("Packaged NativePOS");
+  } finally {
+    await app.close();
+    rmSync(root, { force: true, recursive: true });
+  }
+});
+
+test("rejects a configured web asset root without the required files", () => {
+  const missing = join(tmpdir(), "nativepos-missing-" + randomUUID());
+  expect(() => buildApp({ webAssetRoot: missing })).toThrow(
+    "NativePOS web assets are unavailable",
+  );
 });
 
 test("browser client sends create and update requests to versioned routes", async () => {

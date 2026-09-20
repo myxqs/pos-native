@@ -30,3 +30,15 @@ authorizers must never be used by a production runtime.
 4. Verify health with `docker compose ps`.
 
 Do not commit `.env`, generated credentials, database dumps or asset data.
+
+## Browser asset root
+
+Source execution resolves static assets from apps/web. A packaged deployment must
+copy those three files and set POS_WEB_ASSET_ROOT to the resulting directory.
+The directory must contain exactly the expected index.html, app.js, and
+styles.css files; application startup fails with NativePOS web assets are
+unavailable when an expected file is missing.
+
+This makes the asset location an explicit runtime boundary. It does not yet
+supply a production server composition or prove browser persistence; those
+remain M1 acceptance work.

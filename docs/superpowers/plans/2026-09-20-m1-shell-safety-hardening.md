@@ -121,7 +121,16 @@
 - [x] Step 1: Run npm run verify, npm audit --omit=dev --json, and git diff --check.
 - [x] Step 2: Record test counts plus the still-blocked live PostgreSQL and production runtime gates in STATUS.md and CHANGELOG.md.
 - [x] Step 3: Commit with docs: record M1 safety hardening.
-- [ ] Step 4: Request a fresh branch review, fix critical or important findings test-first, and rerun evidence.
+- [x] Step 4: Request a fresh branch review, fix critical or important findings test-first, and rerun evidence.
+
+## Review finding repair
+
+- [x] The reviewed migration now fails safely when a legacy page has no revision
+      snapshot instead of making that page unreadable after upgrade.
+- [x] The web-asset resolver canonicalises paths and rejects an allowlisted asset
+      symlink that resolves outside the configured root.
+- [x] Regression tests, full verification, production dependency audit, and
+      whitespace validation passed after the repair.
 
 ## Self-review
 

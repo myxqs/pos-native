@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { getTableConfig } from "drizzle-orm/pg-core";
 import { expect, test } from "vitest";
 
@@ -28,4 +30,14 @@ test("defines the M1 canonical entity tables with durable identity constraints",
 
   expect(getTableConfig(schemaModule.pages).foreignKeys).toHaveLength(2);
   expect(getTableConfig(schemaModule.blocks).foreignKeys).toHaveLength(2);
+});
+
+test("fails migration rather than creating pages without revision history", () => {
+  const migration = readFileSync(
+    fileURLToPath(
+      new URL("../drizzle/0002_black_shinko_yamashiro.sql", import.meta.url),
+    ),
+    "utf8",
+  );
+  expect(migration).toContain("RAISE EXCEPTION");
 });

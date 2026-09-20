@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 
@@ -11,14 +11,24 @@ export function resolveWebAssetRoot(configuredRoot?: string): string {
     configuredRoot ?? fileURLToPath(new URL("../../web/", import.meta.url)),
   );
 
+  if (!existsSync(root) || !statSync(root).isDirectory()) {
+    throw new Error("NativePOS web assets are unavailable");
+  }
+
+  const canonicalRoot = realpathSync(root);
+
   for (const assetName of assetNames) {
-    const assetPath = resolveAssetPath(root, assetName);
-    if (!existsSync(assetPath) || !statSync(assetPath).isFile()) {
+    const assetPath = resolveAssetPath(canonicalRoot, assetName);
+    if (
+      !existsSync(assetPath) ||
+      !statSync(assetPath).isFile() ||
+      !isWithinRoot(canonicalRoot, realpathSync(assetPath))
+    ) {
       throw new Error("NativePOS web assets are unavailable");
     }
   }
 
-  return root;
+  return canonicalRoot;
 }
 
 export function readWebAsset(root: string, assetName: WebAssetName): string {
@@ -27,14 +37,21 @@ export function readWebAsset(root: string, assetName: WebAssetName): string {
 
 function resolveAssetPath(root: string, assetName: WebAssetName): string {
   const assetPath = resolve(root, assetName);
-  const childPath = relative(root, assetPath);
-  if (
-    childPath === "" ||
-    childPath === ".." ||
-    childPath.startsWith(".." + sep) ||
-    isAbsolute(childPath)
-  ) {
+
+  if (!isWithinRoot(root, assetPath)) {
     throw new Error("NativePOS web assets are unavailable");
   }
+
   return assetPath;
+}
+
+function isWithinRoot(root: string, candidate: string): boolean {
+  const childPath = relative(root, candidate);
+
+  return (
+    childPath !== "" &&
+    childPath !== ".." &&
+    !childPath.startsWith(".." + sep) &&
+    !isAbsolute(childPath)
+  );
 }

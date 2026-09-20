@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -40,6 +40,25 @@ test("rejects a configured web asset root without the required files", () => {
   expect(() => buildApp({ webAssetRoot: missing })).toThrow(
     "NativePOS web assets are unavailable",
   );
+});
+
+test("rejects an asset symlink that escapes the configured web root", () => {
+  const root = mkdtempSync(join(tmpdir(), "nativepos-web-root-"));
+  const outside = mkdtempSync(join(tmpdir(), "nativepos-web-outside-"));
+  writeFileSync(join(root, "app.js"), "console.log('root');");
+  writeFileSync(join(root, "styles.css"), "body { color: black; }");
+  const outsideIndex = join(outside, "index.html");
+  writeFileSync(outsideIndex, "<h1>Outside NativePOS</h1>");
+  symlinkSync(outsideIndex, join(root, "index.html"), "file");
+
+  try {
+    expect(() => buildApp({ webAssetRoot: root })).toThrow(
+      "NativePOS web assets are unavailable",
+    );
+  } finally {
+    rmSync(root, { force: true, recursive: true });
+    rmSync(outside, { force: true, recursive: true });
+  }
 });
 
 test("browser client sends create and update requests to versioned routes", async () => {

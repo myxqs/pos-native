@@ -14,6 +14,8 @@
   validation, login rate limiting, and authenticated audit attribution.
 - Page revision compare-and-swap migration and explicit conflict handling.
 - Configurable and validated browser web-asset root.
+- Safe migration failure for any legacy page without revision history.
+- Canonical web-asset root validation that rejects escaping asset symlinks.
 
 ### Changed
 

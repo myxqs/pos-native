@@ -14,7 +14,8 @@ M1 — Sovereign canonical core and first visible vertical slice (in progress).
 - Native UUID page identity; page create/update domain commands; immutable
   revision snapshots; append-oriented audit envelopes; atomic repository port.
 - Drizzle PostgreSQL schema and migrations through 0002, including page revision
-  compare-and-swap state derived from any existing page history.
+  compare-and-swap state derived from any existing page history; the migration
+  aborts safely rather than inventing revision history for legacy pages.
 - Versioned page create/list/read/update API, with runtime validation,
   authenticated route boundary, CSRF enforcement, and explicit stale-update 409s.
 - Argon2id passwords, hashed and revocable sessions, strict cookies, login rate
@@ -22,7 +23,8 @@ M1 — Sovereign canonical core and first visible vertical slice (in progress).
 - Restrained responsive browser shell plus separately packaged web-asset root.
   Browser writes send the double-submit CSRF proof and If-Match revision header.
 - Independent M1 review findings were fixed: browser CSRF headers, stale write
-  prevention, and source-layout-only asset serving.
+  prevention, source-layout-only asset serving, legacy revision migration safety,
+  and configured-asset symlink containment.
 
 ## In progress
 
@@ -32,7 +34,7 @@ M1 — Sovereign canonical core and first visible vertical slice (in progress).
 ## Verification state
 
 - npm run verify: PASS on 2026-09-20 — format, lint, strict typecheck, and
-  29 tests passed across ten suites; two PostgreSQL integration tests skipped
+  31 tests passed across ten suites; two PostgreSQL integration tests skipped
   because TEST_DATABASE_URL is not set.
 - npm audit --omit=dev --json: PASS on 2026-09-20 — zero production
   vulnerabilities.
@@ -57,7 +59,8 @@ M1 — Sovereign canonical core and first visible vertical slice (in progress).
 - ADR-0002: editor and persistence library selection remains a phase gate.
 - PostgreSQL 18.6, Drizzle ORM/Kit, and pg remain the M1 persistence stack.
 - Browser deployment resolves a configurable POS_WEB_ASSET_ROOT rather than
-  assuming the TypeScript source directory structure.
+  assuming the TypeScript source directory structure, canonicalising the asset
+  root and rejecting escapes through asset symlinks.
 
 ## Exact next action
 

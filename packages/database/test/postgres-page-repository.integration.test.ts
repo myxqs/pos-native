@@ -8,6 +8,7 @@ import { afterAll, beforeAll, beforeEach, expect, test } from "vitest";
 
 import { createPage, updatePage } from "../../domain/src/page.ts";
 import { PostgresPageRepository } from "../src/postgres-page-repository.ts";
+import { PageRevisionConflictError } from "../src/page-repository.ts";
 import * as schema from "../src/schema.ts";
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
@@ -66,3 +67,61 @@ liveTest("persists create and update mutations in PostgreSQL", async () => {
   });
   await expect(repository.list()).resolves.toEqual([updated.page]);
 });
+liveTest(
+  "rejects a stale PostgreSQL page update without overwriting the latest page",
+  async () => {
+    if (!repository) throw new Error("live repository was not initialised");
+    const dependencies = {
+      newId: randomUUID,
+      now: () => new Date("2026-09-16T10:00:00.000Z"),
+    };
+    const created = createPage(
+      {
+        title: "Domain",
+        actorType: "user",
+        actorId: "integration-user",
+        source: "integration-test",
+      },
+      dependencies,
+    );
+    await repository.create(created);
+
+    const current = updatePage(
+      created.page,
+      1,
+      {
+        title: "Projects",
+        actorType: "user",
+        actorId: "integration-user",
+        source: "integration-test",
+      },
+      {
+        ...dependencies,
+        now: () => new Date("2026-09-16T11:00:00.000Z"),
+      },
+    );
+    const stale = updatePage(
+      created.page,
+      1,
+      {
+        title: "Stale title",
+        actorType: "user",
+        actorId: "integration-user",
+        source: "integration-test",
+      },
+      {
+        ...dependencies,
+        now: () => new Date("2026-09-16T12:00:00.000Z"),
+      },
+    );
+    await repository.update(current);
+
+    await expect(repository.update(stale)).rejects.toBeInstanceOf(
+      PageRevisionConflictError,
+    );
+    await expect(repository.getById(created.page.id)).resolves.toEqual({
+      page: current.page,
+      revisionNumber: 2,
+    });
+  },
+);

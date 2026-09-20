@@ -21,6 +21,13 @@ export interface PageRepository {
 type Mutation = CreatePageMutation | UpdatePageMutation;
 type FailurePoint = "before-revision" | "before-audit";
 
+export class PageRevisionConflictError extends Error {
+  constructor() {
+    super("page revision conflict");
+    this.name = "PageRevisionConflictError";
+  }
+}
+
 export class InMemoryPageRepository implements PageRepository {
   readonly #pages = new Map<NativeId, PersistedPage>();
   readonly #revisions: Revision<Page>[] = [];
@@ -44,7 +51,7 @@ export class InMemoryPageRepository implements PageRepository {
       throw new Error("page does not exist");
     }
     if (mutation.revision.revisionNumber !== current.revisionNumber + 1) {
-      throw new Error("page revision is stale");
+      throw new PageRevisionConflictError();
     }
     return this.#persist(mutation);
   }

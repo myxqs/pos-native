@@ -19,6 +19,13 @@ test("defines the M1 canonical entity tables with durable identity constraints",
   expect(email?.notNull).toBe(true);
   expect(email?.isUnique).toBe(true);
 
+  const pageColumns = getTableConfig(schemaModule.pages).columns;
+  const currentRevisionNumber = pageColumns.find(
+    (column) => column.name === "current_revision_number",
+  );
+  expect(currentRevisionNumber?.notNull).toBe(true);
+  expect(currentRevisionNumber?.hasDefault).toBe(true);
+
   expect(getTableConfig(schemaModule.pages).foreignKeys).toHaveLength(2);
   expect(getTableConfig(schemaModule.blocks).foreignKeys).toHaveLength(2);
 });

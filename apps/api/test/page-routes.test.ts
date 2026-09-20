@@ -10,6 +10,8 @@ function pageApp() {
     "33333333-3333-4333-8333-333333333333",
     "44444444-4444-4444-8444-444444444444",
     "55555555-5555-4555-8555-555555555555",
+    "66666666-6666-4666-8666-666666666666",
+    "77777777-7777-4777-8777-777777777777",
   ];
   return buildApp({
     pageRepository: new InMemoryPageRepository(),
@@ -39,7 +41,7 @@ test("creates, lists, reads, and updates a page through the versioned API", asyn
   expect(listed.statusCode).toBe(200);
   expect(listed.json().pages).toHaveLength(1);
 
-  const read = await app.inject({ method: "GET", url: `/api/v1/pages/${id}` });
+  const read = await app.inject({ method: "GET", url: "/api/v1/pages/" + id });
   expect(read.statusCode).toBe(200);
   expect(read.json()).toMatchObject({
     page: { id, title: "Domain" },
@@ -48,7 +50,8 @@ test("creates, lists, reads, and updates a page through the versioned API", asyn
 
   const updated = await app.inject({
     method: "PATCH",
-    url: `/api/v1/pages/${id}`,
+    url: "/api/v1/pages/" + id,
+    headers: { "if-match": "1" },
     payload: { title: "Projects" },
   });
   expect(updated.statusCode).toBe(200);
@@ -56,6 +59,51 @@ test("creates, lists, reads, and updates a page through the versioned API", asyn
     page: { id, title: "Projects" },
     revisionNumber: 2,
   });
+  await app.close();
+});
+
+test("rejects missing, malformed, and stale page revision preconditions", async () => {
+  const app = pageApp();
+  const created = await app.inject({
+    method: "POST",
+    url: "/api/v1/pages",
+    payload: { title: "Domain" },
+  });
+  const id = created.json().page.id as string;
+
+  const missing = await app.inject({
+    method: "PATCH",
+    url: "/api/v1/pages/" + id,
+    payload: { title: "Missing revision" },
+  });
+  expect(missing.statusCode).toBe(400);
+  expect(missing.json()).toEqual({ error: "invalid page revision" });
+
+  const malformed = await app.inject({
+    method: "PATCH",
+    url: "/api/v1/pages/" + id,
+    headers: { "if-match": "zero" },
+    payload: { title: "Malformed revision" },
+  });
+  expect(malformed.statusCode).toBe(400);
+  expect(malformed.json()).toEqual({ error: "invalid page revision" });
+
+  const current = await app.inject({
+    method: "PATCH",
+    url: "/api/v1/pages/" + id,
+    headers: { "if-match": "1" },
+    payload: { title: "Projects" },
+  });
+  expect(current.statusCode).toBe(200);
+
+  const stale = await app.inject({
+    method: "PATCH",
+    url: "/api/v1/pages/" + id,
+    headers: { "if-match": "1" },
+    payload: { title: "Stale title" },
+  });
+  expect(stale.statusCode).toBe(409);
+  expect(stale.json()).toEqual({ error: "page revision conflict" });
   await app.close();
 });
 

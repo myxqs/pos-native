@@ -8,7 +8,10 @@ import {
   type CreatePageDependencies,
   updatePage,
 } from "../../../packages/domain/src/page.ts";
-import type { PageRepository } from "../../../packages/database/src/page-repository.ts";
+import {
+  PageRevisionConflictError,
+  type PageRepository,
+} from "../../../packages/database/src/page-repository.ts";
 
 const pageBody = z
   .object({ title: z.string().trim().min(1).max(500) })
@@ -96,24 +99,46 @@ export function registerPageRoutes(
     }
     const id = parsePageId(request.params);
     if (!id) return reply.code(400).send({ error: "invalid page ID" });
+    const expectedRevisionNumber = parseExpectedRevision(
+      request.headers["if-match"],
+    );
+    if (!expectedRevisionNumber) {
+      return reply.code(400).send({ error: "invalid page revision" });
+    }
     const parsed = pageBody.safeParse(request.body);
     if (!parsed.success) {
       return reply.code(400).send({ error: "invalid page request" });
     }
     const current = await options.pageRepository.getById(id);
     if (!current) return reply.code(404).send({ error: "page not found" });
+    if (current.revisionNumber !== expectedRevisionNumber) {
+      return reply.code(409).send({ error: "page revision conflict" });
+    }
     const mutation = updatePage(
       current.page,
       current.revisionNumber,
       { ...parsed.data, ...authorization.actor },
       options.pageDependencies,
     );
-    await options.pageRepository.update(mutation);
+    try {
+      await options.pageRepository.update(mutation);
+    } catch (error) {
+      if (error instanceof PageRevisionConflictError) {
+        return reply.code(409).send({ error: "page revision conflict" });
+      }
+      throw error;
+    }
     return {
       page: mutation.page,
       revisionNumber: mutation.revision.revisionNumber,
     };
   });
+}
+
+function parseExpectedRevision(value: unknown): number | null {
+  if (typeof value !== "string" || !/^[1-9]\d*$/.test(value)) return null;
+  const revisionNumber = Number(value);
+  return Number.isSafeInteger(revisionNumber) ? revisionNumber : null;
 }
 
 function parsePageId(params: unknown) {

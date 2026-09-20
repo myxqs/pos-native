@@ -76,6 +76,9 @@ export const pages = pgTable(
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+    currentRevisionNumber: integer("current_revision_number")
+      .notNull()
+      .default(0),
     provenance: jsonb("provenance").$type<Record<string, string>>().notNull(),
   },
   (table) => [index("pages_parent_id_idx").on(table.parentId)],

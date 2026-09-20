@@ -75,6 +75,53 @@ test("updates the existing page and appends revision and audit history", async (
   expect(repository.auditFor(created.page.id)).toHaveLength(2);
 });
 
+test("rejects a stale update without changing current page history", async () => {
+  const repository = new InMemoryPageRepository();
+  const created = pageCreation();
+  await repository.create(created);
+
+  const current = updatePage(
+    created.page,
+    1,
+    {
+      title: "Projects",
+      actorType: "user",
+      actorId: "user-1",
+      source: "human-ui",
+    },
+    {
+      newId: () => "44444444-4444-4444-8444-444444444444",
+      now: () => new Date("2026-09-16T11:00:00.000Z"),
+    },
+  );
+  await repository.update(current);
+
+  const stale = updatePage(
+    created.page,
+    1,
+    {
+      title: "Stale title",
+      actorType: "user",
+      actorId: "user-1",
+      source: "human-ui",
+    },
+    {
+      newId: () => "55555555-5555-4555-8555-555555555555",
+      now: () => new Date("2026-09-16T12:00:00.000Z"),
+    },
+  );
+
+  await expect(repository.update(stale)).rejects.toThrow(
+    "page revision conflict",
+  );
+  await expect(repository.getById(created.page.id)).resolves.toEqual({
+    page: current.page,
+    revisionNumber: 2,
+  });
+  expect(repository.revisionsFor(created.page.id)).toHaveLength(2);
+  expect(repository.auditFor(created.page.id)).toHaveLength(2);
+});
+
 test("rolls back every write when a create mutation fails after the page write", async () => {
   const repository = new InMemoryPageRepository({
     failAt: "before-revision",

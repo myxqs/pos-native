@@ -1,4 +1,4 @@
-import { asc, desc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 import { asNativeId, type NativeId } from "../../domain/src/ids.ts";
@@ -7,7 +7,11 @@ import type {
   Page,
   UpdatePageMutation,
 } from "../../domain/src/page.ts";
-import type { PageRepository, PersistedPage } from "./page-repository.ts";
+import {
+  PageRevisionConflictError,
+  type PageRepository,
+  type PersistedPage,
+} from "./page-repository.ts";
 import { auditEvents, pages, revisions } from "./schema.ts";
 import type * as schema from "./schema.ts";
 
@@ -18,7 +22,9 @@ export class PostgresPageRepository implements PageRepository {
 
   async create(mutation: CreatePageMutation): Promise<Page> {
     return this.database.transaction(async (transaction) => {
-      await transaction.insert(pages).values(toPageRow(mutation.page));
+      await transaction
+        .insert(pages)
+        .values(toPageRow(mutation.page, mutation.revision.revisionNumber));
       await transaction.insert(revisions).values({
         id: mutation.revision.id,
         entityType: mutation.revision.entityType,
@@ -51,13 +57,22 @@ export class PostgresPageRepository implements PageRepository {
         .update(pages)
         .set({
           title: mutation.page.title,
+          currentRevisionNumber: mutation.revision.revisionNumber,
           updatedAt: new Date(mutation.page.modifiedAt),
           provenance: mutation.page.provenance,
         })
-        .where(eq(pages.id, mutation.page.id))
+        .where(
+          and(
+            eq(pages.id, mutation.page.id),
+            eq(
+              pages.currentRevisionNumber,
+              mutation.revision.revisionNumber - 1,
+            ),
+          ),
+        )
         .returning({ id: pages.id });
       if (rows.length !== 1) {
-        throw new Error("page does not exist");
+        throw new PageRevisionConflictError();
       }
       await transaction.insert(revisions).values({
         id: mutation.revision.id,
@@ -94,18 +109,14 @@ export class PostgresPageRepository implements PageRepository {
     const row = pageRows[0];
     if (!row) return null;
 
-    const revisionRows = await this.database
-      .select({ revisionNumber: revisions.revisionNumber })
-      .from(revisions)
-      .where(eq(revisions.entityId, id))
-      .orderBy(desc(revisions.revisionNumber))
-      .limit(1);
-    const revision = revisionRows[0];
-    if (!revision) {
+    if (row.currentRevisionNumber < 1) {
       throw new Error("page has no revision history");
     }
 
-    return { page: fromPageRow(row), revisionNumber: revision.revisionNumber };
+    return {
+      page: fromPageRow(row),
+      revisionNumber: row.currentRevisionNumber,
+    };
   }
 
   async list(): Promise<readonly Page[]> {
@@ -117,13 +128,17 @@ export class PostgresPageRepository implements PageRepository {
   }
 }
 
-function toPageRow(page: Page): typeof pages.$inferInsert {
+function toPageRow(
+  page: Page,
+  currentRevisionNumber: number,
+): typeof pages.$inferInsert {
   return {
     id: page.id,
     title: page.title,
     archivedAt: page.archivedAt ? new Date(page.archivedAt) : null,
     createdAt: new Date(page.createdAt),
     updatedAt: new Date(page.modifiedAt),
+    currentRevisionNumber,
     provenance: page.provenance,
   };
 }

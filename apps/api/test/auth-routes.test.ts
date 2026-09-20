@@ -6,6 +6,7 @@ import {
   InMemoryAuthenticationStore,
 } from "../../../packages/auth/src/session.ts";
 import { InMemoryPageRepository } from "../../../packages/database/src/page-repository.ts";
+import { logoutRequest } from "../../web/app.js";
 import { buildApp } from "../src/app.ts";
 
 async function authenticatedApp() {
@@ -110,4 +111,49 @@ test("returns the same generic response for invalid login credentials", async ()
   expect(response.statusCode).toBe(401);
   expect(response.json()).toEqual({ error: "invalid credentials" });
   await app.close();
+});
+
+test("browser logout helper completes a CSRF-bound Fastify logout without a JSON body", async () => {
+  const app = await authenticatedApp();
+  const login = await app.inject({
+    method: "POST",
+    url: "/api/v1/auth/login",
+    payload: {
+      email: "owner@example.test",
+      password: "correct horse battery staple",
+    },
+  });
+  const session = login.cookies.find((cookie) => cookie.name === "pos_session");
+  const csrf = login.cookies.find((cookie) => cookie.name === "pos_csrf");
+  const cookieHeader = `pos_session=${session?.value}; pos_csrf=${csrf?.value}`;
+  let receivedHeaders: HeadersInit | undefined;
+  const apiFetch: typeof fetch = async (_input, init) => {
+    receivedHeaders = init?.headers;
+    const response = await app.inject({
+      method: "POST",
+      url: "/api/v1/auth/logout",
+      headers: {
+        cookie: cookieHeader,
+        ...Object.fromEntries(new Headers(init?.headers).entries()),
+      },
+    });
+    return new Response(response.statusCode === 204 ? null : response.body, {
+      status: response.statusCode,
+    });
+  };
+
+  try {
+    await expect(
+      logoutRequest(apiFetch, csrf?.value ?? ""),
+    ).resolves.toBeUndefined();
+    expect(new Headers(receivedHeaders).get("content-type")).toBeNull();
+    const afterLogout = await app.inject({
+      method: "GET",
+      url: "/api/v1/auth/session",
+      headers: { cookie: cookieHeader },
+    });
+    expect(afterLogout.statusCode).toBe(401);
+  } finally {
+    await app.close();
+  }
 });

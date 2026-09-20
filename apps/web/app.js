@@ -4,7 +4,7 @@ export async function createPageRequest(apiFetch, title, csrfToken) {
   return requestJson(apiFetch, "/api/v1/pages", {
     body: JSON.stringify({ title }),
     credentials: "same-origin",
-    headers: unsafeHeaders(csrfToken),
+    headers: jsonHeaders(csrfToken),
     method: "POST",
   });
 }
@@ -19,7 +19,7 @@ export async function updatePageRequest(
   return requestJson(apiFetch, "/api/v1/pages/" + id, {
     body: JSON.stringify({ title }),
     credentials: "same-origin",
-    headers: unsafeHeaders(csrfToken, {
+    headers: jsonHeaders(csrfToken, {
       "if-match": String(revisionNumber),
     }),
     method: "PATCH",
@@ -43,12 +43,13 @@ export async function getSessionRequest(apiFetch) {
 }
 
 export async function loginRequest(apiFetch, email, password) {
-  await requestJson(apiFetch, "/api/v1/auth/login", {
+  const body = await requestJson(apiFetch, "/api/v1/auth/login", {
     body: JSON.stringify({ email, password }),
     credentials: "same-origin",
     headers: { "content-type": "application/json" },
     method: "POST",
   });
+  if (body?.authenticated !== true) throw new Error("NativePOS is unavailable");
 }
 
 export async function logoutRequest(apiFetch, csrfToken) {
@@ -56,18 +57,24 @@ export async function logoutRequest(apiFetch, csrfToken) {
 
   const response = await apiFetch("/api/v1/auth/logout", {
     credentials: "same-origin",
-    headers: unsafeHeaders(csrfToken),
+    headers: csrfHeaders(csrfToken),
     method: "POST",
   });
   if (!response.ok) throw new Error("Unable to sign out");
 }
 
-function unsafeHeaders(csrfToken, extraHeaders = {}) {
+function csrfHeaders(csrfToken, extraHeaders = {}) {
   if (!csrfToken) throw new Error("CSRF token is unavailable");
   return {
-    "content-type": "application/json",
     "x-pos-csrf": csrfToken,
     ...extraHeaders,
+  };
+}
+
+function jsonHeaders(csrfToken, extraHeaders = {}) {
+  return {
+    "content-type": "application/json",
+    ...csrfHeaders(csrfToken, extraHeaders),
   };
 }
 
@@ -129,6 +136,7 @@ export async function startBrowserApp(
   const status = requiredElement(documentObject, "#status");
   let selectedId = null;
   let selectedRevisionNumber = null;
+  let authenticationGeneration = 0;
 
   function showLogin(message = "") {
     loginPanel.hidden = false;
@@ -191,34 +199,55 @@ export async function startBrowserApp(
     );
   }
 
+  async function revealWorkspace(generation) {
+    await refresh();
+    if (generation !== authenticationGeneration) return false;
+    showWorkspace();
+    return true;
+  }
+
   loginForm.addEventListener("submit", async (event) => {
     event.preventDefault();
+    const generation = ++authenticationGeneration;
     loginSubmit.disabled = true;
+    let loginAccepted = false;
     try {
       await loginRequest(apiFetch, loginEmail.value, loginPassword.value);
+      loginAccepted = true;
+      if (generation !== authenticationGeneration) return;
+      if (!(await getSessionRequest(apiFetch))) {
+        showLogin("NativePOS is unavailable.");
+        return;
+      }
+      if (generation !== authenticationGeneration) return;
       loginPassword.value = "";
-      showWorkspace();
-      await refresh();
+      await revealWorkspace(generation);
     } catch (error) {
+      if (generation !== authenticationGeneration) return;
       showLogin(
-        isAuthenticationError(error)
+        !loginAccepted && isAuthenticationError(error)
           ? "Incorrect email or password."
-          : "NativePOS is unavailable.",
+          : loginAccepted && isAuthenticationError(error)
+            ? "Your session has ended. Please sign in again."
+            : "NativePOS is unavailable.",
       );
     } finally {
-      loginSubmit.disabled = false;
+      if (generation === authenticationGeneration) loginSubmit.disabled = false;
     }
   });
 
   logout.addEventListener("click", async () => {
+    const generation = ++authenticationGeneration;
     logout.disabled = true;
     try {
       await logoutRequest(apiFetch, csrfTokenFromDocument(documentObject));
-      showLogin();
+      if (generation === authenticationGeneration) showLogin();
     } catch {
-      status.textContent = "Could not sign out.";
+      if (generation === authenticationGeneration) {
+        status.textContent = "Could not sign out.";
+      }
     } finally {
-      logout.disabled = false;
+      if (generation === authenticationGeneration) logout.disabled = false;
     }
   });
 
@@ -262,12 +291,13 @@ export async function startBrowserApp(
   });
 
   showLogin();
+  const generation = ++authenticationGeneration;
   try {
-    if (await getSessionRequest(apiFetch)) {
-      showWorkspace();
-      await refresh();
-    }
+    if (!(await getSessionRequest(apiFetch))) return;
+    if (generation !== authenticationGeneration) return;
+    await revealWorkspace(generation);
   } catch (error) {
+    if (generation !== authenticationGeneration) return;
     if (isAuthenticationError(error)) {
       showLogin("Your session has ended. Please sign in again.");
     } else {

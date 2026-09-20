@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test, vi } from "vitest";
 
+import type { BrowserDocument, BrowserElement } from "../../web/app.js";
 import {
   createPageRequest,
   getSessionRequest,
@@ -14,34 +15,53 @@ import {
 } from "../../web/app.js";
 import { buildApp } from "../src/app.ts";
 
-class FakeElement {
-  children = [];
+class FakeElement implements BrowserElement {
+  children: FakeElement[] = [];
   disabled = false;
   hidden = false;
   textContent = "";
+  type = "";
   value = "";
-  #listeners = new Map();
+  #listeners = new Map<
+    string,
+    (event: { preventDefault(): void }) => void | Promise<void>
+  >();
 
-  addEventListener(type, listener) {
+  addEventListener(
+    type: string,
+    listener: (event: { preventDefault(): void }) => void | Promise<void>,
+  ): void {
     this.#listeners.set(type, listener);
   }
 
-  append(child) {
+  append(child: FakeElement): void {
     this.children.push(child);
   }
 
-  async emit(type) {
+  async emit(type: string): Promise<void> {
     const listener = this.#listeners.get(type);
     if (!listener) throw new Error(`No ${type} listener registered`);
     await listener({ preventDefault() {} });
   }
 
-  replaceChildren(...children) {
+  replaceChildren(...children: FakeElement[]): void {
     this.children = children;
   }
 }
 
-function createBrowserDocument() {
+function element(
+  elements: Record<string, FakeElement>,
+  selector: string,
+): FakeElement {
+  const result = elements[selector];
+  if (!result) throw new Error(`Missing ${selector}`);
+  return result;
+}
+
+function createBrowserDocument(): {
+  documentObject: BrowserDocument;
+  elements: Record<string, FakeElement>;
+} {
   const selectors = [
     "#login-panel",
     "#login-form",
@@ -60,16 +80,31 @@ function createBrowserDocument() {
     "#empty-state",
     "#status",
   ];
-  const elements = Object.fromEntries(
+  const elements: Record<string, FakeElement> = Object.fromEntries(
     selectors.map((selector) => [selector, new FakeElement()]),
   );
   return {
     documentObject: {
       cookie: "pos_csrf=csrf-token",
       createElement: () => new FakeElement(),
-      querySelector: (selector) => elements[selector] ?? null,
+      querySelector: (selector: string) => elements[selector] ?? null,
     },
     elements,
+  };
+}
+
+function createDeferred<T>(): {
+  promise: Promise<T>;
+  resolve(value: T): void;
+} {
+  let resolvePromise!: (value: T) => void;
+  return {
+    promise: new Promise<T>((resolve) => {
+      resolvePromise = resolve;
+    }),
+    resolve(value: T): void {
+      resolvePromise(value);
+    },
   };
 }
 
@@ -218,7 +253,6 @@ test("browser authentication requests use same-origin cookies and CSRF logout", 
   expect(apiFetch).toHaveBeenNthCalledWith(3, "/api/v1/auth/logout", {
     credentials: "same-origin",
     headers: {
-      "content-type": "application/json",
       "x-pos-csrf": "csrf-token",
     },
     method: "POST",
@@ -253,6 +287,32 @@ test("browser logout refuses to claim success without a CSRF cookie", async () =
   expect(apiFetch).not.toHaveBeenCalled();
 });
 
+test("browser login rejects malformed or untrusted success responses", async () => {
+  for (const body of [
+    { authenticated: false },
+    {},
+    { authenticated: "true" },
+  ]) {
+    const apiFetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    await expect(
+      loginRequest(apiFetch, "owner@example.test", "test-password"),
+    ).rejects.toThrow("NativePOS is unavailable");
+  }
+
+  const malformedResponse = vi
+    .fn()
+    .mockResolvedValue(new Response("{", { status: 200 }));
+  await expect(
+    loginRequest(malformedResponse, "owner@example.test", "test-password"),
+  ).rejects.toThrow("NativePOS is unavailable");
+});
+
 test("browser controller keeps workspace hidden before authentication", async () => {
   const { documentObject, elements } = createBrowserDocument();
   const apiFetch = vi
@@ -261,8 +321,8 @@ test("browser controller keeps workspace hidden before authentication", async ()
 
   await startBrowserApp(documentObject, apiFetch);
 
-  expect(elements["#login-panel"].hidden).toBe(false);
-  expect(elements["#workspace"].hidden).toBe(true);
+  expect(element(elements, "#login-panel").hidden).toBe(false);
+  expect(element(elements, "#workspace").hidden).toBe(true);
   expect(apiFetch.mock.calls.map(([url]) => url)).toEqual([
     "/api/v1/auth/session",
   ]);
@@ -280,20 +340,30 @@ test("browser controller reveals workspace only after successful login", async (
       }),
     )
     .mockResolvedValueOnce(
+      new Response(JSON.stringify({ authenticated: true }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    )
+    .mockResolvedValueOnce(
       new Response(JSON.stringify({ pages: [] }), {
         status: 200,
         headers: { "content-type": "application/json" },
       }),
     );
-  elements["#login-email"].value = "owner@example.test";
-  elements["#login-password"].value = "test-password";
+  element(elements, "#login-email").value = "owner@example.test";
+  element(elements, "#login-password").value = "test-password";
 
   await startBrowserApp(documentObject, apiFetch);
-  await elements["#login-form"].emit("submit");
+  await element(elements, "#login-form").emit("submit");
 
-  expect(elements["#login-panel"].hidden).toBe(true);
-  expect(elements["#workspace"].hidden).toBe(false);
-  expect(elements["#login-password"].value).toBe("");
+  expect(element(elements, "#login-panel").hidden).toBe(true);
+  expect(element(elements, "#workspace").hidden).toBe(false);
+  expect(element(elements, "#login-password").value).toBe("");
+  expect(apiFetch).toHaveBeenNthCalledWith(3, "/api/v1/auth/session", {
+    credentials: "same-origin",
+    method: "GET",
+  });
   expect(apiFetch).toHaveBeenLastCalledWith("/api/v1/pages", {
     credentials: "same-origin",
     method: "GET",
@@ -308,8 +378,8 @@ test("browser controller renders safe authentication failures", async () => {
 
   await startBrowserApp(unavailable.documentObject, unavailableFetch);
 
-  expect(unavailable.elements["#workspace"].hidden).toBe(true);
-  expect(unavailable.elements["#login-status"].textContent).toBe(
+  expect(element(unavailable.elements, "#workspace").hidden).toBe(true);
+  expect(element(unavailable.elements, "#login-status").textContent).toBe(
     "NativePOS is unavailable.",
   );
 
@@ -323,16 +393,112 @@ test("browser controller renders safe authentication failures", async () => {
         headers: { "content-type": "application/json" },
       }),
     );
-  invalidLogin.elements["#login-email"].value = "owner@example.test";
-  invalidLogin.elements["#login-password"].value = "test-password";
+  element(invalidLogin.elements, "#login-email").value = "owner@example.test";
+  element(invalidLogin.elements, "#login-password").value = "test-password";
 
   await startBrowserApp(invalidLogin.documentObject, invalidLoginFetch);
-  await invalidLogin.elements["#login-form"].emit("submit");
+  await element(invalidLogin.elements, "#login-form").emit("submit");
 
-  expect(invalidLogin.elements["#workspace"].hidden).toBe(true);
-  expect(invalidLogin.elements["#login-status"].textContent).toBe(
+  expect(element(invalidLogin.elements, "#workspace").hidden).toBe(true);
+  expect(element(invalidLogin.elements, "#login-status").textContent).toBe(
     "Incorrect email or password.",
   );
+});
+
+test("browser controller renders generic availability feedback for a rejected session probe", async () => {
+  const { documentObject, elements } = createBrowserDocument();
+  const apiFetch = vi.fn().mockRejectedValue(new Error("network details"));
+
+  await startBrowserApp(documentObject, apiFetch);
+
+  expect(element(elements, "#workspace").hidden).toBe(true);
+  expect(element(elements, "#login-status").textContent).toBe(
+    "NativePOS is unavailable.",
+  );
+});
+
+test("browser controller never opens the workspace for an untrusted login response", async () => {
+  const { documentObject, elements } = createBrowserDocument();
+  const apiFetch = vi
+    .fn()
+    .mockResolvedValueOnce(new Response(null, { status: 401 }))
+    .mockResolvedValueOnce(
+      new Response(JSON.stringify({ authenticated: false }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+  element(elements, "#login-email").value = "owner@example.test";
+  element(elements, "#login-password").value = "test-password";
+
+  await startBrowserApp(documentObject, apiFetch);
+  await element(elements, "#login-form").emit("submit");
+
+  expect(element(elements, "#workspace").hidden).toBe(true);
+  expect(element(elements, "#login-status").textContent).toBe(
+    "NativePOS is unavailable.",
+  );
+  expect(apiFetch.mock.calls.map(([url]) => url)).toEqual([
+    "/api/v1/auth/session",
+    "/api/v1/auth/login",
+  ]);
+});
+
+test("browser ignores a stale session probe after login and logout", async () => {
+  const { documentObject, elements } = createBrowserDocument();
+  const initialSession = createDeferred<Response>();
+  let sessionRequestCount = 0;
+  const apiFetch = vi.fn((url: string) => {
+    if (url === "/api/v1/auth/session") {
+      sessionRequestCount += 1;
+      return sessionRequestCount === 1
+        ? initialSession.promise
+        : Promise.resolve(
+            new Response(JSON.stringify({ authenticated: true }), {
+              status: 200,
+              headers: { "content-type": "application/json" },
+            }),
+          );
+    }
+    if (url === "/api/v1/auth/login") {
+      return Promise.resolve(
+        new Response(JSON.stringify({ authenticated: true }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      );
+    }
+    if (url === "/api/v1/pages") {
+      return Promise.resolve(
+        new Response(JSON.stringify({ pages: [] }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      );
+    }
+    if (url === "/api/v1/auth/logout") {
+      return Promise.resolve(new Response(null, { status: 204 }));
+    }
+    throw new Error(`Unexpected browser request: ${url}`);
+  });
+  element(elements, "#login-email").value = "owner@example.test";
+  element(elements, "#login-password").value = "test-password";
+
+  const starting = startBrowserApp(documentObject, apiFetch as typeof fetch);
+  await element(elements, "#login-form").emit("submit");
+  await element(elements, "#logout").emit("click");
+  initialSession.resolve(
+    new Response(JSON.stringify({ authenticated: true }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    }),
+  );
+  await starting;
+
+  expect(element(elements, "#workspace").hidden).toBe(true);
+  expect(
+    apiFetch.mock.calls.filter(([url]) => url === "/api/v1/pages"),
+  ).toHaveLength(1);
 });
 
 test("browser controller keeps the workspace visible if logout lacks CSRF proof", async () => {
@@ -354,9 +520,39 @@ test("browser controller keeps the workspace visible if logout lacks CSRF proof"
 
   await startBrowserApp(documentObject, apiFetch);
   documentObject.cookie = "";
-  await elements["#logout"].emit("click");
+  await element(elements, "#logout").emit("click");
 
-  expect(elements["#workspace"].hidden).toBe(false);
-  expect(elements["#status"].textContent).toBe("Could not sign out.");
+  expect(element(elements, "#workspace").hidden).toBe(false);
+  expect(element(elements, "#status").textContent).toBe("Could not sign out.");
   expect(apiFetch).toHaveBeenCalledTimes(2);
+});
+
+test("browser controller returns to login after confirmed logout", async () => {
+  const { documentObject, elements } = createBrowserDocument();
+  const apiFetch = vi
+    .fn()
+    .mockResolvedValueOnce(
+      new Response(JSON.stringify({ authenticated: true }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    )
+    .mockResolvedValueOnce(
+      new Response(JSON.stringify({ pages: [] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    )
+    .mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+  await startBrowserApp(documentObject, apiFetch);
+  await element(elements, "#logout").emit("click");
+
+  expect(element(elements, "#workspace").hidden).toBe(true);
+  expect(element(elements, "#login-panel").hidden).toBe(false);
+  expect(apiFetch).toHaveBeenLastCalledWith("/api/v1/auth/logout", {
+    credentials: "same-origin",
+    headers: { "x-pos-csrf": "csrf-token" },
+    method: "POST",
+  });
 });

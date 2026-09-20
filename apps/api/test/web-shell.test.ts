@@ -4,7 +4,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test, vi } from "vitest";
 
-import { createPageRequest, updatePageRequest } from "../../web/app.js";
+import {
+  createPageRequest,
+  getSessionRequest,
+  loginRequest,
+  logoutRequest,
+  updatePageRequest,
+} from "../../web/app.js";
 import { buildApp } from "../src/app.ts";
 
 test("serves an accessible NativePOS browser shell", async () => {
@@ -87,6 +93,7 @@ test("browser client sends create and update requests to versioned routes", asyn
     updatePageRequest(apiFetch, "page-1", "Projects", 1, "csrf-token"),
   ).resolves.toMatchObject({ page: { title: "Projects" } });
   expect(apiFetch).toHaveBeenNthCalledWith(1, "/api/v1/pages", {
+    credentials: "same-origin",
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -95,6 +102,7 @@ test("browser client sends create and update requests to versioned routes", asyn
     body: JSON.stringify({ title: "Domain" }),
   });
   expect(apiFetch).toHaveBeenNthCalledWith(2, "/api/v1/pages/page-1", {
+    credentials: "same-origin",
     method: "PATCH",
     headers: {
       "content-type": "application/json",
@@ -103,4 +111,78 @@ test("browser client sends create and update requests to versioned routes", asyn
     },
     body: JSON.stringify({ title: "Projects" }),
   });
+});
+
+test("browser authentication requests use same-origin cookies and CSRF logout", async () => {
+  const apiFetch = vi
+    .fn()
+    .mockResolvedValueOnce(
+      new Response(JSON.stringify({ authenticated: true }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    )
+    .mockResolvedValueOnce(
+      new Response(JSON.stringify({ authenticated: true }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    )
+    .mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+  await expect(getSessionRequest(apiFetch)).resolves.toBe(true);
+  await expect(
+    loginRequest(apiFetch, "owner@example.test", "test-password"),
+  ).resolves.toBeUndefined();
+  await expect(logoutRequest(apiFetch, "csrf-token")).resolves.toBeUndefined();
+
+  expect(apiFetch).toHaveBeenNthCalledWith(1, "/api/v1/auth/session", {
+    credentials: "same-origin",
+    method: "GET",
+  });
+  expect(apiFetch).toHaveBeenNthCalledWith(2, "/api/v1/auth/login", {
+    body: JSON.stringify({
+      email: "owner@example.test",
+      password: "test-password",
+    }),
+    credentials: "same-origin",
+    headers: { "content-type": "application/json" },
+    method: "POST",
+  });
+  expect(apiFetch).toHaveBeenNthCalledWith(3, "/api/v1/auth/logout", {
+    credentials: "same-origin",
+    headers: {
+      "content-type": "application/json",
+      "x-pos-csrf": "csrf-token",
+    },
+    method: "POST",
+  });
+});
+
+test("browser session probe rejects malformed or unavailable responses", async () => {
+  const apiFetch = vi
+    .fn()
+    .mockResolvedValueOnce(new Response(null, { status: 401 }))
+    .mockResolvedValueOnce(
+      new Response(JSON.stringify({ authenticated: false }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    )
+    .mockResolvedValueOnce(new Response(null, { status: 500 }));
+
+  await expect(getSessionRequest(apiFetch)).resolves.toBe(false);
+  await expect(getSessionRequest(apiFetch)).resolves.toBe(false);
+  await expect(getSessionRequest(apiFetch)).rejects.toThrow(
+    "NativePOS is unavailable",
+  );
+});
+
+test("browser logout refuses to claim success without a CSRF cookie", async () => {
+  const apiFetch = vi.fn();
+
+  await expect(logoutRequest(apiFetch, "")).rejects.toThrow(
+    "CSRF token is unavailable",
+  );
+  expect(apiFetch).not.toHaveBeenCalled();
 });

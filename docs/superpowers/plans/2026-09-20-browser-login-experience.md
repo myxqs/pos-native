@@ -68,7 +68,7 @@ master brief).
   `logoutRequest(apiFetch, csrfToken): Promise<void>` for the browser
   controller in Task 2.
 
-- [ ] **Step 1: Write failing tests for the authenticated request contract**
+- [x] **Step 1: Write failing tests for the authenticated request contract**
 
   Add exact assertions to `apps/api/test/web-shell.test.ts` that:
 
@@ -92,14 +92,14 @@ master brief).
   a 500 session response, and an assertion that `logoutRequest` rejects before
   calling fetch when passed an empty CSRF token.
 
-- [ ] **Step 2: Run the focused test to verify it fails**
+- [x] **Step 2: Run the focused test to verify it fails**
 
   Run: `npm test -- apps/api/test/web-shell.test.ts`
 
   Expected: FAIL because the three authentication request helpers do not yet
   exist.
 
-- [ ] **Step 3: Implement only the request helpers**
+- [x] **Step 3: Implement only the request helpers**
 
   In `apps/web/app.js`, add the exports from the interface block. Give every
   browser request `{ credentials: "same-origin" }`. Treat only a 200 JSON body
@@ -108,13 +108,13 @@ master brief).
   unexpected responses. Require a non-empty CSRF token before logout, send it
   through the existing `unsafeHeaders`, and accept only a successful response.
 
-- [ ] **Step 4: Run the focused test to verify it passes**
+- [x] **Step 4: Run the focused test to verify it passes**
 
   Run: `npm test -- apps/api/test/web-shell.test.ts`
 
   Expected: PASS.
 
-- [ ] **Step 5: Commit the tested request boundary**
+- [x] **Step 5: Commit the tested request boundary**
 
   ```bash
   git add apps/web/app.js apps/api/test/web-shell.test.ts

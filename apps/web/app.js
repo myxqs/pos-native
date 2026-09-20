@@ -2,6 +2,7 @@
 
 export async function createPageRequest(apiFetch, title, csrfToken) {
   return requestJson(apiFetch, "/api/v1/pages", {
+    credentials: "same-origin",
     method: "POST",
     headers: unsafeHeaders(csrfToken),
     body: JSON.stringify({ title }),
@@ -16,12 +17,49 @@ export async function updatePageRequest(
   csrfToken,
 ) {
   return requestJson(apiFetch, "/api/v1/pages/" + id, {
+    credentials: "same-origin",
     method: "PATCH",
     headers: unsafeHeaders(csrfToken, {
       "if-match": String(revisionNumber),
     }),
     body: JSON.stringify({ title }),
   });
+}
+
+export async function getSessionRequest(apiFetch) {
+  const response = await apiFetch("/api/v1/auth/session", {
+    credentials: "same-origin",
+    method: "GET",
+  });
+  if (response.status === 401) return false;
+  if (!response.ok) throw new Error("NativePOS is unavailable");
+
+  try {
+    const body = await response.json();
+    return body?.authenticated === true;
+  } catch {
+    throw new Error("NativePOS is unavailable");
+  }
+}
+
+export async function loginRequest(apiFetch, email, password) {
+  await requestJson(apiFetch, "/api/v1/auth/login", {
+    body: JSON.stringify({ email, password }),
+    credentials: "same-origin",
+    headers: { "content-type": "application/json" },
+    method: "POST",
+  });
+}
+
+export async function logoutRequest(apiFetch, csrfToken) {
+  if (!csrfToken) throw new Error("CSRF token is unavailable");
+
+  const response = await apiFetch("/api/v1/auth/logout", {
+    credentials: "same-origin",
+    headers: unsafeHeaders(csrfToken),
+    method: "POST",
+  });
+  if (!response.ok) throw new Error("Unable to sign out");
 }
 
 function unsafeHeaders(csrfToken, extraHeaders = {}) {

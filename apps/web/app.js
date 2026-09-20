@@ -2,10 +2,10 @@
 
 export async function createPageRequest(apiFetch, title, csrfToken) {
   return requestJson(apiFetch, "/api/v1/pages", {
-    credentials: "same-origin",
-    method: "POST",
-    headers: unsafeHeaders(csrfToken),
     body: JSON.stringify({ title }),
+    credentials: "same-origin",
+    headers: unsafeHeaders(csrfToken),
+    method: "POST",
   });
 }
 
@@ -17,12 +17,12 @@ export async function updatePageRequest(
   csrfToken,
 ) {
   return requestJson(apiFetch, "/api/v1/pages/" + id, {
+    body: JSON.stringify({ title }),
     credentials: "same-origin",
-    method: "PATCH",
     headers: unsafeHeaders(csrfToken, {
       "if-match": String(revisionNumber),
     }),
-    body: JSON.stringify({ title }),
+    method: "PATCH",
   });
 }
 
@@ -71,35 +71,93 @@ function unsafeHeaders(csrfToken, extraHeaders = {}) {
   };
 }
 
-function csrfTokenFromDocument() {
-  const cookie = document.cookie
+function csrfTokenFromDocument(documentObject) {
+  const cookie = documentObject.cookie
     .split("; ")
     .find((value) => value.startsWith("pos_csrf="));
   return cookie ? decodeURIComponent(cookie.slice("pos_csrf=".length)) : "";
 }
 
+function createRequestError(statusCode) {
+  const error = new Error("request failed");
+  error.statusCode = statusCode;
+  return error;
+}
+
+function isAuthenticationError(error) {
+  return error instanceof Error && error.statusCode === 401;
+}
+
+function requiredElement(documentObject, selector) {
+  const element = documentObject.querySelector(selector);
+  if (!element) throw new Error("NativePOS browser shell is unavailable");
+  return element;
+}
+
 async function requestJson(apiFetch, url, options) {
   const response = await apiFetch(url, options);
-  const body = await response.json();
-  if (!response.ok) throw new Error(body.error ?? "request failed");
+  let body;
+  try {
+    body = await response.json();
+  } catch {
+    if (!response.ok) throw createRequestError(response.status);
+    throw new Error("NativePOS is unavailable");
+  }
+  if (!response.ok) throw createRequestError(response.status);
   return body;
 }
 
-async function start() {
-  const form = document.querySelector("#create-page");
-  const newTitle = document.querySelector("#new-page-title");
-  const pageTitle = document.querySelector("#page-title");
-  const save = document.querySelector("#save-page");
-  const list = document.querySelector("#page-list");
-  const editor = document.querySelector("#editor");
-  const empty = document.querySelector("#empty-state");
-  const status = document.querySelector("#status");
+export async function startBrowserApp(
+  documentObject = document,
+  apiFetch = fetch,
+) {
+  const loginPanel = requiredElement(documentObject, "#login-panel");
+  const loginForm = requiredElement(documentObject, "#login-form");
+  const loginEmail = requiredElement(documentObject, "#login-email");
+  const loginPassword = requiredElement(documentObject, "#login-password");
+  const loginSubmit = requiredElement(documentObject, "#login-submit");
+  const loginStatus = requiredElement(documentObject, "#login-status");
+  const workspace = requiredElement(documentObject, "#workspace");
+  const logout = requiredElement(documentObject, "#logout");
+  const form = requiredElement(documentObject, "#create-page");
+  const newTitle = requiredElement(documentObject, "#new-page-title");
+  const pageTitle = requiredElement(documentObject, "#page-title");
+  const save = requiredElement(documentObject, "#save-page");
+  const list = requiredElement(documentObject, "#page-list");
+  const editor = requiredElement(documentObject, "#editor");
+  const empty = requiredElement(documentObject, "#empty-state");
+  const status = requiredElement(documentObject, "#status");
   let selectedId = null;
   let selectedRevisionNumber = null;
 
+  function showLogin(message = "") {
+    loginPanel.hidden = false;
+    workspace.hidden = true;
+    loginStatus.textContent = message;
+    selectedId = null;
+    selectedRevisionNumber = null;
+    editor.hidden = true;
+    empty.hidden = false;
+  }
+
+  function showWorkspace() {
+    loginPanel.hidden = true;
+    workspace.hidden = false;
+    loginStatus.textContent = "";
+  }
+
+  function handleWorkspaceFailure(error, fallback) {
+    if (isAuthenticationError(error)) {
+      showLogin("Your session has ended. Please sign in again.");
+      return;
+    }
+    status.textContent = fallback;
+  }
+
   async function selectPage(id) {
     try {
-      const result = await requestJson(fetch, "/api/v1/pages/" + id, {
+      const result = await requestJson(apiFetch, "/api/v1/pages/" + id, {
+        credentials: "same-origin",
         method: "GET",
       });
       selectedId = result.page.id;
@@ -108,19 +166,20 @@ async function start() {
       editor.hidden = false;
       empty.hidden = true;
     } catch (error) {
-      status.textContent =
-        error instanceof Error ? error.message : "Could not load page.";
+      handleWorkspaceFailure(error, "Could not load page.");
     }
   }
 
   async function refresh() {
-    const response = await fetch("/api/v1/pages");
-    const body = await response.json();
-    if (!response.ok) throw new Error(body.error ?? "could not load pages");
+    const body = await requestJson(apiFetch, "/api/v1/pages", {
+      credentials: "same-origin",
+      method: "GET",
+    });
+    if (!Array.isArray(body.pages)) throw new Error("NativePOS is unavailable");
     list.replaceChildren(
       ...body.pages.map((page) => {
-        const item = document.createElement("li");
-        const button = document.createElement("button");
+        const item = documentObject.createElement("li");
+        const button = documentObject.createElement("button");
         button.type = "button";
         button.textContent = page.title;
         button.addEventListener("click", () => {
@@ -132,13 +191,44 @@ async function start() {
     );
   }
 
+  loginForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    loginSubmit.disabled = true;
+    try {
+      await loginRequest(apiFetch, loginEmail.value, loginPassword.value);
+      loginPassword.value = "";
+      showWorkspace();
+      await refresh();
+    } catch (error) {
+      showLogin(
+        isAuthenticationError(error)
+          ? "Incorrect email or password."
+          : "NativePOS is unavailable.",
+      );
+    } finally {
+      loginSubmit.disabled = false;
+    }
+  });
+
+  logout.addEventListener("click", async () => {
+    logout.disabled = true;
+    try {
+      await logoutRequest(apiFetch, csrfTokenFromDocument(documentObject));
+      showLogin();
+    } catch {
+      status.textContent = "Could not sign out.";
+    } finally {
+      logout.disabled = false;
+    }
+  });
+
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     try {
       const result = await createPageRequest(
-        fetch,
+        apiFetch,
         newTitle.value,
-        csrfTokenFromDocument(),
+        csrfTokenFromDocument(documentObject),
       );
       newTitle.value = "";
       selectedId = result.page.id;
@@ -149,36 +239,41 @@ async function start() {
       status.textContent = "Page created.";
       await refresh();
     } catch (error) {
-      status.textContent =
-        error instanceof Error ? error.message : "Create failed.";
+      handleWorkspaceFailure(error, "Could not create page.");
     }
   });
 
   save.addEventListener("click", async () => {
-    if (!selectedId || !selectedRevisionNumber) return;
+    if (!selectedId || selectedRevisionNumber === null) return;
     try {
       const result = await updatePageRequest(
-        fetch,
+        apiFetch,
         selectedId,
         pageTitle.value,
         selectedRevisionNumber,
-        csrfTokenFromDocument(),
+        csrfTokenFromDocument(documentObject),
       );
       selectedRevisionNumber = result.revisionNumber;
       status.textContent = "Page saved.";
       await refresh();
     } catch (error) {
-      status.textContent =
-        error instanceof Error ? error.message : "Save failed.";
+      handleWorkspaceFailure(error, "Could not save page.");
     }
   });
 
+  showLogin();
   try {
-    await refresh();
+    if (await getSessionRequest(apiFetch)) {
+      showWorkspace();
+      await refresh();
+    }
   } catch (error) {
-    status.textContent =
-      error instanceof Error ? error.message : "NativePOS is unavailable.";
+    if (isAuthenticationError(error)) {
+      showLogin("Your session has ended. Please sign in again.");
+    } else {
+      showLogin("NativePOS is unavailable.");
+    }
   }
 }
 
-if (typeof document !== "undefined") void start();
+if (typeof document !== "undefined") void startBrowserApp();

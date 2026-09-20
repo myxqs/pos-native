@@ -9,9 +9,69 @@ import {
   getSessionRequest,
   loginRequest,
   logoutRequest,
+  startBrowserApp,
   updatePageRequest,
 } from "../../web/app.js";
 import { buildApp } from "../src/app.ts";
+
+class FakeElement {
+  children = [];
+  disabled = false;
+  hidden = false;
+  textContent = "";
+  value = "";
+  #listeners = new Map();
+
+  addEventListener(type, listener) {
+    this.#listeners.set(type, listener);
+  }
+
+  append(child) {
+    this.children.push(child);
+  }
+
+  async emit(type) {
+    const listener = this.#listeners.get(type);
+    if (!listener) throw new Error(`No ${type} listener registered`);
+    await listener({ preventDefault() {} });
+  }
+
+  replaceChildren(...children) {
+    this.children = children;
+  }
+}
+
+function createBrowserDocument() {
+  const selectors = [
+    "#login-panel",
+    "#login-form",
+    "#login-email",
+    "#login-password",
+    "#login-submit",
+    "#login-status",
+    "#workspace",
+    "#logout",
+    "#create-page",
+    "#new-page-title",
+    "#page-title",
+    "#save-page",
+    "#page-list",
+    "#editor",
+    "#empty-state",
+    "#status",
+  ];
+  const elements = Object.fromEntries(
+    selectors.map((selector) => [selector, new FakeElement()]),
+  );
+  return {
+    documentObject: {
+      cookie: "pos_csrf=csrf-token",
+      createElement: () => new FakeElement(),
+      querySelector: (selector) => elements[selector] ?? null,
+    },
+    elements,
+  };
+}
 
 test("serves an accessible NativePOS browser shell", async () => {
   const app = buildApp();
@@ -19,8 +79,14 @@ test("serves an accessible NativePOS browser shell", async () => {
 
   expect(response.statusCode).toBe(200);
   expect(response.headers["content-type"]).toContain("text/html");
-  expect(response.body).toContain("<h1>NativePOS</h1>");
-  expect(response.body).toContain('aria-label="Create page"');
+  expect(response.body).toContain('<h1 id="login-title">NativePOS</h1>');
+  expect(response.body).toContain('aria-label="Sign in to NativePOS"');
+  expect(response.body).toContain('autocomplete="username"');
+  expect(response.body).toContain('autocomplete="current-password"');
+  expect(response.body).toContain(
+    '<div id="workspace" class="app-shell" hidden>',
+  );
+  expect(response.body).toContain('id="logout"');
   await app.close();
 });
 
@@ -185,4 +251,112 @@ test("browser logout refuses to claim success without a CSRF cookie", async () =
     "CSRF token is unavailable",
   );
   expect(apiFetch).not.toHaveBeenCalled();
+});
+
+test("browser controller keeps workspace hidden before authentication", async () => {
+  const { documentObject, elements } = createBrowserDocument();
+  const apiFetch = vi
+    .fn()
+    .mockResolvedValue(new Response(null, { status: 401 }));
+
+  await startBrowserApp(documentObject, apiFetch);
+
+  expect(elements["#login-panel"].hidden).toBe(false);
+  expect(elements["#workspace"].hidden).toBe(true);
+  expect(apiFetch.mock.calls.map(([url]) => url)).toEqual([
+    "/api/v1/auth/session",
+  ]);
+});
+
+test("browser controller reveals workspace only after successful login", async () => {
+  const { documentObject, elements } = createBrowserDocument();
+  const apiFetch = vi
+    .fn()
+    .mockResolvedValueOnce(new Response(null, { status: 401 }))
+    .mockResolvedValueOnce(
+      new Response(JSON.stringify({ authenticated: true }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    )
+    .mockResolvedValueOnce(
+      new Response(JSON.stringify({ pages: [] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+  elements["#login-email"].value = "owner@example.test";
+  elements["#login-password"].value = "test-password";
+
+  await startBrowserApp(documentObject, apiFetch);
+  await elements["#login-form"].emit("submit");
+
+  expect(elements["#login-panel"].hidden).toBe(true);
+  expect(elements["#workspace"].hidden).toBe(false);
+  expect(elements["#login-password"].value).toBe("");
+  expect(apiFetch).toHaveBeenLastCalledWith("/api/v1/pages", {
+    credentials: "same-origin",
+    method: "GET",
+  });
+});
+
+test("browser controller renders safe authentication failures", async () => {
+  const unavailable = createBrowserDocument();
+  const unavailableFetch = vi
+    .fn()
+    .mockResolvedValue(new Response(null, { status: 500 }));
+
+  await startBrowserApp(unavailable.documentObject, unavailableFetch);
+
+  expect(unavailable.elements["#workspace"].hidden).toBe(true);
+  expect(unavailable.elements["#login-status"].textContent).toBe(
+    "NativePOS is unavailable.",
+  );
+
+  const invalidLogin = createBrowserDocument();
+  const invalidLoginFetch = vi
+    .fn()
+    .mockResolvedValueOnce(new Response(null, { status: 401 }))
+    .mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: "invalid credentials" }), {
+        status: 401,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+  invalidLogin.elements["#login-email"].value = "owner@example.test";
+  invalidLogin.elements["#login-password"].value = "test-password";
+
+  await startBrowserApp(invalidLogin.documentObject, invalidLoginFetch);
+  await invalidLogin.elements["#login-form"].emit("submit");
+
+  expect(invalidLogin.elements["#workspace"].hidden).toBe(true);
+  expect(invalidLogin.elements["#login-status"].textContent).toBe(
+    "Incorrect email or password.",
+  );
+});
+
+test("browser controller keeps the workspace visible if logout lacks CSRF proof", async () => {
+  const { documentObject, elements } = createBrowserDocument();
+  const apiFetch = vi
+    .fn()
+    .mockResolvedValueOnce(
+      new Response(JSON.stringify({ authenticated: true }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    )
+    .mockResolvedValueOnce(
+      new Response(JSON.stringify({ pages: [] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+  await startBrowserApp(documentObject, apiFetch);
+  documentObject.cookie = "";
+  await elements["#logout"].emit("click");
+
+  expect(elements["#workspace"].hidden).toBe(false);
+  expect(elements["#status"].textContent).toBe("Could not sign out.");
+  expect(apiFetch).toHaveBeenCalledTimes(2);
 });

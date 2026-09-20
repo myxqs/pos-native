@@ -8,9 +8,42 @@
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <div class="app-shell">
+    <main id="login-panel" class="login-panel" aria-labelledby="login-title">
+      <p class="eyebrow">Private workspace</p>
+      <h1 id="login-title">NativePOS</h1>
+      <p class="login-intro">
+        Sign in to your local personal operating system.
+      </p>
+      <form id="login-form" aria-label="Sign in to NativePOS">
+        <label for="login-email">Email</label>
+        <input
+          id="login-email"
+          autocomplete="username"
+          inputmode="email"
+          maxlength="320"
+          required
+          type="email"
+        />
+        <label for="login-password">Password</label>
+        <input
+          id="login-password"
+          autocomplete="current-password"
+          required
+          type="password"
+        />
+        <button id="login-submit" type="submit">Sign in</button>
+      </form>
+      <p id="login-status" role="status" aria-live="polite"></p>
+    </main>
+
+    <div id="workspace" class="app-shell" hidden>
       <aside>
-        <div class="brand">NativePOS</div>
+        <div class="sidebar-top">
+          <div class="brand">NativePOS</div>
+          <button id="logout" class="secondary-button" type="button">
+            Sign out
+          </button>
+        </div>
         <form id="create-page" aria-label="Create page">
           <label for="new-page-title">New page</label>
           <div class="form-row">

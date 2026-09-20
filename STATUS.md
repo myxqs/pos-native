@@ -34,16 +34,20 @@ M1 — Sovereign canonical core and first visible vertical slice (in progress).
   fail-closed handling of a concurrent unique-constraint conflict.
 - Independent persistent-runtime review finding fixed: failed web-shell
   composition closes the already-created persistence adapter before rethrowing.
+- Browser authentication UX is controller-tested: only an explicitly
+  authenticated restored session, or an affirmative login response followed by
+  a fresh session check, may load page data. Stale authentication responses are
+  ignored; sign-out is CSRF-bound and bodyless, and browser failures use fixed
+  safe text.
 
 ## In progress
 
-- Browser login UX, asset storage, backup/restore, and live database/restart
-  tests.
+- Asset storage, backup/restore, and live database/restart tests.
 
 ## Verification state
 
 - npm run verify: PASS on 2026-09-20 — format, lint, strict typecheck, and
-  43 tests passed across thirteen suites; two PostgreSQL integration tests skipped
+  56 tests passed across thirteen suites; two PostgreSQL integration tests skipped
   because TEST_DATABASE_URL is not set.
 - npm audit --omit=dev --json: PASS on 2026-09-20 — zero production
   vulnerabilities.
@@ -60,9 +64,9 @@ M1 — Sovereign canonical core and first visible vertical slice (in progress).
   be completed by a user-approved reboot; no reboot has been initiated here.
 - Without a PostgreSQL runtime, migrations, transactional persistence, restart
   persistence, account/session persistence, backup, and restore are unverified.
-- The browser shell is not yet an end-to-end login experience. The runtime
-  composition is code-complete but cannot be presented as persistent until it
-  runs against a live PostgreSQL database.
+- Browser login/session/logout flows have only synthetic controller coverage.
+  They cannot be presented as a persistent end-to-end experience until an owner
+  account and the runtime run against a live PostgreSQL database in a browser.
 - The live PostgreSQL suite is intentionally skipped until TEST_DATABASE_URL is
   supplied; this is an environment gate, not a passing integration result.
 - No owner account has been created. The local interactive bootstrap command is
@@ -83,10 +87,10 @@ M1 — Sovereign canonical core and first visible vertical slice (in progress).
 
 ## Exact next action
 
-Implement browser login UX using the existing session API, then continue M1
-asset and backup/restore design. After the user approves a Windows reboot and
-Docker starts, run migration, live integration, restart-persistence, owner
-bootstrap, and authenticated browser-flow acceptance tests.
+Implement M1 filesystem-backed asset storage, then backup/restore design. After
+the user approves a Windows reboot and Docker starts, run migration, live
+integration, restart-persistence, owner bootstrap, and authenticated
+browser-flow acceptance tests.
 
 ## Commands to resume
 
@@ -99,6 +103,7 @@ bootstrap, and authenticated browser-flow acceptance tests.
 
 - docs/specs/pos-native-v1.md
 - docs/superpowers/plans/2026-09-20-m1-shell-safety-hardening.md
+- docs/superpowers/plans/2026-09-20-browser-login-experience.md
 - docs/operations/development.md
 - apps/api/src/
 - packages/database/

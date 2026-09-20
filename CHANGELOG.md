@@ -24,6 +24,7 @@
 - Canonical web-asset root validation that rejects escaping asset symlinks.
 - Database-enforced single-owner slot with fail-closed concurrent-bootstrap
   protection.
+- Browser login, restored-session gating, and CSRF-bound sign-out controls.
 
 ### Changed
 
@@ -31,3 +32,9 @@
 - Runtime composition now closes persistence when web-asset validation fails.
 - Stale page writes return 409 rather than overwriting current state.
 - Lint excludes managed linked worktrees, preserving reproducible root checks.
+- Browser requests explicitly use same-origin credentials and render generic
+  authentication and availability errors.
+- Login now fails closed unless it receives an explicit authenticated response
+  and a fresh authenticated session check; stale authentication responses
+  cannot reopen the workspace, and bodyless logout does not send a JSON content
+  type.

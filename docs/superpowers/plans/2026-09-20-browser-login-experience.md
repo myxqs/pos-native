@@ -166,8 +166,7 @@ apiFetch)` inputs.
 
 - [x] **Step 5: Commit the authenticated browser experience**
 
-  The commit is created with this corrected plan after the final whitespace
-  check.
+  Commit: `eaceb6b feat: add browser login experience`.
 
 ### Task 3: Verification, status, and checkpoint review
 
@@ -183,13 +182,13 @@ apiFetch)` inputs.
 - Produces: a truthful handover that distinguishes synthetic controller
   coverage from still-blocked live PostgreSQL and browser acceptance.
 
-- [ ] **Step 1: Update status and changelog evidence**
+- [x] **Step 1: Update status and changelog evidence**
 
   Record browser login/session restore/logout controller coverage and its test
   count. Retain the blockers: no live owner account, no PostgreSQL runtime, no
   authenticated real-browser acceptance, and no migration/cutover authority.
 
-- [ ] **Step 2: Run full verification and repository checks**
+- [x] **Step 2: Run full verification and repository checks**
 
   Run:
 
@@ -205,28 +204,47 @@ apiFetch)` inputs.
   and whitespace checks succeed. Test source is absent from fresh build output;
   the two opt-in PostgreSQL tests remain skipped without `TEST_DATABASE_URL`.
 
-- [ ] **Step 3: Request independent review and repair any P1/P2 finding**
+  Result: PASS on 2026-09-20 — `npm run verify` reported 56 passing tests and
+  two intentionally skipped PostgreSQL tests; generation reported no schema
+  changes; the fresh build emitted no test source; the production dependency
+  audit reported zero vulnerabilities; and both Git whitespace checks passed.
+
+- [x] **Step 3: Request independent review and repair any P1/P2 finding**
 
   Supply the review package, this plan, status constraints, and review focus.
   For a valid P1/P2 finding, first add a minimal regression test, verify RED,
   apply the smallest fix, verify GREEN and the full suite, then record the
   repair in this plan.
 
-- [ ] **Step 4: Commit the evidence checkpoint**
+  The first independent review found three Important defects. Each was repaired
+  test-first: the logout helper no longer supplies `content-type` without a
+  body and now passes through Fastify; login requires `{ authenticated: true }`
+  and a follow-up session check before loading pages; and an authentication
+  generation prevents stale session probes from reopening the workspace after
+  login or logout. Extra regression coverage now covers malformed/untrusted
+  login results, rejected session probes, and controller logout. The focused
+  repair suite passed 20/20, the full suite passed as recorded above, and the
+  post-fix independent review found no Important or Critical issue.
+
+- [x] **Step 4: Commit the evidence checkpoint**
 
   ```bash
   git add STATUS.md CHANGELOG.md docs/superpowers/plans/2026-09-20-browser-login-experience.md
   git commit -m "docs: record browser login verification"
   ```
 
+  Commit: `docs: record browser login verification`.
+
 ## Plan self-review
 
-- Coverage: session restoration, absent/malformed sessions, login, logout,
-  shell accessibility, same-origin cookies, and generic failure messages each
-  have an owning test.
+- Coverage: session restoration, absent/malformed sessions, explicit and
+  malformed login results, stale authentication responses, rejected probes,
+  logout, shell accessibility, same-origin cookies, and generic failure
+  messages each have an owning test.
 - Interfaces: Task 2 consumes the exact Task 1 export names; Task 3 changes no
   runtime interface.
 - Scope: this plan does not add registration, password reset, MFA, PWA/offline
   support, database migration, backup, or any Notion operation.
-- Review focus: every listed input class has explicit Task 1 or Task 2 test
-  coverage.
+- Review focus: every listed browser input class has explicit focused coverage;
+  post-fix review found no Important or Critical issue. This remains synthetic
+  controller coverage, not live browser or PostgreSQL acceptance.

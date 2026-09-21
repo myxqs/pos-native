@@ -44,9 +44,21 @@ export interface NormalisedAssetMetadata {
 }
 
 const STORAGE_KEY_PREFIX = "asset-";
-const UNSAFE_FILENAME_PATTERN = /[\\/\u0000-\u001f\u007f]/u;
 const MIME_TOKEN = "[!#$%&'*+.^_`|~0-9A-Za-z-]+";
 const MIME_TYPE_PATTERN = new RegExp(`^${MIME_TOKEN}/${MIME_TOKEN}$`, "u");
+
+function hasUnsafeFilenameCharacter(value: string): boolean {
+  return Array.from(value).some((character) => {
+    const codePoint = character.codePointAt(0);
+    return (
+      character === "/" ||
+      character === "\\" ||
+      codePoint === undefined ||
+      codePoint <= 0x1f ||
+      codePoint === 0x7f
+    );
+  });
+}
 
 export function asAssetStorageKey(value: string): AssetStorageKey {
   if (typeof value !== "string" || !value.startsWith(STORAGE_KEY_PREFIX)) {
@@ -75,7 +87,7 @@ export function normaliseAssetMetadata(
   if (
     originalFilename.length === 0 ||
     originalFilename.length > 255 ||
-    UNSAFE_FILENAME_PATTERN.test(originalFilename)
+    hasUnsafeFilenameCharacter(originalFilename)
   ) {
     throw new ValidationError("asset filename is invalid");
   }
@@ -93,14 +105,12 @@ export function validateAssetByteSize(
   maxBytes: number,
 ): number {
   if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) {
-    throw new ValidationError("asset byte limit must be a positive safe integer");
+    throw new ValidationError(
+      "asset byte limit must be a positive safe integer",
+    );
   }
 
-  if (
-    !Number.isSafeInteger(byteSize) ||
-    byteSize < 0 ||
-    byteSize > maxBytes
-  ) {
+  if (!Number.isSafeInteger(byteSize) || byteSize < 0 || byteSize > maxBytes) {
     throw new ValidationError("asset byte size exceeds the configured limit");
   }
 

@@ -41,11 +41,17 @@ export class PostgresPageRepository implements PageRepository {
         action: mutation.audit.action,
         targetType: mutation.audit.targetType,
         targetId: mutation.audit.targetId,
+        requestId: mutation.audit.requestId ?? null,
+        idempotencyKey: mutation.audit.idempotencyKey ?? null,
         source: mutation.audit.source,
+        reason: mutation.audit.reason ?? null,
         before: mutation.audit.before
           ? toJsonObject(mutation.audit.before)
           : null,
         after: toJsonObject(mutation.audit.after),
+        metadata: mutation.audit.metadata
+          ? toJsonObject(mutation.audit.metadata)
+          : null,
       });
       return mutation.page;
     });
@@ -90,11 +96,17 @@ export class PostgresPageRepository implements PageRepository {
         action: mutation.audit.action,
         targetType: mutation.audit.targetType,
         targetId: mutation.audit.targetId,
+        requestId: mutation.audit.requestId ?? null,
+        idempotencyKey: mutation.audit.idempotencyKey ?? null,
         source: mutation.audit.source,
+        reason: mutation.audit.reason ?? null,
         before: mutation.audit.before
           ? toJsonObject(mutation.audit.before)
           : null,
         after: toJsonObject(mutation.audit.after),
+        metadata: mutation.audit.metadata
+          ? toJsonObject(mutation.audit.metadata)
+          : null,
       });
       return mutation.page;
     });

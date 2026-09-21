@@ -34,16 +34,16 @@ export interface Page {
 
 export interface CreatePageMutation {
   readonly page: Page;
-  readonly revision: Revision<Page>;
-  readonly audit: AuditEvent<Page>;
+  readonly revision: Revision<Page, "page">;
+  readonly audit: AuditEvent<Page, "page", "page.created">;
 }
 
 export type UpdatePageCommand = CreatePageCommand;
 
 export interface UpdatePageMutation {
   readonly page: Page;
-  readonly revision: Revision<Page>;
-  readonly audit: AuditEvent<Page>;
+  readonly revision: Revision<Page, "page">;
+  readonly audit: AuditEvent<Page, "page", "page.updated">;
 }
 
 export function createPage(

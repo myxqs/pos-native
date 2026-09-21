@@ -48,24 +48,34 @@ M1 — Sovereign canonical core and first visible vertical slice (in progress).
   checksums, source-receipt verification, manifest-last publication, bounded
   regular-file reads, no-overwrite create/restore targets, and clean-directory
   restore verification.
+- Canonical asset metadata foundation: generated native asset identities and
+  opaque keys, bounded provenance, metadata-only creation revision/audit
+  envelopes, in-memory rollback-shaped repository coverage, a PostgreSQL
+  transaction adapter, and an internal service that cross-checks staged
+  receipts against its owned byte snapshot before explicit expected-key
+  compensation.
 
 ## In progress
 
-- PostgreSQL asset metadata/audit integration and live database/restart tests.
+- The next product-visible M1 slice: make the editor foundation decision with
+  current primary-source evidence, record the ADR, and establish a canonical
+  block-document persistence contract that a usable nested-page editor can
+  consume. Live PostgreSQL acceptance remains independently blocked.
 
 ## Verification state
 
-- npm run verify: PASS on 2026-09-21 — format, lint, strict typecheck, and
-  104 tests passed across eighteen suites; two PostgreSQL integration tests
-  skipped because TEST_DATABASE_URL is not set. Asset and backup filesystem
-  tests used isolated temporary roots and exercised the Windows symbolic-link
-  refusal path.
+- npm run verify: PASS on 2026-09-21 — formatting, lint, strict typecheck, and
+  140 synthetic tests passed across twenty-one suites; four PostgreSQL
+  integration tests skipped because TEST_DATABASE_URL is not set. Asset and
+  backup filesystem tests used isolated temporary roots and exercised the
+  Windows symbolic-link refusal path.
+- npm run db:generate: PASS on 2026-09-21 — no ungenerated schema changes.
+- npm run build -- --listEmittedFiles: PASS on 2026-09-21 — compiled source
+  only; no test source was emitted, and runtime configuration remains
+  fail-closed.
 - npm audit --omit=dev --json: PASS on 2026-09-21 — zero production
   vulnerabilities.
-- npm run db:generate: PASS on 2026-09-21 — no ungenerated schema changes.
-- npm run build: PASS on 2026-09-21 — compiled API and backup source start only
-  from emitted JavaScript; compilation excludes test source and the entry point
-  fails closed without runtime configuration.
+- git diff --check: PASS on 2026-09-21 — no whitespace errors.
 - Docker client 29.8.0 and Compose 5.5.1 are present, but the Docker Desktop
   Linux-engine pipe is absent, so no database container has been started.
 - `docker compose config` remains intentionally blocked because the untracked
@@ -85,10 +95,11 @@ M1 — Sovereign canonical core and first visible vertical slice (in progress).
 - No owner account has been created. The local interactive bootstrap command is
   implemented but must wait for a live database plus the owner's chosen email
   and password.
-- The filesystem asset store and backup directory format are internal
-  foundations only. No PostgreSQL asset metadata/audit transaction,
-  upload/download API, browser attachment flow, live database dump/restore,
-  or production backup rehearsal exists yet.
+- The filesystem asset store, asset metadata service, and backup directory
+  format are internal foundations only. A PostgreSQL metadata/audit transaction
+  adapter exists but has no live proof. No upload/download API, browser
+  attachment flow, live database dump/restore, or production backup rehearsal
+  exists yet.
 - Filesystem behavior is verified on this Windows host. Linux execution,
   deployment ACLs, crash recovery, and startup orphan reconciliation remain
   future deployment/operations acceptance work.
@@ -110,15 +121,20 @@ M1 — Sovereign canonical core and first visible vertical slice (in progress).
 - ADR-0006: backups use versioned manifests and fixed directory artifacts with
   source-port separation, checksums, no-overwrite restore, and a synthetic
   clean filesystem proof before a live PostgreSQL adapter is attempted.
+- ADR-0007: asset bytes are staged under a generated opaque key, then matched
+  against a service-owned snapshot before one metadata/revision/audit
+  repository transaction; any post-stage failure uses expected-key-only
+  compensation and is not presented as atomicity.
 
 ## Exact next action
 
-Design and implement the next coherent M1 asset-metadata service/repository
-slice, coupling staged filesystem receipts to the existing `assets` table,
-provenance, audit, and rollback semantics without claiming a live transaction
-until PostgreSQL is available. After the user approves a Windows reboot and
-Docker starts, run migration, live integration, restart-persistence, owner
-bootstrap, authenticated browser-flow, and live backup/restore acceptance tests.
+Evaluate and select a maintained open-source editor foundation using current
+primary-source evidence, record the decision, then implement the canonical
+block-document contract and persistence slice that a usable nested-page editor
+will consume. Do not expose asset upload or begin Notion work. After the user
+approves a Windows reboot and Docker starts, run migration, live asset-metadata
+integration, restart-persistence, owner bootstrap, authenticated browser-flow,
+and live backup/restore acceptance tests.
 
 ## Commands to resume
 
@@ -134,7 +150,9 @@ bootstrap, authenticated browser-flow, and live backup/restore acceptance tests.
 - docs/superpowers/plans/2026-09-20-browser-login-experience.md
 - docs/superpowers/plans/2026-09-20-asset-storage-foundation.md
 - docs/superpowers/plans/2026-09-21-backup-restore-proof.md
+- docs/superpowers/plans/2026-09-21-asset-metadata-service.md
 - docs/operations/backup-restore.md
+- docs/operations/assets.md
 - docs/operations/development.md
 - apps/api/src/
 - packages/assets/

@@ -33,6 +33,10 @@
 - Versioned `pos-native-backup` manifests with canonical checksums, fixed
   database/asset artifact paths, source-receipt validation, and synthetic
   filesystem create/list/verify/clean-restore proof.
+- Canonical asset-metadata domain/service foundation with native identities,
+  bounded provenance, metadata-only revision/audit records, transactional
+  repository adapters, staged receipt checksum/size cross-checking, and
+  explicit expected-key filesystem compensation.
 
 ### Changed
 

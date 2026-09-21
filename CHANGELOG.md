@@ -25,6 +25,11 @@
 - Database-enforced single-owner slot with fail-closed concurrent-bootstrap
   protection.
 - Browser login, restored-session gating, and CSRF-bound sign-out controls.
+- Portable asset-storage contracts with opaque native-ID storage keys, validated
+  filename/MIME metadata, configurable byte limits, and SHA-256 receipts.
+- Filesystem-backed asset staging with canonical-root containment, atomic
+  no-overwrite publication, bounded reads, integrity verification, symlink
+  refusal, and idempotent regular-file rollback.
 
 ### Changed
 
@@ -38,3 +43,6 @@
   and a fresh authenticated session check; stale authentication responses
   cannot reopen the workspace, and bodyless logout does not send a JSON content
   type.
+- Filesystem asset reads now bind validation and bounded reads to one file
+  handle, staging owns a byte snapshot before asynchronous work, and successful
+  fallback cleanup no longer reports a false failure after publication.

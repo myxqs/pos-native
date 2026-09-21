@@ -69,7 +69,7 @@ and `crypto`, Vitest 5, Prettier, ESLint.
   `normaliseAssetMetadata`, `validateAssetByteSize`, and
   `DEFAULT_MAX_ASSET_BYTES` for Task 2.
 
-- [ ] **Step 1: Write failing contract and validation tests**
+- [x] **Step 1: Write failing contract and validation tests**
 
   Create `packages/assets/test/asset-storage.test.ts` with fixed native IDs and
   assertions that pin the exact public boundary:
@@ -131,7 +131,7 @@ and `crypto`, Vitest 5, Prettier, ESLint.
   });
   ```
 
-- [ ] **Step 2: Run the contract test to verify it fails**
+- [x] **Step 2: Run the contract test to verify it fails**
 
   Run:
 
@@ -142,7 +142,7 @@ and `crypto`, Vitest 5, Prettier, ESLint.
   Expected: FAIL because `packages/assets/src/asset-storage.ts` does not yet
   exist.
 
-- [ ] **Step 3: Implement the small portable contract**
+- [x] **Step 3: Implement the small portable contract**
 
   Create `packages/assets/src/asset-storage.ts` with this exact public shape:
 
@@ -191,7 +191,7 @@ filename, reject empty/over-255-code-unit names plus`/`, `\\`, NUL, DEL,
 and C0 controls, then trim/lowercase the MIME value and accept exactly one
 `type/subtype`token with no whitespace or parameter. Implement`validateAssetByteSize(byteSize, maxBytes)`with positive safe-integer`maxBytes`, non-negative safe-integer `byteSize`, and an inclusive maximum.
 
-- [ ] **Step 4: Run focused contract tests and strict typecheck**
+- [x] **Step 4: Run focused contract tests and strict typecheck**
 
   Run:
 
@@ -202,7 +202,7 @@ and C0 controls, then trim/lowercase the MIME value and accept exactly one
 
   Expected: all focused assertions pass and strict TypeScript reports no error.
 
-- [ ] **Step 5: Commit the contract boundary**
+- [x] **Step 5: Commit the contract boundary**
 
   ```bash
   git add packages/assets/src/asset-storage.ts packages/assets/test/asset-storage.test.ts
@@ -223,7 +223,7 @@ and C0 controls, then trim/lowercase the MIME value and accept exactly one
 - Produces: `FilesystemAssetStore.create(root, options?)`, which implements
   `AssetStore` for the later metadata service.
 
-- [ ] **Step 1: Write failing isolated-filesystem tests**
+- [x] **Step 1: Write failing isolated-filesystem tests**
 
   Create an `afterEach` cleanup registry using `mkdtemp`, `rm`, and
   `tmpdir`. Add tests with `TextEncoder` and fixed native IDs that prove:
@@ -264,7 +264,7 @@ and C0 controls, then trim/lowercase the MIME value and accept exactly one
   6. call `discard` twice for a staged regular file and assert both calls
      complete and the root no longer contains the key.
 
-- [ ] **Step 2: Run the filesystem tests to verify they fail**
+- [x] **Step 2: Run the filesystem tests to verify they fail**
 
   Run:
 
@@ -274,7 +274,7 @@ and C0 controls, then trim/lowercase the MIME value and accept exactly one
 
   Expected: FAIL because `FilesystemAssetStore` does not exist.
 
-- [ ] **Step 3: Implement `FilesystemAssetStore` without filesystem escapes**
+- [x] **Step 3: Implement `FilesystemAssetStore` without filesystem escapes**
 
   Implement an async `create` factory and private canonical-root operations:
 
@@ -316,7 +316,7 @@ and C0 controls, then trim/lowercase the MIME value and accept exactly one
   `unlink`; reject directories and symlinks. Never log bytes, paths outside the
   configured root, filenames, or hashes.
 
-- [ ] **Step 4: Run focused filesystem and contract tests**
+- [x] **Step 4: Run focused filesystem and contract tests**
 
   Run:
 
@@ -329,7 +329,7 @@ and C0 controls, then trim/lowercase the MIME value and accept exactly one
   Expected: all asset tests pass; any symlink case is either exercised or shown
   as one explicit host-capability skip; lint and strict typecheck pass.
 
-- [ ] **Step 5: Commit the filesystem implementation**
+- [x] **Step 5: Commit the filesystem implementation**
 
   ```bash
   git add packages/assets/src/filesystem-asset-store.ts packages/assets/test/filesystem-asset-store.test.ts
@@ -353,7 +353,7 @@ and C0 controls, then trim/lowercase the MIME value and accept exactly one
   evidence from unrun live PostgreSQL, API, browser, backup/restore, and
   migration acceptance.
 
-- [ ] **Step 1: Update status and changelog evidence**
+- [x] **Step 1: Update status and changelog evidence**
 
   Record the portable `AssetStore`, opaque keys, canonical root, bounded input
   and reads, atomic no-overwrite write path, SHA-256 verification, and the
@@ -362,7 +362,7 @@ and C0 controls, then trim/lowercase the MIME value and accept exactly one
   and Notion migration remain unverified or out of scope. Set the exact next
   action to the next coherent M1 backup-manifest/restore-proof slice.
 
-- [ ] **Step 2: Run full verification and repository checks**
+- [x] **Step 2: Run full verification and repository checks**
 
   Run:
 
@@ -379,7 +379,7 @@ and C0 controls, then trim/lowercase the MIME value and accept exactly one
   the production build emits no test source. The two opt-in PostgreSQL tests
   remain skipped without `TEST_DATABASE_URL`.
 
-- [ ] **Step 3: Request independent review and repair any Important finding**
+- [x] **Step 3: Request independent review and repair any Important finding**
 
   Give the reviewer the design, this plan, relevant source/tests, and these
   constraints: no external storage/API/migration, no unsafe path handling, and
@@ -388,12 +388,26 @@ and C0 controls, then trim/lowercase the MIME value and accept exactly one
   implement one focused repair, then rerun focused and full verification before
   recording the repair.
 
-- [ ] **Step 4: Commit the evidence checkpoint**
+- [x] **Step 4: Commit the evidence checkpoint**
 
   ```bash
   git add STATUS.md CHANGELOG.md docs/superpowers/plans/2026-09-20-asset-storage-foundation.md
   git commit -m "docs: record asset storage verification"
   ```
+
+## Independent review repairs
+
+- [x] Bind file identity, regular-file validation, size validation, and bounded
+      reads to one opened handle; deterministic replacement and growth tests
+      failed before the repair and pass after it.
+- [x] Copy caller-owned bytes before the first asynchronous boundary and use the
+      owned snapshot for the write, size, and checksum; the mutation regression
+      failed before the repair and passes after it.
+- [x] Treat a failed temporary unlink followed by successful fallback cleanup as
+      successful publication; the injected cleanup regression failed before the
+      repair and passes after it.
+- [x] Full post-repair suite: 85 tests passed; the two live PostgreSQL tests
+      remained explicitly skipped because `TEST_DATABASE_URL` is absent.
 
 ## Plan self-review
 

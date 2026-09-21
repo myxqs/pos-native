@@ -39,24 +39,32 @@ M1 — Sovereign canonical core and first visible vertical slice (in progress).
   a fresh session check, may load page data. Stale authentication responses are
   ignored; sign-out is CSRF-bound and bodyless, and browser failures use fixed
   safe text.
+- Portable asset storage contract and isolated filesystem implementation:
+  generated opaque native keys, validated filename/MIME metadata, bounded input
+  and reads, canonical root containment, atomic no-overwrite publication,
+  SHA-256 receipts, integrity verification, and regular-file-only rollback.
 
 ## In progress
 
-- Asset storage, backup/restore, and live database/restart tests.
+- Backup/restore design and proof, PostgreSQL asset metadata integration, and
+  live database/restart tests.
 
 ## Verification state
 
-- npm run verify: PASS on 2026-09-20 — format, lint, strict typecheck, and
-  56 tests passed across thirteen suites; two PostgreSQL integration tests skipped
-  because TEST_DATABASE_URL is not set.
-- npm audit --omit=dev --json: PASS on 2026-09-20 — zero production
+- npm run verify: PASS on 2026-09-21 — format, lint, strict typecheck, and
+  85 tests passed across sixteen suites; two PostgreSQL integration tests skipped
+  because TEST_DATABASE_URL is not set. Filesystem tests used isolated temporary
+  roots and exercised the Windows symbolic-link refusal path.
+- npm audit --omit=dev --json: PASS on 2026-09-21 — zero production
   vulnerabilities.
-- npm run db:generate: PASS on 2026-09-20 — no ungenerated schema changes.
-- npm run build: PASS on 2026-09-20 — compiled API starts only from emitted
+- npm run db:generate: PASS on 2026-09-21 — no ungenerated schema changes.
+- npm run build: PASS on 2026-09-21 — compiled API starts only from emitted
   JavaScript; compilation excludes test source and the entry point fails closed
   without runtime configuration.
 - Docker client 29.8.0 and Compose 5.5.1 are present, but the Docker Desktop
   Linux-engine pipe is absent, so no database container has been started.
+- `docker compose config` remains intentionally blocked because the untracked
+  `.env` database values do not exist; no credentials were invented or written.
 
 ## Known failures / blockers
 
@@ -72,6 +80,12 @@ M1 — Sovereign canonical core and first visible vertical slice (in progress).
 - No owner account has been created. The local interactive bootstrap command is
   implemented but must wait for a live database plus the owner's chosen email
   and password.
+- The filesystem asset store is an internal byte-storage boundary only. No
+  PostgreSQL asset metadata/audit transaction, upload/download API, browser
+  attachment flow, or backup/restore proof exists yet.
+- Filesystem behavior is verified on this Windows host. Linux execution,
+  deployment ACLs, crash recovery, and startup orphan reconciliation remain
+  future deployment/operations acceptance work.
 
 ## Key decisions
 
@@ -84,13 +98,18 @@ M1 — Sovereign canonical core and first visible vertical slice (in progress).
 - API runtime uses an emitted JavaScript build rather than Node's experimental
   TypeScript execution mode; its listener defaults to loopback and secure
   cookies are always enabled.
+- ADR-0005: filesystem asset bytes use opaque native-ID keys below a
+  canonicalised configured root; filenames are metadata only, and rollback-only
+  discard does not create a user deletion API.
 
 ## Exact next action
 
-Implement M1 filesystem-backed asset storage, then backup/restore design. After
-the user approves a Windows reboot and Docker starts, run migration, live
-integration, restart-persistence, owner bootstrap, and authenticated
-browser-flow acceptance tests.
+Design and implement the next coherent M1 backup-manifest/restore-proof slice,
+covering PostgreSQL plus filesystem asset integrity without claiming a live
+restore until the database runtime is available. After the user approves a
+Windows reboot and Docker starts, run migration, live integration,
+restart-persistence, owner bootstrap, and authenticated browser-flow acceptance
+tests.
 
 ## Commands to resume
 
@@ -104,6 +123,9 @@ browser-flow acceptance tests.
 - docs/specs/pos-native-v1.md
 - docs/superpowers/plans/2026-09-20-m1-shell-safety-hardening.md
 - docs/superpowers/plans/2026-09-20-browser-login-experience.md
+- docs/superpowers/plans/2026-09-20-asset-storage-foundation.md
+- docs/operations/backup-restore.md
 - docs/operations/development.md
 - apps/api/src/
+- packages/assets/
 - packages/database/

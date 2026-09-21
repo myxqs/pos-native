@@ -1,0 +1,28 @@
+name: Feature request
+description: Propose a focused improvement to POS Native
+title: "[Proposal]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        POS Native is still stabilising its data contract. Focused proposals with clear privacy, migration and provenance implications are most useful.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What problem should POS Native solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed approach
+      description: Describe the smallest useful change.
+    validations:
+      required: true
+  - type: textarea
+    id: implications
+    attributes:
+      label: Data-contract or security implications
+      description: Note any impact on provenance, migrations, permissions, privacy or auditability.

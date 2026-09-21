@@ -1,10 +1,10 @@
 import { createHash, randomUUID } from "node:crypto";
+import { constants } from "node:fs";
 import {
   link,
   lstat,
   mkdir,
   open,
-  readFile,
   realpath,
   rm,
   unlink,
@@ -36,6 +36,20 @@ function digest(bytes: Uint8Array): string {
   return createHash("sha256").update(bytes).digest("hex");
 }
 
+function isRegularFile(information: {
+  isFile(): boolean;
+  isSymbolicLink(): boolean;
+}): boolean {
+  return information.isFile() && !information.isSymbolicLink();
+}
+
+function isSameFile(
+  left: { readonly dev: number; readonly ino: number },
+  right: { readonly dev: number; readonly ino: number },
+): boolean {
+  return left.dev === right.dev && left.ino === right.ino;
+}
+
 export class FilesystemAssetStore implements AssetStore {
   static async create(
     configuredRoot: string,
@@ -62,7 +76,9 @@ export class FilesystemAssetStore implements AssetStore {
 
   async stage(input: AssetStageInput): Promise<StagedAsset> {
     const metadata = normaliseAssetMetadata(input);
-    validateAssetByteSize(input.bytes.byteLength, this.maxBytes);
+    const ownedBytes = Uint8Array.from(input.bytes);
+    validateAssetByteSize(ownedBytes.byteLength, this.maxBytes);
+    const sha256 = digest(ownedBytes);
     const storageKey = storageKeyForAsset(input.id);
     const finalPath = this.pathFor(storageKey);
     await this.requireMissing(finalPath);
@@ -73,18 +89,41 @@ export class FilesystemAssetStore implements AssetStore {
     );
     this.requireContained(temporaryPath);
     let handle: FileHandle | undefined;
+    let published = false;
 
     try {
       handle = await open(temporaryPath, "wx", 0o600);
-      await handle.writeFile(input.bytes);
+      await handle.writeFile(ownedBytes);
       await handle.sync();
       await handle.close();
       handle = undefined;
       await link(temporaryPath, finalPath);
-      await unlink(temporaryPath);
+      published = true;
+      try {
+        await unlink(temporaryPath);
+      } catch {
+        await rm(temporaryPath, { force: true });
+      }
     } catch (error) {
       await handle?.close().catch(() => undefined);
-      await rm(temporaryPath, { force: true }).catch(() => undefined);
+      const cleanupFailures: unknown[] = [];
+      await rm(temporaryPath, { force: true }).catch(
+        (cleanupError: unknown) => {
+          cleanupFailures.push(cleanupError);
+        },
+      );
+      if (published) {
+        await unlink(finalPath).catch((cleanupError: unknown) => {
+          cleanupFailures.push(cleanupError);
+        });
+      }
+      if (cleanupFailures.length > 0) {
+        throw new AggregateError(
+          [error, ...cleanupFailures],
+          "asset staging and cleanup failed",
+          { cause: error },
+        );
+      }
       throw error;
     }
 
@@ -92,19 +131,36 @@ export class FilesystemAssetStore implements AssetStore {
       id: input.id,
       ...metadata,
       storageKey,
-      byteSize: input.bytes.byteLength,
-      sha256: digest(input.bytes),
+      byteSize: ownedBytes.byteLength,
+      sha256,
     };
   }
 
   async read(storageKey: AssetStorageKey): Promise<Uint8Array> {
     const candidate = this.pathFor(storageKey);
-    const information = await lstat(candidate);
-    if (!information.isFile() || information.isSymbolicLink()) {
+    const pathInformationBeforeOpen = await lstat(candidate);
+    if (!isRegularFile(pathInformationBeforeOpen)) {
       throw new ValidationError("asset storage target must be a regular file");
     }
-    validateAssetByteSize(information.size, this.maxBytes);
-    return await readFile(candidate);
+
+    const noFollow = constants.O_NOFOLLOW ?? 0;
+    const handle = await open(candidate, constants.O_RDONLY | noFollow);
+    try {
+      const openedInformation = await handle.stat();
+      const pathInformationAfterOpen = await lstat(candidate);
+      if (
+        !isRegularFile(openedInformation) ||
+        !isRegularFile(pathInformationAfterOpen) ||
+        !isSameFile(pathInformationBeforeOpen, openedInformation) ||
+        !isSameFile(openedInformation, pathInformationAfterOpen)
+      ) {
+        throw new ValidationError("asset storage target changed during read");
+      }
+      validateAssetByteSize(openedInformation.size, this.maxBytes);
+      return await this.readBounded(handle);
+    } finally {
+      await handle.close();
+    }
   }
 
   async verify(receipt: AssetStoreReceipt): Promise<boolean> {
@@ -161,5 +217,29 @@ export class FilesystemAssetStore implements AssetStore {
       throw error;
     }
     throw new ValidationError("asset storage target already exists");
+  }
+
+  private async readBounded(handle: FileHandle): Promise<Uint8Array> {
+    const chunks: Uint8Array[] = [];
+    let totalBytes = 0;
+    let position = 0;
+
+    while (true) {
+      const remainingBudget = this.maxBytes + 1 - totalBytes;
+      const buffer = Buffer.allocUnsafe(Math.min(64 * 1024, remainingBudget));
+      const { bytesRead } = await handle.read(
+        buffer,
+        0,
+        buffer.byteLength,
+        position,
+      );
+      if (bytesRead === 0) break;
+      totalBytes += bytesRead;
+      validateAssetByteSize(totalBytes, this.maxBytes);
+      chunks.push(buffer.subarray(0, bytesRead));
+      position += bytesRead;
+    }
+
+    return Buffer.concat(chunks, totalBytes);
   }
 }

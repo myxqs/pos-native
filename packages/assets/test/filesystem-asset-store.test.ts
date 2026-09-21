@@ -65,6 +65,26 @@ test("stages, reads, and verifies private bytes under an opaque key", async () =
   expect(stored.isSymbolicLink()).toBe(false);
 });
 
+test("takes ownership of caller bytes before the first asynchronous boundary", async () => {
+  const root = await isolatedRoot();
+  const store = await FilesystemAssetStore.create(root, { maxBytes: 5 });
+  const callerBytes = new TextEncoder().encode("first");
+
+  const stagePromise = store.stage({
+    id: firstAssetId,
+    originalFilename: "owned.txt",
+    mimeType: "text/plain",
+    bytes: callerBytes,
+  });
+  callerBytes.set(new TextEncoder().encode("other"));
+  const staged = await stagePromise;
+
+  expect(new TextDecoder().decode(await store.read(staged.storageKey))).toBe(
+    "first",
+  );
+  expect(await store.verify(staged)).toBe(true);
+});
+
 test("refuses duplicate publication without replacing bytes or leaving a temporary file", async () => {
   const root = await isolatedRoot();
   const store = await FilesystemAssetStore.create(root, { maxBytes: 32 });

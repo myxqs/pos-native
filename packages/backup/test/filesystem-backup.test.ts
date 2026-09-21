@@ -9,9 +9,48 @@ import {
   unlink,
   writeFile,
 } from "node:fs/promises";
+import type * as FileSystemPromises from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { afterEach, expect, test } from "vitest";
+import { basename, join } from "node:path";
+import { afterEach, expect, test, vi } from "vitest";
+
+const fault = vi.hoisted(() => ({
+  growAfterReadBasename: undefined as string | undefined,
+}));
+
+vi.mock("node:fs/promises", async (importOriginal) => {
+  const actual = await importOriginal<typeof FileSystemPromises>();
+  return {
+    ...actual,
+    open: async (...args: Parameters<typeof actual.open>) => {
+      const handle = await actual.open(...args);
+      const path = args[0];
+      const pathBasename = basename(path.toString());
+      if (fault.growAfterReadBasename !== pathBasename) return handle;
+
+      return new Proxy(handle, {
+        get(target, property) {
+          if (property === "read") {
+            const originalRead = target.read.bind(target) as (
+              ...readArgs: unknown[]
+            ) => Promise<{ bytesRead: number }>;
+            return async (...readArgs: unknown[]) => {
+              const result = await originalRead(...readArgs);
+              if (result.bytesRead === 0) {
+                fault.growAfterReadBasename = undefined;
+                await actual.appendFile(path, "growth");
+              }
+              return result;
+            };
+          }
+
+          const value = Reflect.get(target, property, target);
+          return typeof value === "function" ? value.bind(target) : value;
+        },
+      });
+    },
+  };
+});
 
 import {
   asAssetStorageKey,
@@ -51,6 +90,7 @@ const options: BackupOperationOptions = {
 const cleanupRoots: string[] = [];
 
 afterEach(async () => {
+  fault.growAfterReadBasename = undefined;
   await Promise.all(
     cleanupRoots.splice(0).map((root) =>
       rm(root, {
@@ -192,6 +232,24 @@ test("rejects a tampered artifact before creating a restore output", async () =>
   await expect(lstat(backupDirectory(targetRoot))).rejects.toMatchObject({
     code: "ENOENT",
   });
+});
+
+test("rejects an artifact that grows after its bounded read reaches EOF", async () => {
+  const sourceRoot = await isolatedRoot();
+  const created = await createFilesystemBackup(
+    sourceRoot,
+    fixtureSource(),
+    options,
+  );
+  fault.growAfterReadBasename = firstKey;
+
+  await expect(
+    verifyFilesystemBackup(sourceRoot, backupId, options),
+  ).rejects.toThrow();
+
+  expect(
+    (await readFile(join(created.directory, "assets", firstKey))).byteLength,
+  ).toBeGreaterThan(assetBytes.get(firstKey)?.byteLength ?? 0);
 });
 
 test("rejects a source receipt mismatch without publishing a backup", async () => {

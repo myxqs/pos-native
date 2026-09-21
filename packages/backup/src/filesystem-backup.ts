@@ -294,7 +294,16 @@ async function readRegularFile(
       throw new ValidationError("backup artifact changed during read");
     }
     requireBoundedByteSize(opened.size, maxBytes);
-    return await readBounded(handle, maxBytes);
+    const bytes = await readBounded(handle, maxBytes);
+    const afterRead = await handle.stat();
+    if (
+      !isRegularFile(afterRead) ||
+      !isSameFile(opened, afterRead) ||
+      afterRead.size !== opened.size
+    ) {
+      throw new ValidationError("backup artifact changed during read");
+    }
+    return bytes;
   } finally {
     await handle.close();
   }

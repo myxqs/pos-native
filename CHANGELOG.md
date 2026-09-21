@@ -30,6 +30,9 @@
 - Filesystem-backed asset staging with canonical-root containment, atomic
   no-overwrite publication, bounded reads, integrity verification, symlink
   refusal, and idempotent regular-file rollback.
+- Versioned `pos-native-backup` manifests with canonical checksums, fixed
+  database/asset artifact paths, source-receipt validation, and synthetic
+  filesystem create/list/verify/clean-restore proof.
 
 ### Changed
 

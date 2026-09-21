@@ -43,24 +43,29 @@ M1 — Sovereign canonical core and first visible vertical slice (in progress).
   generated opaque native keys, validated filename/MIME metadata, bounded input
   and reads, canonical root containment, atomic no-overwrite publication,
   SHA-256 receipts, integrity verification, and regular-file-only rollback.
+- Versioned `pos-native-backup` manifest and synthetic filesystem proof:
+  fixed opaque database/asset paths, strict manifest validation, canonical
+  checksums, source-receipt verification, manifest-last publication, bounded
+  regular-file reads, no-overwrite create/restore targets, and clean-directory
+  restore verification.
 
 ## In progress
 
-- Backup/restore design and proof, PostgreSQL asset metadata integration, and
-  live database/restart tests.
+- PostgreSQL asset metadata/audit integration and live database/restart tests.
 
 ## Verification state
 
 - npm run verify: PASS on 2026-09-21 — format, lint, strict typecheck, and
-  85 tests passed across sixteen suites; two PostgreSQL integration tests skipped
-  because TEST_DATABASE_URL is not set. Filesystem tests used isolated temporary
-  roots and exercised the Windows symbolic-link refusal path.
+  104 tests passed across eighteen suites; two PostgreSQL integration tests
+  skipped because TEST_DATABASE_URL is not set. Asset and backup filesystem
+  tests used isolated temporary roots and exercised the Windows symbolic-link
+  refusal path.
 - npm audit --omit=dev --json: PASS on 2026-09-21 — zero production
   vulnerabilities.
 - npm run db:generate: PASS on 2026-09-21 — no ungenerated schema changes.
-- npm run build: PASS on 2026-09-21 — compiled API starts only from emitted
-  JavaScript; compilation excludes test source and the entry point fails closed
-  without runtime configuration.
+- npm run build: PASS on 2026-09-21 — compiled API and backup source start only
+  from emitted JavaScript; compilation excludes test source and the entry point
+  fails closed without runtime configuration.
 - Docker client 29.8.0 and Compose 5.5.1 are present, but the Docker Desktop
   Linux-engine pipe is absent, so no database container has been started.
 - `docker compose config` remains intentionally blocked because the untracked
@@ -80,9 +85,10 @@ M1 — Sovereign canonical core and first visible vertical slice (in progress).
 - No owner account has been created. The local interactive bootstrap command is
   implemented but must wait for a live database plus the owner's chosen email
   and password.
-- The filesystem asset store is an internal byte-storage boundary only. No
-  PostgreSQL asset metadata/audit transaction, upload/download API, browser
-  attachment flow, or backup/restore proof exists yet.
+- The filesystem asset store and backup directory format are internal
+  foundations only. No PostgreSQL asset metadata/audit transaction,
+  upload/download API, browser attachment flow, live database dump/restore,
+  or production backup rehearsal exists yet.
 - Filesystem behavior is verified on this Windows host. Linux execution,
   deployment ACLs, crash recovery, and startup orphan reconciliation remain
   future deployment/operations acceptance work.
@@ -101,15 +107,18 @@ M1 — Sovereign canonical core and first visible vertical slice (in progress).
 - ADR-0005: filesystem asset bytes use opaque native-ID keys below a
   canonicalised configured root; filenames are metadata only, and rollback-only
   discard does not create a user deletion API.
+- ADR-0006: backups use versioned manifests and fixed directory artifacts with
+  source-port separation, checksums, no-overwrite restore, and a synthetic
+  clean filesystem proof before a live PostgreSQL adapter is attempted.
 
 ## Exact next action
 
-Design and implement the next coherent M1 backup-manifest/restore-proof slice,
-covering PostgreSQL plus filesystem asset integrity without claiming a live
-restore until the database runtime is available. After the user approves a
-Windows reboot and Docker starts, run migration, live integration,
-restart-persistence, owner bootstrap, and authenticated browser-flow acceptance
-tests.
+Design and implement the next coherent M1 asset-metadata service/repository
+slice, coupling staged filesystem receipts to the existing `assets` table,
+provenance, audit, and rollback semantics without claiming a live transaction
+until PostgreSQL is available. After the user approves a Windows reboot and
+Docker starts, run migration, live integration, restart-persistence, owner
+bootstrap, authenticated browser-flow, and live backup/restore acceptance tests.
 
 ## Commands to resume
 
@@ -124,8 +133,10 @@ tests.
 - docs/superpowers/plans/2026-09-20-m1-shell-safety-hardening.md
 - docs/superpowers/plans/2026-09-20-browser-login-experience.md
 - docs/superpowers/plans/2026-09-20-asset-storage-foundation.md
+- docs/superpowers/plans/2026-09-21-backup-restore-proof.md
 - docs/operations/backup-restore.md
 - docs/operations/development.md
 - apps/api/src/
 - packages/assets/
+- packages/backup/
 - packages/database/

@@ -81,7 +81,7 @@ artifact paths, no-overwrite directories, verification, and safe clean restore.
   `createBackupManifest`, `serializeBackupManifest`, and
   `parseBackupManifest` for Task 2.
 
-- [ ] **Step 1: Write the failing manifest tests**
+- [x] **Step 1: Write the failing manifest tests**
 
   Create `packages/backup/test/backup-manifest.test.ts`. Use fixed UUID-v4
   values, a fixed `2026-09-21T00:00:00.000Z` timestamp, and two assets passed
@@ -121,7 +121,7 @@ artifact paths, no-overwrite directories, verification, and safe clean restore.
   non-canonical relative path. Each must throw `ValidationError` through the
   public constructor/parser.
 
-- [ ] **Step 2: Run the manifest test to verify RED**
+- [x] **Step 2: Run the manifest test to verify RED**
 
   Run:
 
@@ -131,7 +131,7 @@ artifact paths, no-overwrite directories, verification, and safe clean restore.
 
   Expected: FAIL because the backup package/module does not exist.
 
-- [ ] **Step 3: Implement the pure manifest boundary**
+- [x] **Step 3: Implement the pure manifest boundary**
 
   Create `backup-manifest.ts` with these precise structures:
 
@@ -160,8 +160,8 @@ artifact paths, no-overwrite directories, verification, and safe clean restore.
     readonly sha256: string;
   }
 
-  export interface BackupAssetDescriptor extends BackupSourceAsset,
-    BackupArtifactDescriptor {}
+  export interface BackupAssetDescriptor
+    extends BackupSourceAsset, BackupArtifactDescriptor {}
   ```
 
   `BackupManifestInput` omits the static format/version/checksum fields;
@@ -179,7 +179,7 @@ artifact paths, no-overwrite directories, verification, and safe clean restore.
   manifest. Hash the fixed-key-order core without `manifestSha256`, append that
   field, and serialize with two-space indentation plus one trailing newline.
 
-- [ ] **Step 4: Run focused tests and strict typecheck**
+- [x] **Step 4: Run focused tests and strict typecheck**
 
   Run:
 
@@ -190,7 +190,7 @@ artifact paths, no-overwrite directories, verification, and safe clean restore.
 
   Expected: all manifest cases pass and TypeScript is clean.
 
-- [ ] **Step 5: Commit the manifest boundary**
+- [x] **Step 5: Commit the manifest boundary**
 
   ```bash
   git add packages/backup/src/backup-manifest.ts packages/backup/test/backup-manifest.test.ts
@@ -213,7 +213,7 @@ artifact paths, no-overwrite directories, verification, and safe clean restore.
   `verifyFilesystemBackup`, and `restoreFilesystemBackup` for Task 3 and
   future live adapters.
 
-- [ ] **Step 1: Write failing isolated-filesystem tests**
+- [x] **Step 1: Write failing isolated-filesystem tests**
 
   Create `filesystem-backup.test.ts` with `mkdtemp`/`rm` cleanup and a
   deterministic fixture source. The fixture must expose `metadata`, database
@@ -234,11 +234,16 @@ artifact paths, no-overwrite directories, verification, and safe clean restore.
     restoreRoot,
     options,
   );
-  expect(await readFile(join(restored.directory, "database", "canonical.dump"))).toEqual(
-    databaseBytes,
-  );
-  expect(await verifyFilesystemBackup(restored.directory, options.backupId, options))
-    .toEqual(created.manifest);
+  expect(
+    await readFile(join(restored.directory, "database", "canonical.dump")),
+  ).toEqual(databaseBytes);
+  expect(
+    await verifyFilesystemBackup(
+      restored.backupRoot,
+      options.backupId,
+      options,
+    ),
+  ).toEqual(created.manifest);
   ```
 
   Keep the restored backup layout rooted at `restoreRoot/backup-<id>` so the
@@ -256,10 +261,11 @@ artifact paths, no-overwrite directories, verification, and safe clean restore.
   6. place a symbolic-link artifact pointing outside and assert verification
      rejects without reading the outside bytes. If symbolic links are denied
      with `EPERM`, skip only this test with the explicit host reason;
-  7. pass zero/unsafe `maxArtifactBytes`, a too-small cap, and a non-empty
-     restore destination; each must fail before changing an existing target.
+  7. pass zero/unsafe `maxArtifactBytes`, a too-small cap, and an existing
+     restore backup directory; each must fail before changing an existing
+     target.
 
-- [ ] **Step 2: Run the filesystem test to verify RED**
+- [x] **Step 2: Run the filesystem test to verify RED**
 
   Run:
 
@@ -269,7 +275,7 @@ artifact paths, no-overwrite directories, verification, and safe clean restore.
 
   Expected: FAIL because `filesystem-backup.ts` does not exist.
 
-- [ ] **Step 3: Implement the injected source and filesystem service**
+- [x] **Step 3: Implement the injected source and filesystem service**
 
   Define:
 
@@ -308,7 +314,7 @@ artifact paths, no-overwrite directories, verification, and safe clean restore.
 
   `restoreFilesystemBackup(sourceRoot, backupId, targetRoot, options)` calls
   source verification before creating anything under `targetRoot`. It requires
-  `targetRoot/backup-<id>` not to exist, creates it itself, copies each
+  `targetRoot/backup-<id>` not to exist, creates that child itself, copies each
   independently re-verified artifact into the same fixed layout with exclusive
   files, writes the canonical manifest last, then verifies the restored tree.
   It never runs a database restore: the returned directory is a verified
@@ -325,7 +331,7 @@ artifact paths, no-overwrite directories, verification, and safe clean restore.
   `..`, absolute/drive/UNC/backslash paths. Keep all exceptions free of bytes,
   passwords, URLs, and raw artifact content.
 
-- [ ] **Step 4: Run focused tests, lint, and strict typecheck**
+- [x] **Step 4: Run focused tests, lint, and strict typecheck**
 
   Run:
 
@@ -338,7 +344,7 @@ artifact paths, no-overwrite directories, verification, and safe clean restore.
   Expected: all backup cases pass; any symbolic-link skip has an explicit host
   reason; lint and strict TypeScript pass.
 
-- [ ] **Step 5: Commit the filesystem proof**
+- [x] **Step 5: Commit the filesystem proof**
 
   ```bash
   git add packages/backup/src/filesystem-backup.ts packages/backup/test/filesystem-backup.test.ts
@@ -363,7 +369,7 @@ artifact paths, no-overwrite directories, verification, and safe clean restore.
 - Produces: truthful operator/developer documentation and M1 handover while
   leaving live PostgreSQL, application runtime, and migration acceptance gated.
 
-- [ ] **Step 1: Add ADR and update the backup/restore runbook**
+- [x] **Step 1: Add ADR and update the backup/restore runbook**
 
   Record ADR-0006 selecting a directory-backed manifest as the portable local
   backup foundation, source-port separation from `pg_dump`, fixed paths,
@@ -382,7 +388,7 @@ artifact paths, no-overwrite directories, verification, and safe clean restore.
   encrypted/offline backup policy, and an operator rehearsal. State that no
   command currently connects to PostgreSQL or handles production secrets.
 
-- [ ] **Step 2: Update status and changelog evidence**
+- [x] **Step 2: Update status and changelog evidence**
 
   State the actual test result, bounded synthetic source coverage, manifest
   format, checksum/path/no-overwrite behavior, and clean filesystem restore
@@ -392,7 +398,7 @@ artifact paths, no-overwrite directories, verification, and safe clean restore.
   the next dependency supported by the current environment; never claim a
   completed live backup.
 
-- [ ] **Step 3: Run full verification and repository checks**
+- [x] **Step 3: Run full verification and repository checks**
 
   Run:
 
@@ -409,7 +415,7 @@ artifact paths, no-overwrite directories, verification, and safe clean restore.
   pass. Assert the build emits no test source. The two opt-in PostgreSQL tests
   remain skipped without `TEST_DATABASE_URL`.
 
-- [ ] **Step 4: Request independent review and repair each Important finding**
+- [x] **Step 4: Request independent review and repair each Important finding**
 
   Give the reviewer this design/plan, `packages/backup`, the ADR/runbook, and
   these constraints: no unsafe path or link handling, no overwrite, no secret
@@ -418,7 +424,7 @@ artifact paths, no-overwrite directories, verification, and safe clean restore.
   make the smallest repair, rerun focused and full verification, and record it
   in the plan ledger. Record Minors as deferred ledger items.
 
-- [ ] **Step 5: Commit the evidence checkpoint**
+- [x] **Step 5: Commit the evidence checkpoint**
 
   ```bash
   git add docs/adr/0006-backup-manifest-restore-proof.md docs/operations/backup-restore.md STATUS.md CHANGELOG.md docs/superpowers/plans/2026-09-21-backup-restore-proof.md

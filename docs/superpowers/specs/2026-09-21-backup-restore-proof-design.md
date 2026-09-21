@@ -11,7 +11,7 @@ PostgreSQL rehearsal.
 ## Intent
 
 Create a portable, versioned backup-directory format and a testable filesystem
-service that can create, list, verify, and restore *synthetic* canonical
+service that can create, list, verify, and restore _synthetic_ canonical
 artifacts. It establishes the integrity and overwrite-safety boundary required
 before a live PostgreSQL dump/restore adapter is introduced.
 
@@ -159,12 +159,13 @@ no manifest is never listed or accepted as a backup.
 re-reads every fixed artifact through regular-file/no-symlink checks, bounded
 reads, size comparison, and SHA-256 comparison. It does not modify the source.
 
-`restoreFilesystemBackup(root, backupId, target, options)` verifies the source
-first, then requires `target` not to exist. It creates the target itself,
-copies only verified fixed-layout artifacts, revalidates the persisted result,
-and writes the manifest last. It removes only its own newly created target when
-a recoverable copy failure occurs. It never overwrites an existing directory or
-database target.
+`restoreFilesystemBackup(root, backupId, targetRoot, options)` verifies the
+source first, then requires `targetRoot/backup-<id>` not to exist. It creates
+that backup directory itself below the operator-controlled target root, copies
+only verified fixed-layout artifacts, revalidates the persisted result, and
+writes the manifest last. It removes only its own newly created backup
+directory when a recoverable copy failure occurs. It never overwrites an
+existing directory or database target.
 
 The API requires a positive safe-integer `maxArtifactBytes`; there is no
 unbounded default. The current in-memory source is therefore intentionally

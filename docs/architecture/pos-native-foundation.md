@@ -15,8 +15,10 @@ Notion clone, a multi-tenant SaaS product, or Local Steward.
    page/block/revision persistence and filesystem asset abstraction.
 3. **Private API:** local account/session authentication, versioned HTTP API,
    page/block mutation endpoints, rate limits and security headers.
-4. **Workspace UI:** React PWA shell, page tree, page view, editor adapter and
-   accessible desktop/mobile navigation.
+4. **Workspace UI:** React PWA shell, page tree, page view, the TipTap adapter
+   selected by ADR-0008, and accessible desktop/mobile navigation. The adapter
+   maps to the native block-document API; it never owns canonical IDs or
+   persistence.
 5. **Flexible data sources:** property definitions/values, record pages,
    relations, formula subset, rollups and saved table/board/list views.
 6. **Navigation:** full-text/trigram search, links, backlinks, graph/context
@@ -37,6 +39,12 @@ Notion clone, a multi-tenant SaaS product, or Local Steward.
 No client, importer, MCP tool, or UI component may write storage directly.
 All canonical entities use native UUIDs. `ExternalIdentity` maps provider IDs
 to native IDs but never substitutes for them.
+
+Page body documents use a separate optimistic-concurrency revision stream from
+page metadata. Replacements are validated and transactionally persisted with
+revision and audit records; omitted blocks are soft-archived. The current
+browser adapter deliberately declines richer or nested documents until a
+capable representation is proven.
 
 ## Initial domain boundary
 

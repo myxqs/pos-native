@@ -165,6 +165,72 @@ test("soft-archives omitted blocks while retaining current live document IDs", a
   expect(repository.auditFor(pageId)).toEqual([first.audit, second.audit]);
 });
 
+test("refuses a generated identity that belongs to an archived block without changing history", async () => {
+  const repository = new InMemoryBlockDocumentRepository();
+  repository.registerPage(pageId);
+  const empty = (await repository.getByPageId(pageId))?.document;
+  if (!empty) throw new Error("registered page is missing");
+  const first = changedMutation(
+    empty,
+    [
+      {
+        clientRef: "root",
+        blockType: "paragraph",
+        content: { text: "Archived identity" },
+      },
+    ],
+    [
+      rootBlockId,
+      "55555555-5555-4555-8555-555555555555",
+      "66666666-6666-4666-8666-666666666666",
+    ],
+  );
+  await repository.replace(first);
+
+  const archive = changedMutation(
+    first.document,
+    [],
+    [
+      "77777777-7777-4777-8777-777777777777",
+      "88888888-8888-4888-8888-888888888888",
+    ],
+    "2026-09-21T13:00:00.000Z",
+  );
+  await repository.replace(archive);
+  const archivedBefore = repository.archivedBlocksFor(pageId);
+
+  const collision = changedMutation(
+    archive.document,
+    [
+      {
+        clientRef: "replacement",
+        blockType: "paragraph",
+        content: { text: "Must not reactivate history" },
+      },
+    ],
+    [
+      rootBlockId,
+      "99999999-9999-4999-8999-999999999999",
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    ],
+    "2026-09-21T14:00:00.000Z",
+  );
+
+  await expect(repository.replace(collision)).rejects.toThrow(
+    "block identity has already been used",
+  );
+  await expect(repository.getByPageId(pageId)).resolves.toEqual({
+    document: archive.document,
+    revisionNumber: 2,
+  });
+  expect(repository.archivedBlocksFor(pageId)).toEqual(archivedBefore);
+  expect(repository.revisionsFor(pageId)).toEqual([
+    first.revision,
+    archive.revision,
+  ]);
+  expect(repository.auditFor(pageId)).toEqual([first.audit, archive.audit]);
+});
+
 test("rejects stale document mutations without changing current state or history", async () => {
   const repository = new InMemoryBlockDocumentRepository();
   repository.registerPage(pageId);

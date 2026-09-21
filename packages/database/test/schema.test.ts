@@ -40,7 +40,19 @@ test("defines the M1 canonical entity tables with durable identity constraints",
   expect(csrfTokenHash?.notNull).toBe(true);
 
   expect(getTableConfig(schemaModule.pages).foreignKeys).toHaveLength(2);
-  expect(getTableConfig(schemaModule.blocks).foreignKeys).toHaveLength(2);
+  const blockForeignKeys = getTableConfig(schemaModule.blocks).foreignKeys;
+  expect(blockForeignKeys).toHaveLength(3);
+  expect(
+    blockForeignKeys.some((foreignKey) => {
+      const reference = foreignKey.reference();
+      return (
+        reference.columns.map((column) => column.name).join(",") ===
+          "parent_block_id,page_id" &&
+        reference.foreignColumns.map((column) => column.name).join(",") ===
+          "id,page_id"
+      );
+    }),
+  ).toBe(true);
 });
 
 test("fails migration rather than creating pages without revision history", () => {

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 import type { AuditEvent, Revision } from "../../domain/src/audit.ts";
@@ -10,6 +10,7 @@ import {
 } from "../../domain/src/block-document.ts";
 import { asNativeId, type NativeId } from "../../domain/src/ids.ts";
 import {
+  BlockDocumentIdentityConflictError,
   BlockDocumentRevisionConflictError,
   type BlockDocumentRepository,
   type PersistedBlockDocument,
@@ -83,6 +84,21 @@ export class PostgresBlockDocumentRepository implements BlockDocumentRepository 
         blocks: currentBlockRows.map(fromBlockRow),
       });
       const document = validateBlockDocumentMutation(mutation, currentDocument);
+      const currentBlockIds = new Set(
+        currentDocument.blocks.map((currentBlock) => currentBlock.id),
+      );
+      const newBlockIds = document.blocks
+        .filter((block) => !currentBlockIds.has(block.id))
+        .map((block) => block.id);
+      if (newBlockIds.length > 0) {
+        const collidingBlockRows = await transaction
+          .select({ id: blocks.id })
+          .from(blocks)
+          .where(inArray(blocks.id, newBlockIds));
+        if (collidingBlockRows.length > 0) {
+          throw new BlockDocumentIdentityConflictError();
+        }
+      }
 
       const updatedPages = await transaction
         .update(pages)
@@ -109,18 +125,16 @@ export class PostgresBlockDocumentRepository implements BlockDocumentRepository 
         .update(blocks)
         .set({
           archivedAt: archiveTimestamp,
+          updatedAt: archiveTimestamp,
         })
         .where(
           and(eq(blocks.pageId, document.pageId), isNull(blocks.archivedAt)),
         );
       for (const block of document.blocks) {
-        const upserted = await transaction
-          .insert(blocks)
-          .values(toBlockRow(block))
-          .onConflictDoUpdate({
-            target: blocks.id,
-            setWhere: eq(blocks.pageId, document.pageId),
-            set: {
+        if (currentBlockIds.has(block.id)) {
+          const updatedBlocks = await transaction
+            .update(blocks)
+            .set({
               pageId: block.pageId,
               parentBlockId: block.parentBlockId,
               blockType: block.blockType,
@@ -129,11 +143,16 @@ export class PostgresBlockDocumentRepository implements BlockDocumentRepository 
               archivedAt: null,
               createdAt: new Date(block.createdAt),
               updatedAt: new Date(block.updatedAt),
-            },
-          })
-          .returning({ id: blocks.id });
-        if (upserted.length !== 1) {
-          throw new Error("block identity belongs to another page");
+            })
+            .where(
+              and(eq(blocks.id, block.id), eq(blocks.pageId, document.pageId)),
+            )
+            .returning({ id: blocks.id });
+          if (updatedBlocks.length !== 1) {
+            throw new Error("current block identity is unavailable");
+          }
+        } else {
+          await transaction.insert(blocks).values(toBlockRow(block));
         }
       }
       await transaction

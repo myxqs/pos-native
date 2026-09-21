@@ -10,6 +10,13 @@ import type { NativeId } from "../../domain/src/ids.ts";
 
 export { BlockDocumentRevisionConflictError } from "../../domain/src/block-document.ts";
 
+export class BlockDocumentIdentityConflictError extends Error {
+  constructor() {
+    super("block identity has already been used");
+    this.name = "BlockDocumentIdentityConflictError";
+  }
+}
+
 export interface PersistedBlockDocument {
   readonly document: BlockDocument;
   readonly revisionNumber: number;
@@ -82,6 +89,14 @@ export class InMemoryBlockDocumentRepository implements BlockDocumentRepository 
     const document = validateBlockDocumentMutation(mutation, currentDocument);
     if (document.revisionNumber !== currentState.revisionNumber + 1) {
       throw new BlockDocumentRevisionConflictError();
+    }
+    const currentBlockIds = new Set(
+      currentDocument.blocks.map((currentBlock) => currentBlock.id),
+    );
+    for (const block of document.blocks) {
+      if (!currentBlockIds.has(block.id) && this.#blocks.has(block.id)) {
+        throw new BlockDocumentIdentityConflictError();
+      }
     }
 
     const previousState = currentState;

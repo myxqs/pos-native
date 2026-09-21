@@ -12,7 +12,10 @@ import {
   replaceBlockDocument,
 } from "../../domain/src/block-document.ts";
 import { createPage } from "../../domain/src/page.ts";
-import { BlockDocumentRevisionConflictError } from "../src/block-document-repository.ts";
+import {
+  BlockDocumentIdentityConflictError,
+  BlockDocumentRevisionConflictError,
+} from "../src/block-document-repository.ts";
 import { PostgresBlockDocumentRepository } from "../src/postgres-block-document-repository.ts";
 import { PostgresPageRepository } from "../src/postgres-page-repository.ts";
 import * as schema from "../src/schema.ts";
@@ -27,6 +30,7 @@ function changedMutation(
   current: BlockDocument,
   blocks: readonly unknown[],
   timestamp: string,
+  newId: () => string = randomUUID,
 ): ReplaceBlockDocumentMutation {
   const result = replaceBlockDocument(
     current,
@@ -39,7 +43,7 @@ function changedMutation(
       source: "integration-test",
     },
     {
-      newId: randomUUID,
+      newId,
       now: () => new Date(timestamp),
     },
   );
@@ -277,5 +281,74 @@ liveTest(
       document: current.document,
       revisionNumber: 2,
     });
+  },
+);
+
+liveTest(
+  "updates archived timestamps and refuses to reactivate an archived block identity",
+  async () => {
+    if (!blockRepository || !pool) {
+      throw new Error("live repository was not initialised");
+    }
+    const empty = await createRegisteredPage();
+    const first = changedMutation(
+      empty,
+      [
+        {
+          clientRef: "root",
+          blockType: "paragraph",
+          content: { text: "Archived identity" },
+        },
+      ],
+      "2026-09-21T13:00:00.000Z",
+    );
+    await blockRepository.replace(first);
+    const archivedId = first.document.blocks[0]?.id;
+    if (!archivedId) throw new Error("initial block is missing");
+
+    const archivedAt = "2026-09-21T14:00:00.000Z";
+    const archive = changedMutation(first.document, [], archivedAt);
+    await blockRepository.replace(archive);
+    const archiveRow = await pool.query(
+      "SELECT archived_at, updated_at FROM blocks WHERE id = $1",
+      [archivedId],
+    );
+    expect(archiveRow.rows[0]?.archived_at.toISOString()).toBe(archivedAt);
+    expect(archiveRow.rows[0]?.updated_at.toISOString()).toBe(archivedAt);
+
+    let useArchivedId = true;
+    const collision = changedMutation(
+      archive.document,
+      [
+        {
+          clientRef: "replacement",
+          blockType: "paragraph",
+          content: { text: "Must not reactivate history" },
+        },
+      ],
+      "2026-09-21T15:00:00.000Z",
+      () =>
+        useArchivedId ? ((useArchivedId = false), archivedId) : randomUUID(),
+    );
+
+    await expect(blockRepository.replace(collision)).rejects.toBeInstanceOf(
+      BlockDocumentIdentityConflictError,
+    );
+    await expect(
+      blockRepository.getByPageId(archive.document.pageId),
+    ).resolves.toEqual({
+      document: archive.document,
+      revisionNumber: 2,
+    });
+    const rowAfterCollision = await pool.query(
+      "SELECT archived_at, updated_at FROM blocks WHERE id = $1",
+      [archivedId],
+    );
+    expect(rowAfterCollision.rows[0]?.archived_at.toISOString()).toBe(
+      archivedAt,
+    );
+    expect(rowAfterCollision.rows[0]?.updated_at.toISOString()).toBe(
+      archivedAt,
+    );
   },
 );

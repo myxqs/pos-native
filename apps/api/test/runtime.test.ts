@@ -5,6 +5,7 @@ import { expect, test, vi } from "vitest";
 
 import { hashPassword } from "../../../packages/auth/src/password.ts";
 import { InMemoryAuthenticationStore } from "../../../packages/auth/src/session.ts";
+import { InMemoryBlockDocumentRepository } from "../../../packages/database/src/block-document-repository.ts";
 import { InMemoryPageRepository } from "../../../packages/database/src/page-repository.ts";
 import {
   createProductionRuntime,
@@ -65,6 +66,7 @@ test("composes persistent services into secure authenticated page routes", async
   const persistence: RuntimePersistence = {
     authenticationStore,
     pageRepository: new InMemoryPageRepository(),
+    blockDocumentRepository: new InMemoryBlockDocumentRepository(),
     close: vi.fn(async () => undefined),
   };
   const createPersistence = vi.fn(() => persistence);
@@ -117,6 +119,7 @@ test("closes persistence when the configured listener cannot start", async () =>
   const persistence: RuntimePersistence = {
     authenticationStore: new InMemoryAuthenticationStore([]),
     pageRepository: new InMemoryPageRepository(),
+    blockDocumentRepository: new InMemoryBlockDocumentRepository(),
     close: vi.fn(async () => undefined),
   };
   try {
@@ -137,6 +140,7 @@ test("closes persistence when web application composition fails", async () => {
   const persistence: RuntimePersistence = {
     authenticationStore: new InMemoryAuthenticationStore([]),
     pageRepository: new InMemoryPageRepository(),
+    blockDocumentRepository: new InMemoryBlockDocumentRepository(),
     close: vi.fn(async () => undefined),
   };
 

@@ -3,9 +3,12 @@ import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import Fastify, { type FastifyInstance } from "fastify";
 import type { AuthenticationService } from "../../../packages/auth/src/session.ts";
+import type { BlockDocumentRepository } from "../../../packages/database/src/block-document-repository.ts";
 import type { CreatePageDependencies } from "../../../packages/domain/src/page.ts";
+import type { BlockDocumentDependencies } from "../../../packages/domain/src/block-document.ts";
 import type { PageRepository } from "../../../packages/database/src/page-repository.ts";
 import { registerAuthenticationRoutes } from "./auth-routes.ts";
+import { registerBlockDocumentRoutes } from "./block-document-routes.ts";
 import { registerPageRoutes, type PageAuthorizer } from "./page-routes.ts";
 import {
   readWebAsset,
@@ -19,6 +22,8 @@ export interface AppOptions {
   readonly webAssetRoot?: string;
   readonly pageRepository?: PageRepository;
   readonly pageDependencies?: CreatePageDependencies;
+  readonly blockDocumentRepository?: BlockDocumentRepository;
+  readonly blockDocumentDependencies?: BlockDocumentDependencies;
   readonly authorize?: PageAuthorizer;
 }
 
@@ -65,6 +70,19 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
     registerPageRoutes(app, {
       pageRepository: options.pageRepository,
       pageDependencies: options.pageDependencies,
+      authorize,
+    });
+  }
+  if (
+    options.pageRepository &&
+    options.blockDocumentRepository &&
+    options.blockDocumentDependencies &&
+    authorize
+  ) {
+    registerBlockDocumentRoutes(app, {
+      pageRepository: options.pageRepository,
+      blockDocumentRepository: options.blockDocumentRepository,
+      blockDocumentDependencies: options.blockDocumentDependencies,
       authorize,
     });
   }

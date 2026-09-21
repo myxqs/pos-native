@@ -8,10 +8,13 @@ import {
   AuthenticationService,
   type AuthenticationStore,
 } from "../../../packages/auth/src/session.ts";
+import { PostgresBlockDocumentRepository } from "../../../packages/database/src/postgres-block-document-repository.ts";
 import { PostgresPageRepository } from "../../../packages/database/src/postgres-page-repository.ts";
 import { createPostgresAuthenticationStore } from "../../../packages/database/src/postgres-authentication-store.ts";
+import type { BlockDocumentRepository } from "../../../packages/database/src/block-document-repository.ts";
 import type { PageRepository } from "../../../packages/database/src/page-repository.ts";
 import * as schema from "../../../packages/database/src/schema.ts";
+import type { BlockDocumentDependencies } from "../../../packages/domain/src/block-document.ts";
 import type { CreatePageDependencies } from "../../../packages/domain/src/page.ts";
 import { buildApp } from "./app.ts";
 
@@ -41,6 +44,7 @@ export interface RuntimeConfiguration {
 export interface RuntimePersistence {
   readonly authenticationStore: AuthenticationStore;
   readonly pageRepository: PageRepository;
+  readonly blockDocumentRepository: BlockDocumentRepository;
   close(): Promise<void>;
 }
 
@@ -99,6 +103,11 @@ export async function createProductionRuntime(
       ),
       pageRepository: persistence.pageRepository,
       pageDependencies: { newId, now } satisfies CreatePageDependencies,
+      blockDocumentRepository: persistence.blockDocumentRepository,
+      blockDocumentDependencies: {
+        newId,
+        now,
+      } satisfies BlockDocumentDependencies,
       secureCookies: true,
       webAssetRoot: configuration.webAssetRoot,
     });
@@ -146,6 +155,7 @@ function createPostgresPersistence(
   return {
     authenticationStore: createPostgresAuthenticationStore(pool),
     pageRepository: new PostgresPageRepository(database),
+    blockDocumentRepository: new PostgresBlockDocumentRepository(database),
     async close(): Promise<void> {
       await pool.end();
     },

@@ -115,13 +115,17 @@ No package or service is installed in this slice.
 
   Run:
 
-      npm exec -- prettier --check docs/adr/0008-tiptap-editor-adapter-selection.md docs/adr/0002-editor-and-persistence-selection-gate.md docs/architecture/data-model.md docs/architecture/pos-native-foundation.md
-          git diff --check
+  ```sh
+  npm exec -- prettier --check docs/adr/0008-tiptap-editor-adapter-selection.md docs/adr/0002-editor-and-persistence-selection-gate.md docs/architecture/data-model.md docs/architecture/pos-native-foundation.md
+  git diff --check
+  ```
 
 - [ ] **Step 5: Commit**
 
-      git add docs/adr/0008-tiptap-editor-adapter-selection.md docs/adr/0002-editor-and-persistence-selection-gate.md docs/architecture/data-model.md docs/architecture/pos-native-foundation.md
-          git commit -m "docs: select editor adapter boundary"
+  ```sh
+  git add docs/adr/0008-tiptap-editor-adapter-selection.md docs/adr/0002-editor-and-persistence-selection-gate.md docs/architecture/data-model.md docs/architecture/pos-native-foundation.md
+  git commit -m "docs: select editor adapter boundary"
+  ```
 
 ### Task 2: Build a pure canonical block-document domain contract
 
@@ -185,14 +189,18 @@ upsert/archive mutation data, and a changed-or-unchanged replacement result.
 
 - [ ] **Step 4: Verify**
 
-      npm test -- packages/domain/test/block-document.test.ts packages/domain/test/page.test.ts packages/domain/test/asset.test.ts
-          npm run lint
-          npm run typecheck
+  ```sh
+  npm test -- packages/domain/test/block-document.test.ts packages/domain/test/page.test.ts packages/domain/test/asset.test.ts
+  npm run lint
+  npm run typecheck
+  ```
 
 - [ ] **Step 5: Commit**
 
-      git add packages/domain/src/block-document.ts packages/domain/test/block-document.test.ts packages/domain/src/audit.ts packages/domain/src/index.ts
-          git commit -m "feat: add block document domain contract"
+  ```sh
+  git add packages/domain/src/block-document.ts packages/domain/test/block-document.test.ts packages/domain/src/audit.ts packages/domain/src/index.ts
+  git commit -m "feat: add block document domain contract"
+  ```
 
 ### Task 3: Add schema invariants and atomic block-document repositories
 
@@ -262,16 +270,20 @@ PostgreSQL implementation.
 
 - [ ] **Step 5: Verify**
 
-      npm test -- packages/database/test/block-document-repository.test.ts packages/database/test/postgres-block-document-repository.integration.test.ts packages/database/test/page-repository.test.ts
-          npm run lint
-          npm run typecheck
-          npm run db:generate
-          git diff --check
+  ```sh
+  npm test -- packages/database/test/block-document-repository.test.ts packages/database/test/postgres-block-document-repository.integration.test.ts packages/database/test/page-repository.test.ts
+  npm run lint
+  npm run typecheck
+  npm run db:generate
+  git diff --check
+  ```
 
 - [ ] **Step 6: Commit**
 
-      git add packages/database/src/schema.ts packages/database/src/block-document-repository.ts packages/database/src/postgres-block-document-repository.ts packages/database/test/block-document-repository.test.ts packages/database/test/postgres-block-document-repository.integration.test.ts packages/database/drizzle
-          git commit -m "feat: add block document repositories"
+  ```sh
+  git add packages/database/src/schema.ts packages/database/src/block-document-repository.ts packages/database/src/postgres-block-document-repository.ts packages/database/test/block-document-repository.test.ts packages/database/test/postgres-block-document-repository.integration.test.ts packages/database/drizzle
+  git commit -m "feat: add block document repositories"
+  ```
 
 ### Task 4: Expose authenticated page-body API and persistent runtime wiring
 
@@ -312,23 +324,27 @@ PostgreSQL implementation.
 
 - [ ] **Step 4: Verify**
 
-      npm test -- apps/api/test/block-document-routes.test.ts apps/api/test/app.test.ts apps/api/test/runtime.test.ts
-          npm run lint
-          npm run typecheck
+  ```sh
+  npm test -- apps/api/test/block-document-routes.test.ts apps/api/test/app.test.ts apps/api/test/runtime.test.ts
+  npm run lint
+  npm run typecheck
+  ```
 
 - [ ] **Step 5: Commit**
 
-      git add apps/api/src/block-document-routes.ts apps/api/test/block-document-routes.test.ts apps/api/src/app.ts apps/api/src/runtime.ts apps/api/test
-          git commit -m "feat: add page block document API"
+  ```sh
+  git add apps/api/src/block-document-routes.ts apps/api/test/block-document-routes.test.ts apps/api/src/app.ts apps/api/src/runtime.ts apps/api/test
+  git commit -m "feat: add page block document API"
+  ```
 
 ### Task 5: Add the safe visible single-paragraph browser adapter
 
 **Files:**
 
 - Modify: apps/web/index.html
-- Modify: apps/web/src/app.js
-- Modify: apps/web/src/app.d.ts
-- Modify: apps/web/src/styles.css
+- Modify: apps/web/app.js
+- Modify: apps/web/app.d.ts
+- Modify: apps/web/styles.css
 - Modify: apps/api/test/web-shell.test.ts
 
 - [ ] **Step 1: Write failing web-shell tests**
@@ -359,14 +375,18 @@ PostgreSQL implementation.
 
 - [ ] **Step 4: Verify**
 
-      npm test -- apps/api/test/web-shell.test.ts apps/api/test/block-document-routes.test.ts
-          npm run lint
-          npm run typecheck
+  ```sh
+  npm test -- apps/api/test/web-shell.test.ts apps/api/test/block-document-routes.test.ts
+  npm run lint
+  npm run typecheck
+  ```
 
 - [ ] **Step 5: Commit**
 
-      git add apps/web/index.html apps/web/src/app.js apps/web/src/app.d.ts apps/web/src/styles.css apps/api/test/web-shell.test.ts
-          git commit -m "feat: add safe paragraph block editor"
+  ```sh
+  git add apps/web/index.html apps/web/app.js apps/web/app.d.ts apps/web/styles.css apps/api/test/web-shell.test.ts
+  git commit -m "feat: add safe paragraph block editor"
+  ```
 
 ### Task 6: Truthful handover, full verification, independent review, and integration
 
@@ -386,12 +406,14 @@ PostgreSQL implementation.
 
 - [ ] **Step 2: Run full verification**
 
-      npm run verify
-          npm run db:generate
-          npm run build -- --listEmittedFiles
-          npm audit --omit=dev --json
-          git diff --check
-          git status --short
+  ```sh
+  npm run verify
+  npm run db:generate
+  npm run build -- --listEmittedFiles
+  npm audit --omit=dev --json
+  git diff --check
+  git status --short
+  ```
 
   Expected: lint/typecheck/tests/build/schema generation green; live suites
   visibly skipped without TEST_DATABASE_URL; production audit clean.
@@ -405,10 +427,12 @@ PostgreSQL implementation.
 
 - [ ] **Step 4: Commit evidence and integrate**
 
-      git add STATUS.md CHANGELOG.md docs/superpowers/plans/2026-09-21-editor-and-block-document-core.md
-          git commit -m "docs: record block document verification"
-          git status --short
-          git log --oneline main..HEAD
+  ```sh
+  git add STATUS.md CHANGELOG.md docs/superpowers/plans/2026-09-21-editor-and-block-document-core.md
+  git commit -m "docs: record block document verification"
+  git status --short
+  git log --oneline main..HEAD
+  ```
 
   Fast-forward only after branch cleanliness and passed stated synthetic gates.
   Preserve the branch/worktree recovery point; do not delete worktrees.

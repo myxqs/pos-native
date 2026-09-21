@@ -79,12 +79,8 @@
           "name": "api_tokens_user_id_users_id_fk",
           "tableFrom": "api_tokens",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -94,9 +90,7 @@
         "api_tokens_token_hash_unique": {
           "name": "api_tokens_token_hash_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "token_hash"
-          ]
+          "columns": ["token_hash"]
         }
       },
       "policies": {},
@@ -163,9 +157,7 @@
         "assets_storage_key_unique": {
           "name": "assets_storage_key_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "storage_key"
-          ]
+          "columns": ["storage_key"]
         }
       },
       "policies": {},
@@ -421,12 +413,8 @@
           "name": "blocks_page_id_pages_id_fk",
           "tableFrom": "blocks",
           "tableTo": "pages",
-          "columnsFrom": [
-            "page_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["page_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -434,12 +422,8 @@
           "name": "blocks_parent_block_id_blocks_id_fk",
           "tableFrom": "blocks",
           "tableTo": "blocks",
-          "columnsFrom": [
-            "parent_block_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["parent_block_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -447,14 +431,8 @@
           "name": "blocks_parent_block_page_fk",
           "tableFrom": "blocks",
           "tableTo": "blocks",
-          "columnsFrom": [
-            "parent_block_id",
-            "page_id"
-          ],
-          "columnsTo": [
-            "id",
-            "page_id"
-          ],
+          "columnsFrom": ["parent_block_id", "page_id"],
+          "columnsTo": ["id", "page_id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -464,10 +442,7 @@
         "blocks_id_page_unique": {
           "name": "blocks_id_page_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "id",
-            "page_id"
-          ]
+          "columns": ["id", "page_id"]
         }
       },
       "policies": {},
@@ -734,12 +709,8 @@
           "name": "pages_parent_id_pages_id_fk",
           "tableFrom": "pages",
           "tableTo": "pages",
-          "columnsFrom": [
-            "parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -747,12 +718,8 @@
           "name": "pages_cover_asset_id_assets_id_fk",
           "tableFrom": "pages",
           "tableTo": "assets",
-          "columnsFrom": [
-            "cover_asset_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["cover_asset_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -909,12 +876,8 @@
           "name": "sessions_user_id_users_id_fk",
           "tableFrom": "sessions",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -924,9 +887,7 @@
         "sessions_token_hash_unique": {
           "name": "sessions_token_hash_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "token_hash"
-          ]
+          "columns": ["token_hash"]
         }
       },
       "policies": {},
@@ -982,16 +943,12 @@
         "users_email_unique": {
           "name": "users_email_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "email"
-          ]
+          "columns": ["email"]
         },
         "users_owner_slot_unique": {
           "name": "users_owner_slot_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "owner_slot"
-          ]
+          "columns": ["owner_slot"]
         }
       },
       "policies": {},

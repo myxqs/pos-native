@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted for the future React workspace adapter — 2026-09-21.
+Accepted as an architectural direction for the future React workspace adapter.
+Package installation and production-adapter acceptance remain deferred —
+2026-09-21.
 
 The canonical block-document contract is implemented independently of this
 decision. No editor dependency is installed by this ADR.
@@ -22,8 +24,10 @@ React adapter are later extensions.
 
 ## Decision
 
-Select TipTap/ProseMirror as the future React editor adapter. The choice is
-based on the current official evidence checked on 2026-09-21:
+Select TipTap/ProseMirror as the future React editor adapter direction. This is
+an architectural boundary decision, not approval to install a package or claim
+that a production editor is accepted. The direction is based on the following
+official source snapshot checked on 2026-09-21:
 
 - TipTap documents React integration and ProseMirror-based editor setup:
   <https://tiptap.dev/docs/editor/getting-started/install/react>.
@@ -39,6 +43,16 @@ transitive dependencies, licenses, lockfile changes, bundle impact, and
 security advisories must be inventoried and reviewed in the specific package
 installation change. This ADR does not authorise installation or alter any
 manifest.
+
+The cited `@tiptap/react` manifest establishes only that direct package's
+version and license; it does not clear the dependency graph for
+`@tiptap/pm`, ProseMirror, or any transitive package. The cited product
+documentation also establishes intended integration and persistence surfaces,
+not an independent maintenance or maturity assessment. Before a dependency is
+introduced, the installation change must capture the exact lockfile graph,
+direct and transitive license inventory, advisory result, release/support
+evidence, and NativePOS bundle/coupling impact. Those checks are acceptance
+criteria for the later package change, not retroactive claims in this ADR.
 
 BlockNote remains a possible future alternative, but is not the initial
 production adapter. Its documentation confirms useful block IDs, recursive

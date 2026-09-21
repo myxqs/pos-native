@@ -49,6 +49,13 @@ will need a NativePOS-owned slash menu, drag/reorder behavior, accessibility
 work, and a mapper; those are implementation work, not capabilities claimed
 merely by selection.
 
+The cited `@tiptap/react` package manifest is evidence only for that direct
+package. It does not establish the license, security, maintenance, or support
+status of the complete `@tiptap`/ProseMirror dependency graph. A later,
+separately authorised installation must record exact versions, direct and
+transitive licenses, advisory results, release/support evidence, and bundle
+impact before it is accepted as a production adapter.
+
 BlockNote remains a viable future alternative for a proof where its ready-made
 block UX materially outweighs its package-license boundary. It is not selected
 for NativePOS's initial production adapter. No BlockNote XL package is

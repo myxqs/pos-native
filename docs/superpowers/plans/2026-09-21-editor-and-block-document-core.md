@@ -76,7 +76,7 @@ No package or service is installed in this slice.
 - Modify: docs/architecture/data-model.md
 - Modify: docs/architecture/pos-native-foundation.md
 
-- [ ] **Step 1: Define document acceptance assertions**
+- [x] **Step 1: Define document acceptance assertions**
 
   Capture the primary evidence checked on 2026-09-21: TipTap React and
   persistence guides, its public React package manifest showing version 3.30.3
@@ -90,7 +90,7 @@ No package or service is installed in this slice.
   same-page parents, server positions, archived state, and an evolvable content
   schema.
 
-- [ ] **Step 2: Demonstrate the pre-change documentation gap**
+- [x] **Step 2: Demonstrate the pre-change documentation gap**
 
   Run:
 
@@ -99,7 +99,7 @@ No package or service is installed in this slice.
   Expected: ADR-0002 is still deferred and current architecture documents do
   not define this concrete body-document boundary.
 
-- [ ] **Step 3: Implement documentation only**
+- [x] **Step 3: Implement documentation only**
 
   Create accepted ADR-0008 that supersedes ADR-0002, documents the evidence,
   prohibits BlockNote XL packages, and records that no dependency changed.
@@ -111,7 +111,7 @@ No package or service is installed in this slice.
   soft archive, and strict browser representability rule. Do not touch source or
   manifests in this task.
 
-- [ ] **Step 4: Format and inspect**
+- [x] **Step 4: Format and inspect**
 
   Run:
 
@@ -120,7 +120,7 @@ No package or service is installed in this slice.
   git diff --check
   ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
   ```sh
   git add docs/adr/0008-tiptap-editor-adapter-selection.md docs/adr/0002-editor-and-persistence-selection-gate.md docs/architecture/data-model.md docs/architecture/pos-native-foundation.md
@@ -143,7 +143,7 @@ values, a page document with separate revision number, request-scoped draft
 client references, a replace command with derived audit context, explicit
 upsert/archive mutation data, and a changed-or-unchanged replacement result.
 
-- [ ] **Step 1: Write deterministic failing domain tests**
+- [x] **Step 1: Write deterministic failing domain tests**
 
   Use fixed UUID-v4 values and a fixed 2026-09-21 timestamp. Test:
 
@@ -168,13 +168,13 @@ upsert/archive mutation data, and a changed-or-unchanged replacement result.
   Expand the existing audit unions in imports so the RED state proves the
   intended type boundary rather than weakening TypeScript.
 
-- [ ] **Step 2: Observe RED**
+- [x] **Step 2: Observe RED**
 
       npm test -- packages/domain/test/block-document.test.ts
 
   Expected: module and typed audit literals are missing.
 
-- [ ] **Step 3: Implement minimal pure replacement**
+- [x] **Step 3: Implement minimal pure replacement**
 
   Require paragraph content to be an ordinary object with exactly text. Build
   every new block from injected newId and now dependencies. Resolve parents from
@@ -187,7 +187,7 @@ upsert/archive mutation data, and a changed-or-unchanged replacement result.
   arbitrary editor JSON. Extend audit entity/action unions precisely and
   re-export the contract.
 
-- [ ] **Step 4: Verify**
+- [x] **Step 4: Verify**
 
   ```sh
   npm test -- packages/domain/test/block-document.test.ts packages/domain/test/page.test.ts packages/domain/test/asset.test.ts
@@ -195,7 +195,7 @@ upsert/archive mutation data, and a changed-or-unchanged replacement result.
   npm run typecheck
   ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
   ```sh
   git add packages/domain/src/block-document.ts packages/domain/test/block-document.test.ts packages/domain/src/audit.ts packages/domain/src/index.ts
@@ -220,7 +220,7 @@ a validated changed mutation. Export a typed document revision conflict error,
 in-memory behavioral implementation with inspection/failure hooks, and a
 PostgreSQL implementation.
 
-- [ ] **Step 1: Write failing repository tests**
+- [x] **Step 1: Write failing repository tests**
 
   In memory, register a synthetic page and prove:
 
@@ -238,11 +238,11 @@ PostgreSQL implementation.
   forced late rollback. Use the established conditional skip if no
   TEST_DATABASE_URL; never invent a URL.
 
-- [ ] **Step 2: Observe RED**
+- [x] **Step 2: Observe RED**
 
       npm test -- packages/database/test/block-document-repository.test.ts packages/database/test/postgres-block-document-repository.integration.test.ts
 
-- [ ] **Step 3: Additive schema and generated migration**
+- [x] **Step 3: Additive schema and generated migration**
 
   Add pages.current_block_document_revision_number as non-null integer default
   zero. Add blocks.archived_at, non-negative position check, normal unique
@@ -258,7 +258,7 @@ PostgreSQL implementation.
   document the exact limitation and choose only a migration-safe narrow
   alternative; do not silently weaken it.
 
-- [ ] **Step 4: Implement transaction boundaries**
+- [x] **Step 4: Implement transaction boundaries**
 
   In memory snapshot every affected map/array/page metadata and restore it on
   injected failure. In PostgreSQL, read current page/body revision and current
@@ -268,7 +268,7 @@ PostgreSQL implementation.
   API checks page existence first, but the repository must not fabricate a
   missing database page.
 
-- [ ] **Step 5: Verify**
+- [x] **Step 5: Verify**
 
   ```sh
   npm test -- packages/database/test/block-document-repository.test.ts packages/database/test/postgres-block-document-repository.integration.test.ts packages/database/test/page-repository.test.ts
@@ -278,7 +278,7 @@ PostgreSQL implementation.
   git diff --check
   ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
   ```sh
   git add packages/database/src/schema.ts packages/database/src/block-document-repository.ts packages/database/src/postgres-block-document-repository.ts packages/database/test/block-document-repository.test.ts packages/database/test/postgres-block-document-repository.integration.test.ts packages/database/drizzle
@@ -295,7 +295,7 @@ PostgreSQL implementation.
 - Modify: apps/api/src/runtime.ts
 - Modify: relevant runtime/application tests and fakes
 
-- [ ] **Step 1: Write failing route/runtime tests**
+- [x] **Step 1: Write failing route/runtime tests**
 
   Test GET for an existing empty page, missing page, and authorisation. Test PUT
   requires existing mutation authorisation/CSRF and quoted numeric If-Match,
@@ -306,11 +306,11 @@ PostgreSQL implementation.
   fields cannot influence server-derived audit data. Update runtime fakes to
   expect PostgresBlockDocumentRepository beside current page persistence.
 
-- [ ] **Step 2: Observe RED**
+- [x] **Step 2: Observe RED**
 
       npm test -- apps/api/test/block-document-routes.test.ts
 
-- [ ] **Step 3: Implement strict adapter**
+- [x] **Step 3: Implement strict adapter**
 
   Register GET and PUT at /api/v1/pages/:id/blocks. Reuse existing server
   authentication/authorisation/CSRF boundaries. Validate exact JSON and pass
@@ -322,7 +322,7 @@ PostgreSQL implementation.
   typed body conflict to 409. Do not add client idempotency replay, granular
   mutations, tokens, or public access.
 
-- [ ] **Step 4: Verify**
+- [x] **Step 4: Verify**
 
   ```sh
   npm test -- apps/api/test/block-document-routes.test.ts apps/api/test/app.test.ts apps/api/test/runtime.test.ts
@@ -330,7 +330,7 @@ PostgreSQL implementation.
   npm run typecheck
   ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
   ```sh
   git add apps/api/src/block-document-routes.ts apps/api/test/block-document-routes.test.ts apps/api/src/app.ts apps/api/src/runtime.ts apps/api/test
@@ -347,7 +347,7 @@ PostgreSQL implementation.
 - Modify: apps/web/styles.css
 - Modify: apps/api/test/web-shell.test.ts
 
-- [ ] **Step 1: Write failing web-shell tests**
+- [x] **Step 1: Write failing web-shell tests**
 
   Prove page selection loads title metadata and its GET blocks document. Empty
   documents enable body controls. A single root paragraph loads into a textarea,
@@ -357,11 +357,11 @@ PostgreSQL implementation.
   without a PUT, 409 retains text and tells user to reload, generic errors stay
   generic, and title save remains on title revision.
 
-- [ ] **Step 2: Observe RED**
+- [x] **Step 2: Observe RED**
 
       npm test -- apps/api/test/web-shell.test.ts
 
-- [ ] **Step 3: Implement the narrow adapter**
+- [x] **Step 3: Implement the narrow adapter**
 
   Add accessible labeled body controls. On selection fetch document after page
   metadata and use a generation token so late responses cannot alter a new
@@ -373,7 +373,7 @@ PostgreSQL implementation.
   supported paragraph. Make body save distinct from title save. Never use
   innerHTML for page/error data or add a custom rich-text parser.
 
-- [ ] **Step 4: Verify**
+- [x] **Step 4: Verify**
 
   ```sh
   npm test -- apps/api/test/web-shell.test.ts apps/api/test/block-document-routes.test.ts
@@ -381,7 +381,7 @@ PostgreSQL implementation.
   npm run typecheck
   ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
   ```sh
   git add apps/web/index.html apps/web/app.js apps/web/app.d.ts apps/web/styles.css apps/api/test/web-shell.test.ts
@@ -397,14 +397,14 @@ PostgreSQL implementation.
 - Modify: this plan
 - Modify: .superpowers/sdd/editor-and-block-document-core/progress.md (ignored)
 
-- [ ] **Step 1: Update evidence-bound documentation**
+- [x] **Step 1: Update evidence-bound documentation**
 
   Check plan boxes only after their stated evidence. Update status/changelog
   with canonical document/revision/audit/API/browser behavior. Explicitly retain
   live PostgreSQL, real browser, configured owner/authentication, Docker,
   backup/restore, rich editor, migration, and Notion-cutover gates.
 
-- [ ] **Step 2: Run full verification**
+- [x] **Step 2: Run full verification**
 
   ```sh
   npm run verify
@@ -418,14 +418,14 @@ PostgreSQL implementation.
   Expected: lint/typecheck/tests/build/schema generation green; live suites
   visibly skipped without TEST_DATABASE_URL; production audit clean.
 
-- [ ] **Step 3: Independent review and repair**
+- [x] **Step 3: Independent review and repair**
 
   Ask a fresh reviewer to inspect this exact branch/worktree against design and
   plan. It must separate Critical/Important/Minor defects from intentional
   gates. Fix every valid finding through a focused regression test before
   re-running relevant verification.
 
-- [ ] **Step 4: Commit evidence and integrate**
+- [x] **Step 4: Commit evidence and integrate**
 
   ```sh
   git add STATUS.md CHANGELOG.md docs/superpowers/plans/2026-09-21-editor-and-block-document-core.md

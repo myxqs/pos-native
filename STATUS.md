@@ -54,21 +54,34 @@ M1 — Sovereign canonical core and first visible vertical slice (in progress).
   transaction adapter, and an internal service that cross-checks staged
   receipts against its owned byte snapshot before explicit expected-key
   compensation.
+- ADR-0008 records TipTap/ProseMirror as a future editor-adapter direction
+  while deferring package installation, complete dependency/license review, and
+  production-adapter acceptance.
+- Canonical page block documents: server-owned block UUIDs, parent edges,
+  stable positions, soft archives, separate body revisions, recoverable
+  revision snapshots, and append-oriented body audit events.
+- Authenticated versioned block-document GET/PUT routes with strict input,
+  CSRF-bound writes, quoted body revision compare-and-swap, explicit stale
+  conflicts, and runtime PostgreSQL adapter wiring.
+- A safe visible paragraph-body adapter: the browser loads and saves either an
+  empty document or one root paragraph, retains a server block ID, keeps title
+  and body revisions distinct, rejects unsupported richer documents without
+  changing them, and ignores late selection responses.
 
 ## In progress
 
-- The next product-visible M1 slice: make the editor foundation decision with
-  current primary-source evidence, record the ADR, and establish a canonical
-  block-document persistence contract that a usable nested-page editor can
-  consume. Live PostgreSQL acceptance remains independently blocked.
+- The next product-first slice is native page hierarchy: parent/child pages,
+  stable move/reparent and soft-archive semantics, breadcrumbs and a usable
+  sidebar tree. It must preserve existing page/block identity, revision/audit
+  boundaries, and the synthetic-versus-live evidence distinction.
 
 ## Verification state
 
 - npm run verify: PASS on 2026-09-21 — formatting, lint, strict typecheck, and
-  140 synthetic tests passed across twenty-one suites; four PostgreSQL
-  integration tests skipped because TEST_DATABASE_URL is not set. Asset and
-  backup filesystem tests used isolated temporary roots and exercised the
-  Windows symbolic-link refusal path.
+  170 tests passed across twenty-four suites; eight PostgreSQL integration
+  tests skipped across three suites because TEST_DATABASE_URL is not set.
+  Asset and backup filesystem tests used isolated temporary roots and exercised
+  the Windows symbolic-link refusal path.
 - npm run db:generate: PASS on 2026-09-21 — no ungenerated schema changes.
 - npm run build -- --listEmittedFiles: PASS on 2026-09-21 — compiled source
   only; no test source was emitted, and runtime configuration remains
@@ -90,6 +103,11 @@ M1 — Sovereign canonical core and first visible vertical slice (in progress).
 - Browser login/session/logout flows have only synthetic controller coverage.
   They cannot be presented as a persistent end-to-end experience until an owner
   account and the runtime run against a live PostgreSQL database in a browser.
+- Block-document PostgreSQL migration, transaction, and restart-readback tests
+  are intentionally skipped without TEST_DATABASE_URL. The browser paragraph
+  adapter is synthetic-controller tested only; it is not a real-browser or
+  mobile acceptance result, and it deliberately does not implement the full
+  rich block-editor requirement.
 - The live PostgreSQL suite is intentionally skipped until TEST_DATABASE_URL is
   supplied; this is an environment gate, not a passing integration result.
 - No owner account has been created. The local interactive bootstrap command is
@@ -125,16 +143,19 @@ M1 — Sovereign canonical core and first visible vertical slice (in progress).
   against a service-owned snapshot before one metadata/revision/audit
   repository transaction; any post-stage failure uses expected-key-only
   compensation and is not presented as atomicity.
+- ADR-0008: TipTap/ProseMirror is a future UI-adapter direction only; native
+  block IDs, relational rows, revisions, audit history, and APIs remain the
+  canonical boundary, and no editor package is installed.
 
 ## Exact next action
 
-Evaluate and select a maintained open-source editor foundation using current
-primary-source evidence, record the decision, then implement the canonical
-block-document contract and persistence slice that a usable nested-page editor
-will consume. Do not expose asset upload or begin Notion work. After the user
-approves a Windows reboot and Docker starts, run migration, live asset-metadata
-integration, restart-persistence, owner bootstrap, authenticated browser-flow,
-and live backup/restore acceptance tests.
+Plan and implement page hierarchy as the next product-first slice: persistent
+parent/child relationships, safe reparent/move/archive operations, hierarchy
+breadcrumbs, and a responsive sidebar tree. Do not expose asset upload or
+begin Notion work. After the user approves a Windows reboot and Docker starts,
+run migrations, live asset-metadata/block-document integration,
+restart-persistence, owner bootstrap, authenticated browser-flow, and live
+backup/restore acceptance tests.
 
 ## Commands to resume
 
@@ -151,6 +172,7 @@ and live backup/restore acceptance tests.
 - docs/superpowers/plans/2026-09-20-asset-storage-foundation.md
 - docs/superpowers/plans/2026-09-21-backup-restore-proof.md
 - docs/superpowers/plans/2026-09-21-asset-metadata-service.md
+- docs/superpowers/plans/2026-09-21-editor-and-block-document-core.md
 - docs/operations/backup-restore.md
 - docs/operations/assets.md
 - docs/operations/development.md
@@ -158,3 +180,4 @@ and live backup/restore acceptance tests.
 - packages/assets/
 - packages/backup/
 - packages/database/
+- packages/domain/src/block-document.ts

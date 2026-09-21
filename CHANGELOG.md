@@ -37,6 +37,14 @@
   bounded provenance, metadata-only revision/audit records, transactional
   repository adapters, staged receipt checksum/size cross-checking, and
   explicit expected-key filesystem compensation.
+- Canonical block-document rows, separate page-body revisions, soft archives,
+  revision snapshots, append-oriented audit records, and atomic repository
+  adapters.
+- Authenticated page-body GET/PUT API routes with CSRF-bound writes and quoted
+  body revision compare-and-swap.
+- Safe visible single-paragraph page-body editor that fails closed for richer
+  documents, preserves native block identity, and guards against stale browser
+  responses.
 
 ### Changed
 
@@ -53,3 +61,5 @@
 - Filesystem asset reads now bind validation and bounded reads to one file
   handle, staging owns a byte snapshot before asynchronous work, and successful
   fallback cleanup no longer reports a false failure after publication.
+- ADR-0008 now records TipTap/ProseMirror as an uninstalled future adapter
+  direction while requiring a later exact dependency/license/security review.

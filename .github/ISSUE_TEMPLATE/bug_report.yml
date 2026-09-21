@@ -1,0 +1,45 @@
+name: Bug report
+description: Report reproducible incorrect behaviour in POS Native
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a problem. Do not include personal POS data, credentials, private exports or production databases.
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: POS Native version or commit SHA
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Describe the observed behaviour using synthetic or redacted data.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction steps
+      description: Minimal steps or code needed to reproduce the issue.
+    validations:
+      required: true
+  - type: dropdown
+    id: sensitive
+    attributes:
+      label: Sensitive-data check
+      options:
+        - "I confirm this report contains no personal data, credentials or private exports."
+    validations:
+      required: true

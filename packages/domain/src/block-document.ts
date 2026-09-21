@@ -118,7 +118,7 @@ export function replaceBlockDocument(
   command: ReplaceBlockDocumentCommand,
   dependencies: BlockDocumentDependencies,
 ): ReplaceBlockDocumentResult {
-  const currentDocument = normaliseCurrentDocument(current);
+  const currentDocument = normaliseBlockDocument(current);
   const validatedCommand = validateCommand(command, currentDocument.pageId);
 
   if (
@@ -216,7 +216,7 @@ export function replaceBlockDocument(
   });
 }
 
-function normaliseCurrentDocument(value: BlockDocument): BlockDocument {
+export function normaliseBlockDocument(value: unknown): BlockDocument {
   if (!isPlainRecord(value)) {
     throw new ValidationError("block document is invalid");
   }

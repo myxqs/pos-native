@@ -17,6 +17,23 @@ Without `TEST_DATABASE_URL`, the live suite reports one skipped test. Do not
 claim restart persistence or transactional PostgreSQL verification from the
 in-memory repository tests.
 
+## Block-document schema migration preflight
+
+Migration 0005 adds page body-document revisions, archived block state,
+same-page parent enforcement, and unique live sibling positions. It contains
+fail-closed checks for negative positions, cross-page parents, and duplicate
+live sibling positions before it adds the new constraints. No automatic
+renumbering, reparenting, deletion, or archival repair is performed.
+
+Before any approved live migration, take a verified backup and run the opt-in
+PostgreSQL integration suite. If the preflight stops, preserve the database and
+record the exact failing condition; make a separate, reviewable repair plan
+rather than bypassing the constraint or modifying canonical data ad hoc. The
+generated migration required a reviewed statement-order correction because
+PostgreSQL needs the composite unique target before its composite foreign key.
+That live migration path remains unverified until a configured test database is
+available.
+
 Page routes are registered only when both a repository and a server-side
 authorizer are supplied. The default `buildApp()` exposes health, manifest, and
 static shell routes but does not expose canonical reads or writes. Test-only

@@ -1,12 +1,16 @@
+import { sql } from "drizzle-orm";
 import {
   type AnyPgColumn,
   bigint,
+  check,
+  foreignKey,
   index,
   integer,
   jsonb,
   pgTable,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
@@ -81,6 +85,11 @@ export const pages = pgTable(
     currentRevisionNumber: integer("current_revision_number")
       .notNull()
       .default(0),
+    currentBlockDocumentRevisionNumber: integer(
+      "current_block_document_revision_number",
+    )
+      .notNull()
+      .default(0),
     provenance: jsonb("provenance").$type<Record<string, string>>().notNull(),
   },
   (table) => [index("pages_parent_id_idx").on(table.parentId)],
@@ -99,12 +108,29 @@ export const blocks = pgTable(
     blockType: text("block_type").notNull(),
     position: integer("position").notNull(),
     content: jsonb("content").$type<Record<string, unknown>>().notNull(),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdAt: createdAt(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
   (table) => [
     index("blocks_page_id_position_idx").on(table.pageId, table.position),
     index("blocks_parent_block_id_idx").on(table.parentBlockId),
+    check("blocks_position_nonnegative", sql.raw('"position" >= 0')),
+    unique("blocks_id_page_unique").on(table.id, table.pageId),
+    foreignKey({
+      name: "blocks_parent_block_page_fk",
+      columns: [table.parentBlockId, table.pageId],
+      foreignColumns: [table.id, table.pageId],
+    }),
+    uniqueIndex("blocks_live_sibling_position_unique")
+      .on(
+        table.pageId,
+        sql.raw(
+          "coalesce(\"parent_block_id\", '00000000-0000-0000-0000-000000000000'::uuid)",
+        ),
+        table.position,
+      )
+      .where(sql.raw('"archived_at" is null')),
   ],
 );
 

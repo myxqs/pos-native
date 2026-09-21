@@ -146,6 +146,7 @@ function toPageRow(
 ): typeof pages.$inferInsert {
   return {
     id: page.id,
+    parentId: page.parentId,
     title: page.title,
     archivedAt: page.archivedAt ? new Date(page.archivedAt) : null,
     createdAt: new Date(page.createdAt),
@@ -163,6 +164,7 @@ function fromPageRow(row: typeof pages.$inferSelect): Page {
   }
   return Object.freeze({
     id: asNativeId(row.id),
+    parentId: row.parentId ? asNativeId(row.parentId) : null,
     title: row.title,
     archivedAt: row.archivedAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),

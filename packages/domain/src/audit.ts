@@ -3,7 +3,13 @@ import type { NativeId } from "./ids.ts";
 export type AuditActorType = "user" | "api-token" | "importer" | "system";
 export type NativeEntityType = "page" | "asset" | "block-document";
 export type AuditAction =
-  "page.created" | "page.updated" | "asset.created" | "block-document.updated";
+  | "page.created"
+  | "page.updated"
+  | "page.moved"
+  | "page.archived"
+  | "page.restored"
+  | "asset.created"
+  | "block-document.updated";
 
 export interface Revision<
   TSnapshot,

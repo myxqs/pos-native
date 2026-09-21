@@ -26,6 +26,35 @@ export async function updatePageRequest(
   });
 }
 
+export async function getBlockDocumentRequest(apiFetch, id) {
+  const body = await requestJson(apiFetch, "/api/v1/pages/" + id + "/blocks", {
+    credentials: "same-origin",
+    method: "GET",
+  });
+  return blockDocumentFromResponse(body, id);
+}
+
+export async function updateBlockDocumentRequest(
+  apiFetch,
+  id,
+  blocks,
+  revisionNumber,
+  csrfToken,
+) {
+  if (!Number.isSafeInteger(revisionNumber) || revisionNumber < 0) {
+    throw new Error("block document revision is invalid");
+  }
+  const body = await requestJson(apiFetch, "/api/v1/pages/" + id + "/blocks", {
+    body: JSON.stringify({ blocks }),
+    credentials: "same-origin",
+    headers: jsonHeaders(csrfToken, {
+      "if-match": '"' + String(revisionNumber) + '"',
+    }),
+    method: "PUT",
+  });
+  return blockDocumentFromResponse(body, id);
+}
+
 export async function getSessionRequest(apiFetch) {
   const response = await apiFetch("/api/v1/auth/session", {
     credentials: "same-origin",
@@ -95,6 +124,56 @@ function isAuthenticationError(error) {
   return error instanceof Error && error.statusCode === 401;
 }
 
+function isPlainRecord(value) {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Object.getPrototypeOf(value) === Object.prototype
+  );
+}
+
+function blockDocumentFromResponse(value, pageId) {
+  if (!isPlainRecord(value) || !isPlainRecord(value.document)) {
+    throw new Error("NativePOS is unavailable");
+  }
+  const document = value.document;
+  if (
+    document.pageId !== pageId ||
+    !Number.isSafeInteger(document.revisionNumber) ||
+    document.revisionNumber < 0 ||
+    !Array.isArray(document.blocks)
+  ) {
+    throw new Error("NativePOS is unavailable");
+  }
+  return document;
+}
+
+function editableParagraph(document) {
+  if (document.blocks.length === 0) {
+    return { blockId: null, revisionNumber: document.revisionNumber, text: "" };
+  }
+  if (document.blocks.length !== 1) return null;
+  const block = document.blocks[0];
+  if (
+    !isPlainRecord(block) ||
+    typeof block.id !== "string" ||
+    block.id.length === 0 ||
+    block.parentBlockId !== null ||
+    block.blockType !== "paragraph" ||
+    block.position !== 0 ||
+    !isPlainRecord(block.content) ||
+    typeof block.content.text !== "string"
+  ) {
+    return null;
+  }
+  return {
+    blockId: block.id,
+    revisionNumber: document.revisionNumber,
+    text: block.content.text,
+  };
+}
+
 function requiredElement(documentObject, selector) {
   const element = documentObject.querySelector(selector);
   if (!element) throw new Error("NativePOS browser shell is unavailable");
@@ -130,20 +209,55 @@ export async function startBrowserApp(
   const newTitle = requiredElement(documentObject, "#new-page-title");
   const pageTitle = requiredElement(documentObject, "#page-title");
   const save = requiredElement(documentObject, "#save-page");
+  const pageBody = requiredElement(documentObject, "#page-body");
+  const saveBody = requiredElement(documentObject, "#save-body");
+  const bodyStatus = requiredElement(documentObject, "#body-status");
   const list = requiredElement(documentObject, "#page-list");
   const editor = requiredElement(documentObject, "#editor");
   const empty = requiredElement(documentObject, "#empty-state");
   const status = requiredElement(documentObject, "#status");
   let selectedId = null;
   let selectedRevisionNumber = null;
+  let selectedBodyRevisionNumber = null;
+  let selectedBodyBlockId = null;
   let authenticationGeneration = 0;
+  let pageSelectionGeneration = 0;
+  let bodySaveSequence = 0;
+
+  function resetBodyEditor() {
+    selectedBodyRevisionNumber = null;
+    selectedBodyBlockId = null;
+    pageBody.value = "";
+    pageBody.disabled = true;
+    saveBody.disabled = true;
+    bodyStatus.textContent = "";
+  }
+
+  function showEditableBody(document) {
+    const paragraph = editableParagraph(document);
+    if (!paragraph) {
+      resetBodyEditor();
+      bodyStatus.textContent =
+        "This page body cannot be edited in this version.";
+      return false;
+    }
+    selectedBodyRevisionNumber = paragraph.revisionNumber;
+    selectedBodyBlockId = paragraph.blockId;
+    pageBody.value = paragraph.text;
+    pageBody.disabled = false;
+    saveBody.disabled = false;
+    bodyStatus.textContent = "";
+    return true;
+  }
 
   function showLogin(message = "") {
+    pageSelectionGeneration += 1;
     loginPanel.hidden = false;
     workspace.hidden = true;
     loginStatus.textContent = message;
     selectedId = null;
     selectedRevisionNumber = null;
+    resetBodyEditor();
     editor.hidden = true;
     empty.hidden = false;
   }
@@ -163,17 +277,40 @@ export async function startBrowserApp(
   }
 
   async function selectPage(id) {
+    const selectionGeneration = ++pageSelectionGeneration;
+    let metadataLoaded = false;
+    selectedId = null;
+    selectedRevisionNumber = null;
+    resetBodyEditor();
+    editor.hidden = true;
+    empty.hidden = false;
     try {
       const result = await requestJson(apiFetch, "/api/v1/pages/" + id, {
         credentials: "same-origin",
         method: "GET",
       });
+      if (selectionGeneration !== pageSelectionGeneration) return;
       selectedId = result.page.id;
       selectedRevisionNumber = result.revisionNumber;
+      metadataLoaded = true;
       pageTitle.value = result.page.title;
       editor.hidden = false;
       empty.hidden = true;
+
+      const blockDocument = await getBlockDocumentRequest(apiFetch, selectedId);
+      if (selectionGeneration !== pageSelectionGeneration) return;
+      showEditableBody(blockDocument);
     } catch (error) {
+      if (selectionGeneration !== pageSelectionGeneration) return;
+      if (metadataLoaded) {
+        resetBodyEditor();
+        if (isAuthenticationError(error)) {
+          showLogin("Your session has ended. Please sign in again.");
+        } else {
+          bodyStatus.textContent = "Could not load page body.";
+        }
+        return;
+      }
       handleWorkspaceFailure(error, "Could not load page.");
     }
   }
@@ -190,8 +327,8 @@ export async function startBrowserApp(
         const button = documentObject.createElement("button");
         button.type = "button";
         button.textContent = page.title;
-        button.addEventListener("click", () => {
-          void selectPage(page.id);
+        button.addEventListener("click", async () => {
+          await selectPage(page.id);
         });
         item.append(button);
         return item;
@@ -260,11 +397,17 @@ export async function startBrowserApp(
         csrfTokenFromDocument(documentObject),
       );
       newTitle.value = "";
+      pageSelectionGeneration += 1;
       selectedId = result.page.id;
       selectedRevisionNumber = result.revisionNumber;
       pageTitle.value = result.page.title;
       editor.hidden = false;
       empty.hidden = true;
+      showEditableBody({
+        blocks: [],
+        pageId: result.page.id,
+        revisionNumber: 0,
+      });
       status.textContent = "Page created.";
       await refresh();
     } catch (error) {
@@ -287,6 +430,73 @@ export async function startBrowserApp(
       await refresh();
     } catch (error) {
       handleWorkspaceFailure(error, "Could not save page.");
+    }
+  });
+
+  saveBody.addEventListener("click", async () => {
+    if (
+      !selectedId ||
+      selectedBodyRevisionNumber === null ||
+      pageBody.disabled ||
+      saveBody.disabled
+    ) {
+      return;
+    }
+    const id = selectedId;
+    const selectionGeneration = pageSelectionGeneration;
+    const revisionNumber = selectedBodyRevisionNumber;
+    const blockId = selectedBodyBlockId;
+    const bodyText = pageBody.value;
+    pageBody.disabled = true;
+    saveBody.disabled = true;
+    try {
+      const blockDocument = await updateBlockDocumentRequest(
+        apiFetch,
+        id,
+        [
+          {
+            ...(blockId ? { id: blockId } : {}),
+            blockType: "paragraph",
+            clientRef: "browser-body-" + String(++bodySaveSequence),
+            content: { text: bodyText },
+          },
+        ],
+        revisionNumber,
+        csrfTokenFromDocument(documentObject),
+      );
+      if (
+        selectionGeneration !== pageSelectionGeneration ||
+        selectedId !== id
+      ) {
+        return;
+      }
+      if (showEditableBody(blockDocument)) {
+        bodyStatus.textContent = "Page body saved.";
+      }
+    } catch (error) {
+      if (
+        selectionGeneration !== pageSelectionGeneration ||
+        selectedId !== id
+      ) {
+        return;
+      }
+      if (isAuthenticationError(error)) {
+        showLogin("Your session has ended. Please sign in again.");
+      } else if (error instanceof Error && error.statusCode === 409) {
+        bodyStatus.textContent =
+          "This page body changed. Reload the page before saving.";
+      } else {
+        bodyStatus.textContent = "Could not save page body.";
+      }
+    } finally {
+      if (
+        selectionGeneration === pageSelectionGeneration &&
+        selectedId === id &&
+        selectedBodyRevisionNumber !== null
+      ) {
+        pageBody.disabled = false;
+        saveBody.disabled = false;
+      }
     }
   });
 

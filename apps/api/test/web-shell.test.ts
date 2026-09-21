@@ -7,10 +7,12 @@ import { expect, test, vi } from "vitest";
 import type { BrowserDocument, BrowserElement } from "../../web/app.js";
 import {
   createPageRequest,
+  getBlockDocumentRequest,
   getSessionRequest,
   loginRequest,
   logoutRequest,
   startBrowserApp,
+  updateBlockDocumentRequest,
   updatePageRequest,
 } from "../../web/app.js";
 import { buildApp } from "../src/app.ts";
@@ -75,6 +77,9 @@ function createBrowserDocument(): {
     "#new-page-title",
     "#page-title",
     "#save-page",
+    "#page-body",
+    "#save-body",
+    "#body-status",
     "#page-list",
     "#editor",
     "#empty-state",
@@ -108,6 +113,23 @@ function createDeferred<T>(): {
   };
 }
 
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
+}
+
+function pageListButton(
+  elements: Record<string, FakeElement>,
+  index = 0,
+): FakeElement {
+  const item = element(elements, "#page-list").children[index];
+  const button = item?.children[0];
+  if (!button) throw new Error("Missing page list button");
+  return button;
+}
+
 test("serves an accessible NativePOS browser shell", async () => {
   const app = buildApp();
   const response = await app.inject({ method: "GET", url: "/" });
@@ -122,6 +144,9 @@ test("serves an accessible NativePOS browser shell", async () => {
     '<div id="workspace" class="app-shell" hidden>',
   );
   expect(response.body).toContain('id="logout"');
+  expect(response.body).toContain('<label for="page-body">Page body</label>');
+  expect(response.body).toContain('id="page-body"');
+  expect(response.body).toContain('id="save-body"');
   await app.close();
 });
 
@@ -211,6 +236,76 @@ test("browser client sends create and update requests to versioned routes", asyn
       "x-pos-csrf": "csrf-token",
     },
     body: JSON.stringify({ title: "Projects" }),
+  });
+});
+
+test("browser block-document requests use quoted body revisions and CSRF proof", async () => {
+  const apiFetch = vi
+    .fn()
+    .mockResolvedValueOnce(
+      jsonResponse({
+        document: { pageId: "page-1", revisionNumber: 0, blocks: [] },
+      }),
+    )
+    .mockResolvedValueOnce(
+      jsonResponse({
+        document: {
+          pageId: "page-1",
+          revisionNumber: 1,
+          blocks: [
+            {
+              id: "block-1",
+              parentBlockId: null,
+              blockType: "paragraph",
+              position: 0,
+              content: { text: "First body" },
+            },
+          ],
+        },
+      }),
+    );
+
+  await expect(getBlockDocumentRequest(apiFetch, "page-1")).resolves.toEqual({
+    pageId: "page-1",
+    revisionNumber: 0,
+    blocks: [],
+  });
+  await expect(
+    updateBlockDocumentRequest(
+      apiFetch,
+      "page-1",
+      [
+        {
+          clientRef: "browser-body-1",
+          blockType: "paragraph",
+          content: { text: "First body" },
+        },
+      ],
+      0,
+      "csrf-token",
+    ),
+  ).resolves.toMatchObject({ revisionNumber: 1 });
+  expect(apiFetch).toHaveBeenNthCalledWith(1, "/api/v1/pages/page-1/blocks", {
+    credentials: "same-origin",
+    method: "GET",
+  });
+  expect(apiFetch).toHaveBeenNthCalledWith(2, "/api/v1/pages/page-1/blocks", {
+    credentials: "same-origin",
+    method: "PUT",
+    headers: {
+      "content-type": "application/json",
+      "if-match": '"0"',
+      "x-pos-csrf": "csrf-token",
+    },
+    body: JSON.stringify({
+      blocks: [
+        {
+          clientRef: "browser-body-1",
+          blockType: "paragraph",
+          content: { text: "First body" },
+        },
+      ],
+    }),
   });
 });
 
@@ -555,4 +650,433 @@ test("browser controller returns to login after confirmed logout", async () => {
     headers: { "x-pos-csrf": "csrf-token" },
     method: "POST",
   });
+});
+
+test("browser selection loads an empty body document after page metadata", async () => {
+  const { documentObject, elements } = createBrowserDocument();
+  const apiFetch = vi.fn((url: string) => {
+    if (url === "/api/v1/auth/session") {
+      return Promise.resolve(jsonResponse({ authenticated: true }));
+    }
+    if (url === "/api/v1/pages") {
+      return Promise.resolve(
+        jsonResponse({ pages: [{ id: "page-1", title: "Projects" }] }),
+      );
+    }
+    if (url === "/api/v1/pages/page-1") {
+      return Promise.resolve(
+        jsonResponse({
+          page: { id: "page-1", title: "Projects" },
+          revisionNumber: 7,
+        }),
+      );
+    }
+    if (url === "/api/v1/pages/page-1/blocks") {
+      return Promise.resolve(
+        jsonResponse({
+          document: { pageId: "page-1", revisionNumber: 0, blocks: [] },
+        }),
+      );
+    }
+    throw new Error(`Unexpected browser request: ${url}`);
+  });
+
+  await startBrowserApp(documentObject, apiFetch as typeof fetch);
+  await pageListButton(elements).emit("click");
+
+  expect(element(elements, "#page-title").value).toBe("Projects");
+  expect(element(elements, "#page-body").value).toBe("");
+  expect(element(elements, "#page-body").disabled).toBe(false);
+  expect(element(elements, "#save-body").disabled).toBe(false);
+  const metadataCall = apiFetch.mock.calls.findIndex(
+    ([url]) => url === "/api/v1/pages/page-1",
+  );
+  const bodyCall = apiFetch.mock.calls.findIndex(
+    ([url]) => url === "/api/v1/pages/page-1/blocks",
+  );
+  expect(metadataCall).toBeGreaterThan(-1);
+  expect(bodyCall).toBeGreaterThan(metadataCall);
+});
+
+test("browser fails closed with generic feedback when a body document cannot load", async () => {
+  const { documentObject, elements } = createBrowserDocument();
+  const apiFetch = vi.fn((url: string) => {
+    if (url === "/api/v1/auth/session") {
+      return Promise.resolve(jsonResponse({ authenticated: true }));
+    }
+    if (url === "/api/v1/pages") {
+      return Promise.resolve(
+        jsonResponse({ pages: [{ id: "page-1", title: "Projects" }] }),
+      );
+    }
+    if (url === "/api/v1/pages/page-1") {
+      return Promise.resolve(
+        jsonResponse({
+          page: { id: "page-1", title: "Projects" },
+          revisionNumber: 7,
+        }),
+      );
+    }
+    if (url === "/api/v1/pages/page-1/blocks") {
+      return Promise.resolve(jsonResponse({ error: "storage details" }, 500));
+    }
+    throw new Error(`Unexpected browser request: ${url}`);
+  });
+
+  await startBrowserApp(documentObject, apiFetch as typeof fetch);
+  await pageListButton(elements).emit("click");
+
+  expect(element(elements, "#page-body").disabled).toBe(true);
+  expect(element(elements, "#save-body").disabled).toBe(true);
+  expect(element(elements, "#body-status").textContent).toBe(
+    "Could not load page body.",
+  );
+});
+
+test("browser body save retains a root block ID and keeps title and body revisions separate", async () => {
+  const { documentObject, elements } = createBrowserDocument();
+  let bodyWriteCount = 0;
+  const apiFetch = vi.fn((url: string, options?: { method?: string }) => {
+    if (url === "/api/v1/auth/session") {
+      return Promise.resolve(jsonResponse({ authenticated: true }));
+    }
+    if (url === "/api/v1/pages") {
+      return Promise.resolve(
+        jsonResponse({ pages: [{ id: "page-1", title: "Projects" }] }),
+      );
+    }
+    if (url === "/api/v1/pages/page-1" && options?.method === "GET") {
+      return Promise.resolve(
+        jsonResponse({
+          page: { id: "page-1", title: "Projects" },
+          revisionNumber: 7,
+        }),
+      );
+    }
+    if (url === "/api/v1/pages/page-1/blocks" && options?.method === "GET") {
+      return Promise.resolve(
+        jsonResponse({
+          document: {
+            pageId: "page-1",
+            revisionNumber: 3,
+            blocks: [
+              {
+                id: "block-1",
+                parentBlockId: null,
+                blockType: "paragraph",
+                position: 0,
+                content: { text: "" },
+              },
+            ],
+          },
+        }),
+      );
+    }
+    if (url === "/api/v1/pages/page-1/blocks" && options?.method === "PUT") {
+      bodyWriteCount += 1;
+      return Promise.resolve(
+        jsonResponse({
+          document: {
+            pageId: "page-1",
+            revisionNumber: bodyWriteCount + 3,
+            blocks: [
+              {
+                id: "block-1",
+                parentBlockId: null,
+                blockType: "paragraph",
+                position: 0,
+                content: {
+                  text: bodyWriteCount === 1 ? "Canonical body" : "Second body",
+                },
+              },
+            ],
+          },
+        }),
+      );
+    }
+    if (url === "/api/v1/pages/page-1" && options?.method === "PATCH") {
+      return Promise.resolve(
+        jsonResponse({
+          page: { id: "page-1", title: "Renamed Projects" },
+          revisionNumber: 8,
+        }),
+      );
+    }
+    throw new Error(`Unexpected browser request: ${url}`);
+  });
+
+  await startBrowserApp(documentObject, apiFetch as typeof fetch);
+  await pageListButton(elements).emit("click");
+  expect(element(elements, "#page-body").value).toBe("");
+
+  element(elements, "#page-body").value = "Updated body";
+  await element(elements, "#save-body").emit("click");
+
+  const bodyWrite = apiFetch.mock.calls.find(
+    ([url, options]) =>
+      url === "/api/v1/pages/page-1/blocks" &&
+      (options as { method?: string }).method === "PUT",
+  );
+  expect(bodyWrite?.[1]).toMatchObject({
+    credentials: "same-origin",
+    method: "PUT",
+    headers: {
+      "content-type": "application/json",
+      "if-match": '"3"',
+      "x-pos-csrf": "csrf-token",
+    },
+  });
+  expect(JSON.parse((bodyWrite?.[1] as { body: string }).body)).toEqual({
+    blocks: [
+      {
+        clientRef: expect.stringMatching(/^browser-body-[1-9][0-9]*$/u),
+        id: "block-1",
+        blockType: "paragraph",
+        content: { text: "Updated body" },
+      },
+    ],
+  });
+  expect(element(elements, "#page-body").value).toBe("Canonical body");
+  expect(element(elements, "#body-status").textContent).toBe(
+    "Page body saved.",
+  );
+
+  element(elements, "#page-body").value = "Second body";
+  await element(elements, "#save-body").emit("click");
+  const bodyWrites = apiFetch.mock.calls.filter(
+    ([url, options]) =>
+      url === "/api/v1/pages/page-1/blocks" &&
+      (options as { method?: string }).method === "PUT",
+  );
+  expect(bodyWrites).toHaveLength(2);
+  expect(bodyWrites[1]?.[1]).toMatchObject({
+    headers: { "if-match": '"4"' },
+  });
+  expect(element(elements, "#page-body").value).toBe("Second body");
+
+  element(elements, "#page-title").value = "Renamed Projects";
+  await element(elements, "#save-page").emit("click");
+  const titleWrite = apiFetch.mock.calls.find(
+    ([url, options]) =>
+      url === "/api/v1/pages/page-1" &&
+      (options as { method?: string }).method === "PATCH",
+  );
+  expect(titleWrite?.[1]).toMatchObject({
+    headers: {
+      "if-match": "7",
+      "x-pos-csrf": "csrf-token",
+    },
+  });
+});
+
+test("browser disables body mutation instead of replacing an unsupported document", async () => {
+  const { documentObject, elements } = createBrowserDocument();
+  const apiFetch = vi.fn((url: string) => {
+    if (url === "/api/v1/auth/session") {
+      return Promise.resolve(jsonResponse({ authenticated: true }));
+    }
+    if (url === "/api/v1/pages") {
+      return Promise.resolve(
+        jsonResponse({ pages: [{ id: "page-1", title: "Projects" }] }),
+      );
+    }
+    if (url === "/api/v1/pages/page-1") {
+      return Promise.resolve(
+        jsonResponse({
+          page: { id: "page-1", title: "Projects" },
+          revisionNumber: 1,
+        }),
+      );
+    }
+    if (url === "/api/v1/pages/page-1/blocks") {
+      return Promise.resolve(
+        jsonResponse({
+          document: {
+            pageId: "page-1",
+            revisionNumber: 3,
+            blocks: [
+              {
+                id: "root-1",
+                parentBlockId: null,
+                blockType: "paragraph",
+                position: 0,
+                content: { text: "Root" },
+              },
+              {
+                id: "child-1",
+                parentBlockId: "root-1",
+                blockType: "paragraph",
+                position: 0,
+                content: { text: "Child" },
+              },
+            ],
+          },
+        }),
+      );
+    }
+    throw new Error(`Unexpected browser request: ${url}`);
+  });
+
+  await startBrowserApp(documentObject, apiFetch as typeof fetch);
+  await pageListButton(elements).emit("click");
+
+  expect(element(elements, "#page-body").disabled).toBe(true);
+  expect(element(elements, "#save-body").disabled).toBe(true);
+  expect(element(elements, "#page-body").value).toBe("");
+  expect(element(elements, "#body-status").textContent).toBe(
+    "This page body cannot be edited in this version.",
+  );
+  await element(elements, "#save-body").emit("click");
+  expect(
+    apiFetch.mock.calls.filter(
+      ([url]) => url === "/api/v1/pages/page-1/blocks",
+    ),
+  ).toHaveLength(1);
+});
+
+test("browser retains draft text and prompts reload on a body conflict", async () => {
+  const { documentObject, elements } = createBrowserDocument();
+  const apiFetch = vi.fn((url: string, options?: { method?: string }) => {
+    if (url === "/api/v1/auth/session") {
+      return Promise.resolve(jsonResponse({ authenticated: true }));
+    }
+    if (url === "/api/v1/pages") {
+      return Promise.resolve(
+        jsonResponse({ pages: [{ id: "page-1", title: "Projects" }] }),
+      );
+    }
+    if (url === "/api/v1/pages/page-1" && options?.method === "GET") {
+      return Promise.resolve(
+        jsonResponse({
+          page: { id: "page-1", title: "Projects" },
+          revisionNumber: 1,
+        }),
+      );
+    }
+    if (url === "/api/v1/pages/page-1/blocks" && options?.method === "GET") {
+      return Promise.resolve(
+        jsonResponse({
+          document: {
+            pageId: "page-1",
+            revisionNumber: 3,
+            blocks: [
+              {
+                id: "block-1",
+                parentBlockId: null,
+                blockType: "paragraph",
+                position: 0,
+                content: { text: "Saved body" },
+              },
+            ],
+          },
+        }),
+      );
+    }
+    if (url === "/api/v1/pages/page-1/blocks" && options?.method === "PUT") {
+      return Promise.resolve(
+        jsonResponse({ error: "block document revision conflict" }, 409),
+      );
+    }
+    throw new Error(`Unexpected browser request: ${url}`);
+  });
+
+  await startBrowserApp(documentObject, apiFetch as typeof fetch);
+  await pageListButton(elements).emit("click");
+  element(elements, "#page-body").value = "My unsaved body";
+  await element(elements, "#save-body").emit("click");
+
+  expect(element(elements, "#page-body").value).toBe("My unsaved body");
+  expect(element(elements, "#body-status").textContent).toBe(
+    "This page body changed. Reload the page before saving.",
+  );
+});
+
+test("browser ignores a late body response after selecting another page", async () => {
+  const { documentObject, elements } = createBrowserDocument();
+  const firstBody = createDeferred<Response>();
+  let firstBodyRequested!: () => void;
+  const firstBodyStarted = new Promise<void>((resolve) => {
+    firstBodyRequested = resolve;
+  });
+  const apiFetch = vi.fn((url: string) => {
+    if (url === "/api/v1/auth/session") {
+      return Promise.resolve(jsonResponse({ authenticated: true }));
+    }
+    if (url === "/api/v1/pages") {
+      return Promise.resolve(
+        jsonResponse({
+          pages: [
+            { id: "page-1", title: "First" },
+            { id: "page-2", title: "Second" },
+          ],
+        }),
+      );
+    }
+    if (url === "/api/v1/pages/page-1") {
+      return Promise.resolve(
+        jsonResponse({
+          page: { id: "page-1", title: "First" },
+          revisionNumber: 1,
+        }),
+      );
+    }
+    if (url === "/api/v1/pages/page-1/blocks") {
+      firstBodyRequested();
+      return firstBody.promise;
+    }
+    if (url === "/api/v1/pages/page-2") {
+      return Promise.resolve(
+        jsonResponse({
+          page: { id: "page-2", title: "Second" },
+          revisionNumber: 2,
+        }),
+      );
+    }
+    if (url === "/api/v1/pages/page-2/blocks") {
+      return Promise.resolve(
+        jsonResponse({
+          document: {
+            pageId: "page-2",
+            revisionNumber: 5,
+            blocks: [
+              {
+                id: "block-2",
+                parentBlockId: null,
+                blockType: "paragraph",
+                position: 0,
+                content: { text: "Second body" },
+              },
+            ],
+          },
+        }),
+      );
+    }
+    throw new Error(`Unexpected browser request: ${url}`);
+  });
+
+  await startBrowserApp(documentObject, apiFetch as typeof fetch);
+  const selectingFirst = pageListButton(elements, 0).emit("click");
+  await firstBodyStarted;
+  await pageListButton(elements, 1).emit("click");
+  firstBody.resolve(
+    jsonResponse({
+      document: {
+        pageId: "page-1",
+        revisionNumber: 4,
+        blocks: [
+          {
+            id: "block-1",
+            parentBlockId: null,
+            blockType: "paragraph",
+            position: 0,
+            content: { text: "First body" },
+          },
+        ],
+      },
+    }),
+  );
+  await selectingFirst;
+
+  expect(element(elements, "#page-title").value).toBe("Second");
+  expect(element(elements, "#page-body").value).toBe("Second body");
 });

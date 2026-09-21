@@ -63,7 +63,8 @@ h1 {
   gap: 0.5rem;
   margin-top: 0.35rem;
 }
-input {
+input,
+textarea {
   min-width: 0;
   flex: 1;
   padding: 0.7rem;
@@ -71,6 +72,12 @@ input {
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 0.35rem;
+}
+textarea {
+  min-height: 10rem;
+  resize: vertical;
+  font: inherit;
+  line-height: 1.5;
 }
 button {
   padding: 0.7rem 0.9rem;
@@ -94,6 +101,18 @@ li button {
 li button:hover,
 li button:focus-visible {
   background: var(--bg);
+}
+.body-editor {
+  margin-top: 1.5rem;
+}
+#body-status {
+  min-height: 1.2rem;
+  margin: 0.5rem 0 0;
+}
+button:disabled,
+textarea:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
 }
 
 @media (max-width: 720px) {

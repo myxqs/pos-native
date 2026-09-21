@@ -64,6 +64,19 @@
             <input id="page-title" maxlength="500" />
             <button id="save-page" type="button">Save</button>
           </div>
+          <div class="body-editor">
+            <label for="page-body">Page body</label>
+            <textarea
+              id="page-body"
+              aria-describedby="body-status"
+              disabled
+              maxlength="20000"
+            ></textarea>
+            <div class="form-row">
+              <button id="save-body" type="button" disabled>Save body</button>
+            </div>
+            <p id="body-status" role="status" aria-live="polite"></p>
+          </div>
         </section>
         <p id="empty-state">Create a page to begin.</p>
         <p id="status" role="status" aria-live="polite"></p>

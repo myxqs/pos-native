@@ -36,6 +36,33 @@ export function updatePageRequest(
   csrfToken: string,
 ): Promise<{ page: { id: string; title: string }; revisionNumber: number }>;
 
+export interface BrowserBlockDraft {
+  readonly clientRef: string;
+  readonly id?: string;
+  readonly parentClientRef?: string;
+  readonly blockType: "paragraph";
+  readonly content: { readonly text: string };
+}
+
+export interface BrowserBlockDocument {
+  readonly pageId: string;
+  readonly revisionNumber: number;
+  readonly blocks: readonly unknown[];
+}
+
+export function getBlockDocumentRequest(
+  apiFetch: typeof fetch,
+  id: string,
+): Promise<BrowserBlockDocument>;
+
+export function updateBlockDocumentRequest(
+  apiFetch: typeof fetch,
+  id: string,
+  blocks: readonly BrowserBlockDraft[],
+  revisionNumber: number,
+  csrfToken: string,
+): Promise<BrowserBlockDocument>;
+
 export function getSessionRequest(apiFetch: typeof fetch): Promise<boolean>;
 
 export function loginRequest(

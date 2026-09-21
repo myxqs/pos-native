@@ -198,12 +198,14 @@ a missing page, and 409 for a stale document revision. Authorisation and audit
 actor identity come from the existing server-derived route boundary; request
 body actor fields are never trusted.
 
-The initial browser adaptation is intentionally a plain paragraph-block editor
+The initial browser adaptation is intentionally a single-root-paragraph editor
 behind the same API. It is not a custom rich-text engine: it proves load,
 create/update, save, reload, generic failure text, and stale-save recovery
-using the canonical contract. A later TipTap adapter replaces only this browser
-representation, maps its tree/inline JSON through the contract, and retains
-all native IDs/revisions/URLs.
+using the canonical contract. It can edit only an empty document or exactly one
+root paragraph; it disables content mutation and displays a neutral message for
+any richer/nested document so it can never silently replace unsupported blocks.
+A later TipTap adapter replaces only this browser representation, maps its
+tree/inline JSON through the contract, and retains all native IDs/revisions/URLs.
 
 ## Explicit non-goals and gates
 

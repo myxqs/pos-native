@@ -206,6 +206,90 @@ test("never deletes an untrusted key from a malformed stage receipt", async () =
 
 test.each([
   [
+    "another native ID",
+    (input: AssetStageInput): StagedAsset => ({
+      id: asNativeId(otherAssetId),
+      originalFilename: input.originalFilename.trim(),
+      mimeType: input.mimeType.trim().toLowerCase(),
+      storageKey: storageKeyForAsset(input.id),
+      byteSize: input.bytes.byteLength,
+      sha256: sha256For(input.bytes),
+    }),
+  ],
+  [
+    "different filename metadata",
+    (input: AssetStageInput): StagedAsset => ({
+      id: input.id,
+      originalFilename: "different.pdf",
+      mimeType: input.mimeType.trim().toLowerCase(),
+      storageKey: storageKeyForAsset(input.id),
+      byteSize: input.bytes.byteLength,
+      sha256: sha256For(input.bytes),
+    }),
+  ],
+  [
+    "different MIME metadata",
+    (input: AssetStageInput): StagedAsset => ({
+      id: input.id,
+      originalFilename: input.originalFilename.trim(),
+      mimeType: "text/plain",
+      storageKey: storageKeyForAsset(input.id),
+      byteSize: input.bytes.byteLength,
+      sha256: sha256For(input.bytes),
+    }),
+  ],
+  [
+    "another storage key",
+    (input: AssetStageInput): StagedAsset => ({
+      id: input.id,
+      originalFilename: input.originalFilename.trim(),
+      mimeType: input.mimeType.trim().toLowerCase(),
+      storageKey: storageKeyForAsset(asNativeId(otherAssetId)),
+      byteSize: input.bytes.byteLength,
+      sha256: sha256For(input.bytes),
+    }),
+  ],
+  [
+    "an unsafe byte size",
+    (input: AssetStageInput): StagedAsset => ({
+      id: input.id,
+      originalFilename: input.originalFilename.trim(),
+      mimeType: input.mimeType.trim().toLowerCase(),
+      storageKey: storageKeyForAsset(input.id),
+      byteSize: -1,
+      sha256: sha256For(input.bytes),
+    }),
+  ],
+  [
+    "a malformed checksum",
+    (input: AssetStageInput): StagedAsset => ({
+      id: input.id,
+      originalFilename: input.originalFilename.trim(),
+      mimeType: input.mimeType.trim().toLowerCase(),
+      storageKey: storageKeyForAsset(input.id),
+      byteSize: input.bytes.byteLength,
+      sha256: "A".repeat(64),
+    }),
+  ],
+] as const)(
+  "does not verify or persist when a receipt has %s",
+  async (_label, stageReceipt) => {
+    const store = new RecordingAssetStore({ stageReceipt });
+    const repository = new InMemoryAssetMetadataRepository();
+    const service = createService(store, repository);
+    const expectedKey = storageKeyForAsset(asNativeId(assetId));
+
+    await expect(
+      service.create(createInput(encoded.encode("evidence bytes"))),
+    ).rejects.toThrow();
+    expect(store.verifiedReceipts).toEqual([]);
+    expect(store.discardedKeys).toEqual([expectedKey]);
+    await expect(repository.list()).resolves.toEqual([]);
+  },
+);
+
+test.each([
+  [
     "a mismatched byte size",
     (input: AssetStageInput): StagedAsset => ({
       id: input.id,

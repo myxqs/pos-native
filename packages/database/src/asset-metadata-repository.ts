@@ -8,6 +8,13 @@ export interface PersistedAssetMetadata {
 }
 
 export interface AssetMetadataRepository {
+  /**
+   * Persists one canonical asset creation atomically. If this rejects, none of
+   * the asset, revision, or audit event from the supplied mutation may be
+   * observable afterwards. Implementations must use a local transaction or an
+   * equivalent rollback boundary; callers cannot repair a partial metadata
+   * commit by compensating filesystem bytes.
+   */
   create(mutation: CreateAssetMutation): Promise<Asset>;
   getById(id: NativeId): Promise<PersistedAssetMetadata | null>;
   list(): Promise<readonly Asset[]>;

@@ -38,6 +38,12 @@ export interface AssetStageInput {
 export type StagedAsset = AssetStageReceipt;
 
 export interface AssetStore {
+  /**
+   * Stages bytes only under the exact key derived from `input.id`. A conforming
+   * implementation must not publish a receipt or bytes under an unrelated key;
+   * the service treats a malformed receipt as failure and will only compensate
+   * its own expected key.
+   */
   stage(input: AssetStageInput): Promise<StagedAsset>;
   read(storageKey: AssetStorageKey): Promise<Uint8Array>;
   verify(receipt: AssetStoreReceipt): Promise<boolean>;

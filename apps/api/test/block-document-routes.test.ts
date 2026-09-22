@@ -2,7 +2,7 @@ import { expect, test, vi } from "vitest";
 
 import { InMemoryBlockDocumentRepository } from "../../../packages/database/src/block-document-repository.ts";
 import { InMemoryPageRepository } from "../../../packages/database/src/page-repository.ts";
-import { createPage } from "../../../packages/domain/src/page.ts";
+import { archivePage, createPage } from "../../../packages/domain/src/page.ts";
 import { buildApp } from "../src/app.ts";
 import type { PageAuthorizer } from "../src/page-routes.ts";
 
@@ -73,6 +73,8 @@ async function blockDocumentApp(options?: {
   return {
     app,
     authorize,
+    pageRepository,
+    page: created.page,
     blockDocumentRepository,
     pageId: created.page.id,
   };
@@ -142,6 +144,50 @@ test("reads an empty page document then creates and reloads a paragraph body", a
   expect(reloaded.headers.etag).toBe('"1"');
   expect(authorize).toHaveBeenCalledWith(expect.anything(), false);
   expect(authorize).toHaveBeenCalledWith(expect.anything(), true);
+  await app.close();
+});
+
+test("keeps an archived page body readable but rejects body writes", async () => {
+  const {
+    app,
+    pageRepository,
+    page,
+    blockDocumentRepository,
+    pageId: id,
+  } = await blockDocumentApp();
+  const archived = archivePage(
+    page,
+    1,
+    { actorType: "user", actorId: "user-1", source: "human-ui" },
+    {
+      newId: (() => {
+        const ids = [
+          "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        ];
+        return () => ids.shift() ?? "";
+      })(),
+      now: () => new Date("2026-09-21T13:30:00.000Z"),
+    },
+  );
+  await pageRepository.update(archived);
+
+  const read = await app.inject({
+    method: "GET",
+    url: "/api/v1/pages/" + id + "/blocks",
+  });
+  expect(read.statusCode).toBe(200);
+
+  const write = await app.inject({
+    method: "PUT",
+    url: "/api/v1/pages/" + id + "/blocks",
+    headers: { "if-match": '"0"' },
+    payload: { blocks: [] },
+  });
+  expect(write.statusCode).toBe(409);
+  expect(write.json()).toEqual({ error: "page is archived" });
+  expect(blockDocumentRepository.revisionsFor(id)).toHaveLength(0);
+  expect(blockDocumentRepository.auditFor(id)).toHaveLength(0);
   await app.close();
 });
 

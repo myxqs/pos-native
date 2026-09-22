@@ -87,6 +87,9 @@ export function registerBlockDocumentRoutes(
 
     const page = await options.pageRepository.getById(pageId);
     if (!page) return reply.code(404).send({ error: "page not found" });
+    if (page.page.archivedAt !== null) {
+      return reply.code(409).send({ error: "page is archived" });
+    }
     const persisted = await options.blockDocumentRepository.getByPageId(pageId);
     if (!persisted) {
       return unavailableBlockDocumentState(reply);

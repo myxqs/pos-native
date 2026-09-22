@@ -6,9 +6,18 @@ import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { Pool } from "pg";
 import { afterAll, beforeAll, beforeEach, expect, test } from "vitest";
 
-import { createPage, updatePage } from "../../domain/src/page.ts";
+import type { NativeId } from "../../domain/src/ids.ts";
+import {
+  archivePage,
+  createPage,
+  movePage,
+  updatePage,
+} from "../../domain/src/page.ts";
 import { PostgresPageRepository } from "../src/postgres-page-repository.ts";
-import { PageRevisionConflictError } from "../src/page-repository.ts";
+import {
+  PageHierarchyError,
+  PageRevisionConflictError,
+} from "../src/page-repository.ts";
 import * as schema from "../src/schema.ts";
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
@@ -123,5 +132,158 @@ liveTest(
       page: current.page,
       revisionNumber: 2,
     });
+  },
+);
+
+liveTest(
+  "persists parent identities and scopes hierarchy navigation",
+  async () => {
+    if (!repository) throw new Error("live repository was not initialised");
+    const root = createPage(
+      {
+        title: "Root",
+        actorType: "user",
+        actorId: "integration-user",
+        source: "integration-test",
+      },
+      { newId: randomUUID, now: () => new Date("2026-09-16T10:00:00.000Z") },
+    );
+    const child = createPage(
+      {
+        title: "Child",
+        parentId: root.page.id,
+        actorType: "user",
+        actorId: "integration-user",
+        source: "integration-test",
+      },
+      { newId: randomUUID, now: () => new Date("2026-09-16T11:00:00.000Z") },
+    );
+    await repository.create(root);
+    await repository.create(child);
+
+    await expect(repository.getById(child.page.id)).resolves.toEqual({
+      page: child.page,
+      revisionNumber: 1,
+    });
+    await expect(repository.list()).resolves.toEqual([root.page, child.page]);
+
+    const archived = archivePage(
+      child.page,
+      1,
+      {
+        actorType: "user",
+        actorId: "integration-user",
+        source: "integration-test",
+      },
+      { newId: randomUUID, now: () => new Date("2026-09-16T12:00:00.000Z") },
+    );
+    await repository.update(archived);
+    await expect(repository.list()).resolves.toEqual([root.page]);
+    await expect(repository.list("archived")).resolves.toEqual([archived.page]);
+  },
+);
+
+liveTest(
+  "rejects an invalid hierarchy mutation without appending PostgreSQL history",
+  async () => {
+    if (!repository) throw new Error("live repository was not initialised");
+    const root = createPage(
+      {
+        title: "Root",
+        actorType: "user",
+        actorId: "integration-user",
+        source: "integration-test",
+      },
+      {
+        newId: randomUUID,
+        now: () => new Date("2026-09-16T10:00:00.000Z"),
+      },
+    );
+    await repository.create(root);
+    const invalid = movePage(
+      root.page,
+      1,
+      {
+        parentId: root.page.id,
+        actorType: "user",
+        actorId: "integration-user",
+        source: "integration-test",
+      },
+      {
+        newId: randomUUID,
+        now: () => new Date("2026-09-16T11:00:00.000Z"),
+      },
+    );
+
+    await expect(repository.update(invalid)).rejects.toBeInstanceOf(
+      PageHierarchyError,
+    );
+    await expect(repository.getById(root.page.id)).resolves.toEqual({
+      page: root.page,
+      revisionNumber: 1,
+    });
+  },
+);
+
+liveTest(
+  "serializes two independently valid moves that would otherwise form a cycle",
+  async () => {
+    if (!repository) throw new Error("live repository was not initialised");
+    const command = (title: string, parentId: NativeId | null = null) =>
+      createPage(
+        {
+          title,
+          ...(parentId === null ? {} : { parentId }),
+          actorType: "user",
+          actorId: "integration-user",
+          source: "integration-test",
+        },
+        {
+          newId: randomUUID,
+          now: () => new Date("2026-09-16T10:00:00.000Z"),
+        },
+      );
+    const firstRoot = command("First root");
+    const secondRoot = command("Second root");
+    const firstChild = command("First child", firstRoot.page.id);
+    const secondChild = command("Second child", secondRoot.page.id);
+    await repository.create(firstRoot);
+    await repository.create(secondRoot);
+    await repository.create(firstChild);
+    await repository.create(secondChild);
+
+    const firstMove = movePage(
+      firstRoot.page,
+      1,
+      {
+        parentId: secondChild.page.id,
+        actorType: "user",
+        actorId: "integration-user",
+        source: "integration-test",
+      },
+      { newId: randomUUID, now: () => new Date("2026-09-16T11:00:00.000Z") },
+    );
+    const secondMove = movePage(
+      secondRoot.page,
+      1,
+      {
+        parentId: firstChild.page.id,
+        actorType: "user",
+        actorId: "integration-user",
+        source: "integration-test",
+      },
+      { newId: randomUUID, now: () => new Date("2026-09-16T11:00:00.000Z") },
+    );
+
+    const outcomes = await Promise.allSettled([
+      repository.update(firstMove),
+      repository.update(secondMove),
+    ]);
+    expect(
+      outcomes.filter((outcome) => outcome.status === "fulfilled"),
+    ).toHaveLength(1);
+    expect(
+      outcomes.filter((outcome) => outcome.status === "rejected"),
+    ).toHaveLength(1);
   },
 );

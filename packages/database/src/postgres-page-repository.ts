@@ -1,27 +1,42 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 import { asNativeId, type NativeId } from "../../domain/src/ids.ts";
 import type {
   CreatePageMutation,
   Page,
-  UpdatePageMutation,
+  PageUpdateMutation,
 } from "../../domain/src/page.ts";
 import {
+  assertPageListScope,
   PageRevisionConflictError,
   type PageRepository,
+  type PageListScope,
   type PersistedPage,
+  validatePageHierarchy,
 } from "./page-repository.ts";
 import { auditEvents, pages, revisions } from "./schema.ts";
 import type * as schema from "./schema.ts";
 
 type Database = NodePgDatabase<typeof schema>;
 
+const HIERARCHY_ADVISORY_LOCK_KEY = 1_652_046_113;
+
 export class PostgresPageRepository implements PageRepository {
   constructor(private readonly database: Database) {}
 
   async create(mutation: CreatePageMutation): Promise<Page> {
     return this.database.transaction(async (transaction) => {
+      await transaction.execute(
+        sql`select pg_advisory_xact_lock(${HIERARCHY_ADVISORY_LOCK_KEY})`,
+      );
+      const existingPages = hierarchyPages(
+        await transaction.select().from(pages),
+      );
+      if (existingPages.has(mutation.page.id)) {
+        throw new Error("page already exists");
+      }
+      validatePageHierarchy(existingPages, mutation.page);
       await transaction
         .insert(pages)
         .values(toPageRow(mutation.page, mutation.revision.revisionNumber));
@@ -57,12 +72,29 @@ export class PostgresPageRepository implements PageRepository {
     });
   }
 
-  async update(mutation: UpdatePageMutation): Promise<Page> {
+  async update(mutation: PageUpdateMutation): Promise<Page> {
     return this.database.transaction(async (transaction) => {
+      await transaction.execute(
+        sql`select pg_advisory_xact_lock(${HIERARCHY_ADVISORY_LOCK_KEY})`,
+      );
+      const pageRows = await transaction.select().from(pages);
+      const currentRow = pageRows.find((row) => row.id === mutation.page.id);
+      if (
+        !currentRow ||
+        currentRow.currentRevisionNumber !==
+          mutation.revision.revisionNumber - 1
+      ) {
+        throw new PageRevisionConflictError();
+      }
+      validatePageHierarchy(hierarchyPages(pageRows), mutation.page);
       const rows = await transaction
         .update(pages)
         .set({
+          parentId: mutation.page.parentId,
           title: mutation.page.title,
+          archivedAt: mutation.page.archivedAt
+            ? new Date(mutation.page.archivedAt)
+            : null,
           currentRevisionNumber: mutation.revision.revisionNumber,
           updatedAt: new Date(mutation.page.modifiedAt),
           provenance: mutation.page.provenance,
@@ -131,13 +163,30 @@ export class PostgresPageRepository implements PageRepository {
     };
   }
 
-  async list(): Promise<readonly Page[]> {
+  async list(scope: PageListScope = "active"): Promise<readonly Page[]> {
+    assertPageListScope(scope);
     const rows = await this.database
       .select()
       .from(pages)
+      .where(
+        scope === "active"
+          ? isNull(pages.archivedAt)
+          : isNotNull(pages.archivedAt),
+      )
       .orderBy(asc(pages.createdAt), asc(pages.id));
     return rows.map(fromPageRow);
   }
+}
+
+function hierarchyPages(
+  rows: readonly (typeof pages.$inferSelect)[],
+): Map<NativeId, Page> {
+  return new Map(
+    rows.map((row) => {
+      const page = fromPageRow(row);
+      return [page.id, page] as const;
+    }),
+  );
 }
 
 function toPageRow(

@@ -1,12 +1,23 @@
 /* global document, fetch */
 
-export async function createPageRequest(apiFetch, title, csrfToken) {
-  return requestJson(apiFetch, "/api/v1/pages", {
-    body: JSON.stringify({ title }),
-    credentials: "same-origin",
-    headers: jsonHeaders(csrfToken),
-    method: "POST",
-  });
+const MAX_PAGE_HIERARCHY_EDGES = 32;
+
+export async function createPageRequest(
+  apiFetch,
+  title,
+  csrfToken,
+  parentId = null,
+) {
+  const body = { title };
+  if (parentId !== null) body.parentId = parentId;
+  return pageMutationFromResponse(
+    await requestJson(apiFetch, "/api/v1/pages", {
+      body: JSON.stringify(body),
+      credentials: "same-origin",
+      headers: jsonHeaders(csrfToken),
+      method: "POST",
+    }),
+  );
 }
 
 export async function updatePageRequest(
@@ -16,14 +27,90 @@ export async function updatePageRequest(
   revisionNumber,
   csrfToken,
 ) {
-  return requestJson(apiFetch, "/api/v1/pages/" + id, {
-    body: JSON.stringify({ title }),
-    credentials: "same-origin",
-    headers: jsonHeaders(csrfToken, {
-      "if-match": String(revisionNumber),
+  return pageMutationFromResponse(
+    await requestJson(apiFetch, "/api/v1/pages/" + id, {
+      body: JSON.stringify({ title }),
+      credentials: "same-origin",
+      headers: jsonHeaders(csrfToken, {
+        "if-match": String(revisionNumber),
+      }),
+      method: "PATCH",
     }),
-    method: "PATCH",
-  });
+  );
+}
+
+export async function getPageListRequest(apiFetch, scope = "active") {
+  if (scope !== "active" && scope !== "archived") {
+    throw new Error("NativePOS is unavailable");
+  }
+  const body = await requestJson(
+    apiFetch,
+    scope === "archived" ? "/api/v1/pages?archived=only" : "/api/v1/pages",
+    {
+      credentials: "same-origin",
+      method: "GET",
+    },
+  );
+  if (!isPlainRecord(body) || !Array.isArray(body.pages)) {
+    throw new Error("NativePOS is unavailable");
+  }
+  return body.pages.map(pageFromResponse);
+}
+
+export async function movePageRequest(
+  apiFetch,
+  id,
+  parentId,
+  revisionNumber,
+  csrfToken,
+) {
+  return pageMutationFromResponse(
+    await requestJson(apiFetch, "/api/v1/pages/" + id + "/parent", {
+      body: JSON.stringify({ parentId }),
+      credentials: "same-origin",
+      headers: jsonHeaders(csrfToken, {
+        "if-match": String(revisionNumber),
+      }),
+      method: "PUT",
+    }),
+  );
+}
+
+export async function archivePageRequest(
+  apiFetch,
+  id,
+  revisionNumber,
+  csrfToken,
+) {
+  return pageMutationFromResponse(
+    await requestJson(apiFetch, "/api/v1/pages/" + id + "/archive", {
+      body: JSON.stringify({}),
+      credentials: "same-origin",
+      headers: jsonHeaders(csrfToken, {
+        "if-match": String(revisionNumber),
+      }),
+      method: "POST",
+    }),
+  );
+}
+
+export async function restorePageRequest(
+  apiFetch,
+  id,
+  parentId,
+  revisionNumber,
+  csrfToken,
+) {
+  return pageMutationFromResponse(
+    await requestJson(apiFetch, "/api/v1/pages/" + id + "/restore", {
+      body: JSON.stringify({ parentId }),
+      credentials: "same-origin",
+      headers: jsonHeaders(csrfToken, {
+        "if-match": String(revisionNumber),
+      }),
+      method: "PUT",
+    }),
+  );
 }
 
 export async function getBlockDocumentRequest(apiFetch, id) {
@@ -92,6 +179,94 @@ export async function logoutRequest(apiFetch, csrfToken) {
   if (!response.ok) throw new Error("Unable to sign out");
 }
 
+export function pageTreeFromPages(pages, scope = "active", knownPages = []) {
+  if (
+    !Array.isArray(pages) ||
+    !Array.isArray(knownPages) ||
+    (scope !== "active" && scope !== "archived")
+  ) {
+    throw new Error("NativePOS is unavailable");
+  }
+
+  const visiblePages = pages.map(pageFromResponse);
+  const known = knownPages.map(pageFromResponse);
+  const pageById = new Map();
+  for (const page of [...known, ...visiblePages]) {
+    if (pageById.has(page.id)) throw new Error("NativePOS is unavailable");
+    pageById.set(page.id, page);
+  }
+  if (scope === "active") {
+    if (
+      known.length !== 0 ||
+      visiblePages.some((page) => page.archivedAt !== null)
+    ) {
+      throw new Error("NativePOS is unavailable");
+    }
+  } else if (
+    known.some((page) => page.archivedAt !== null) ||
+    visiblePages.some((page) => page.archivedAt === null)
+  ) {
+    throw new Error("NativePOS is unavailable");
+  }
+
+  for (const page of pageById.values()) {
+    let current = page;
+    let edges = 0;
+    const visited = new Set([page.id]);
+    while (current.parentId !== null) {
+      edges += 1;
+      if (edges > MAX_PAGE_HIERARCHY_EDGES) {
+        throw new Error("NativePOS is unavailable");
+      }
+      const parent = pageById.get(current.parentId);
+      if (!parent || visited.has(parent.id)) {
+        throw new Error("NativePOS is unavailable");
+      }
+      visited.add(parent.id);
+      current = parent;
+    }
+  }
+
+  const nodes = new Map(
+    visiblePages.map((page) => [page.id, { children: [], page }]),
+  );
+  const roots = [];
+  for (const page of visiblePages) {
+    const node = nodes.get(page.id);
+    if (!node) throw new Error("NativePOS is unavailable");
+    if (page.parentId === null) {
+      roots.push(node);
+      continue;
+    }
+    const parentNode = nodes.get(page.parentId);
+    if (parentNode) {
+      parentNode.children.push(node);
+      continue;
+    }
+    if (!pageById.has(page.parentId)) {
+      throw new Error("NativePOS is unavailable");
+    }
+    roots.push(node);
+  }
+
+  const breadcrumbs = new Map();
+  for (const page of pageById.values()) {
+    const items = [];
+    let current = page;
+    while (current) {
+      items.unshift(current);
+      current =
+        current.parentId === null ? null : pageById.get(current.parentId);
+      if (!current && items[0]?.parentId !== null) {
+        throw new Error("NativePOS is unavailable");
+      }
+    }
+    breadcrumbs.set(page.id, items);
+  }
+
+  return { breadcrumbs, roots };
+}
+
 function csrfHeaders(csrfToken, extraHeaders = {}) {
   if (!csrfToken) throw new Error("CSRF token is unavailable");
   return {
@@ -131,6 +306,41 @@ function isPlainRecord(value) {
     !Array.isArray(value) &&
     Object.getPrototypeOf(value) === Object.prototype
   );
+}
+
+function pageFromResponse(value) {
+  if (
+    !isPlainRecord(value) ||
+    typeof value.id !== "string" ||
+    value.id.length === 0 ||
+    typeof value.title !== "string" ||
+    (value.parentId !== null &&
+      (typeof value.parentId !== "string" || value.parentId.length === 0)) ||
+    (value.archivedAt !== null &&
+      (typeof value.archivedAt !== "string" || value.archivedAt.length === 0))
+  ) {
+    throw new Error("NativePOS is unavailable");
+  }
+  return {
+    archivedAt: value.archivedAt,
+    id: value.id,
+    parentId: value.parentId,
+    title: value.title,
+  };
+}
+
+function pageMutationFromResponse(value) {
+  if (
+    !isPlainRecord(value) ||
+    !Number.isSafeInteger(value.revisionNumber) ||
+    value.revisionNumber < 1
+  ) {
+    throw new Error("NativePOS is unavailable");
+  }
+  return {
+    page: pageFromResponse(value.page),
+    revisionNumber: value.revisionNumber,
+  };
 }
 
 function blockDocumentFromResponse(value, pageId) {
@@ -207,34 +417,78 @@ export async function startBrowserApp(
   const logout = requiredElement(documentObject, "#logout");
   const form = requiredElement(documentObject, "#create-page");
   const newTitle = requiredElement(documentObject, "#new-page-title");
+  const childForm = requiredElement(documentObject, "#create-child-page");
+  const childTitle = requiredElement(documentObject, "#new-child-page-title");
   const pageTitle = requiredElement(documentObject, "#page-title");
   const save = requiredElement(documentObject, "#save-page");
+  const breadcrumbs = requiredElement(documentObject, "#breadcrumbs");
+  const pageParent = requiredElement(documentObject, "#page-parent");
+  const saveParent = requiredElement(documentObject, "#save-parent");
+  const archivePage = requiredElement(documentObject, "#archive-page");
+  const restorePage = requiredElement(documentObject, "#restore-page");
   const pageBody = requiredElement(documentObject, "#page-body");
   const saveBody = requiredElement(documentObject, "#save-body");
   const bodyStatus = requiredElement(documentObject, "#body-status");
   const list = requiredElement(documentObject, "#page-list");
+  const showArchivedPages = requiredElement(
+    documentObject,
+    "#show-archived-pages",
+  );
+  const archivedPagesPanel = requiredElement(documentObject, "#archived-pages");
+  const archivedList = requiredElement(documentObject, "#archived-page-list");
   const editor = requiredElement(documentObject, "#editor");
   const empty = requiredElement(documentObject, "#empty-state");
   const status = requiredElement(documentObject, "#status");
-  let selectedId = null;
+  let selectedPage = null;
   let selectedRevisionNumber = null;
   let selectedBodyRevisionNumber = null;
   let selectedBodyBlockId = null;
+  let activePages = [];
+  let archivedPages = [];
   let authenticationGeneration = 0;
   let pageSelectionGeneration = 0;
+  let activeListGeneration = 0;
+  let archivedListGeneration = 0;
   let bodySaveSequence = 0;
+  let bodySavePending = false;
+  let pageSavePendingId = null;
+  let childCreatePendingParentId = null;
+  let rootCreatePending = false;
+  let movePendingId = null;
+  let archivePendingId = null;
+  let restorePendingId = null;
+  let archivedListPending = false;
+  let archivedPendingGeneration = null;
+
+  function isArchivedSelection() {
+    return selectedPage?.archivedAt !== null && selectedPage !== null;
+  }
+
+  function isLiveSelection() {
+    return selectedPage?.archivedAt === null;
+  }
 
   function resetBodyEditor() {
     selectedBodyRevisionNumber = null;
     selectedBodyBlockId = null;
+    bodySavePending = false;
     pageBody.value = "";
     pageBody.disabled = true;
     saveBody.disabled = true;
     bodyStatus.textContent = "";
   }
 
-  function showEditableBody(document) {
-    const paragraph = editableParagraph(document);
+  function applyBodyEditability() {
+    const editable =
+      selectedBodyRevisionNumber !== null &&
+      !isArchivedSelection() &&
+      !bodySavePending;
+    pageBody.disabled = !editable;
+    saveBody.disabled = !editable;
+  }
+
+  function showEditableBody(blockDocument) {
+    const paragraph = editableParagraph(blockDocument);
     if (!paragraph) {
       resetBodyEditor();
       bodyStatus.textContent =
@@ -243,23 +497,158 @@ export async function startBrowserApp(
     }
     selectedBodyRevisionNumber = paragraph.revisionNumber;
     selectedBodyBlockId = paragraph.blockId;
+    bodySavePending = false;
     pageBody.value = paragraph.text;
-    pageBody.disabled = false;
-    saveBody.disabled = false;
+    applyBodyEditability();
     bodyStatus.textContent = "";
     return true;
   }
 
+  function replacePage(pages, page) {
+    return [...pages.filter((candidate) => candidate.id !== page.id), page];
+  }
+
+  function selectedHierarchyFor(page) {
+    if (page.archivedAt === null) {
+      return pageTreeFromPages(replacePage(activePages, page), "active");
+    }
+    return pageTreeFromPages(
+      replacePage(archivedPages, page),
+      "archived",
+      activePages.filter((candidate) => candidate.id !== page.id),
+    );
+  }
+
+  function descendantsOf(node) {
+    const result = new Set([node.page.id]);
+    for (const child of node.children) {
+      for (const id of descendantsOf(child)) result.add(id);
+    }
+    return result;
+  }
+
+  function selectedNode(nodes, id) {
+    for (const node of nodes) {
+      if (node.page.id === id) return node;
+      const match = selectedNode(node.children, id);
+      if (match) return match;
+    }
+    return null;
+  }
+
+  function populateParentSelector(hierarchy) {
+    pageParent.replaceChildren();
+    const rootOption = documentObject.createElement("option");
+    rootOption.textContent = "Root page";
+    rootOption.value = "";
+    pageParent.append(rootOption);
+    const currentNode = selectedPage
+      ? selectedNode(hierarchy.roots, selectedPage.id)
+      : null;
+    const excluded = currentNode ? descendantsOf(currentNode) : new Set();
+    for (const candidate of activePages) {
+      if (excluded.has(candidate.id)) continue;
+      const option = documentObject.createElement("option");
+      option.textContent = candidate.title;
+      option.value = candidate.id;
+      pageParent.append(option);
+    }
+    pageParent.value = selectedPage?.parentId ?? "";
+  }
+
+  function applySelectionControls() {
+    const live = isLiveSelection();
+    const archived = isArchivedSelection();
+    const selectedId = selectedPage?.id;
+    pageTitle.disabled = !live || pageSavePendingId === selectedId;
+    save.disabled = !live || pageSavePendingId === selectedId;
+    childTitle.disabled = !live || childCreatePendingParentId === selectedId;
+    pageParent.disabled =
+      selectedPage === null ||
+      movePendingId === selectedId ||
+      restorePendingId === selectedId;
+    saveParent.disabled = !live || movePendingId === selectedId;
+    archivePage.hidden = !live;
+    archivePage.disabled = !live || archivePendingId === selectedId;
+    restorePage.hidden = !archived;
+    restorePage.disabled = !archived || restorePendingId === selectedId;
+    applyBodyEditability();
+  }
+
+  function showSelectedPage(
+    page,
+    revisionNumber,
+    { preserveParentDraft = false, preserveTitleDraft = false } = {},
+  ) {
+    const titleDraft = pageTitle.value;
+    const parentDraft = pageParent.value;
+    selectedPage = page;
+    selectedRevisionNumber = revisionNumber;
+    pageTitle.value = preserveTitleDraft ? titleDraft : page.title;
+    const hierarchy = selectedHierarchyFor(page);
+    const path = hierarchy.breadcrumbs.get(page.id);
+    if (!path) throw new Error("NativePOS is unavailable");
+    breadcrumbs.textContent = path.map((item) => item.title).join(" / ");
+    populateParentSelector(hierarchy);
+    if (preserveParentDraft) pageParent.value = parentDraft;
+    editor.hidden = false;
+    empty.hidden = true;
+    applySelectionControls();
+  }
+
+  function renderPageTree(target, hierarchy) {
+    function renderNodes(nodes) {
+      return nodes.map((node) => {
+        const item = documentObject.createElement("li");
+        const button = documentObject.createElement("button");
+        button.type = "button";
+        button.textContent = node.page.title;
+        button.addEventListener("click", async () => {
+          await selectPage(node.page.id);
+        });
+        item.append(button);
+        if (node.children.length > 0) {
+          const childList = documentObject.createElement("ul");
+          childList.replaceChildren(...renderNodes(node.children));
+          item.append(childList);
+        }
+        return item;
+      });
+    }
+    target.replaceChildren(...renderNodes(hierarchy.roots));
+  }
+
+  function clearNavigation() {
+    activePages = [];
+    archivedPages = [];
+    archivedListPending = false;
+    archivedPendingGeneration = null;
+    list.replaceChildren();
+    archivedList.replaceChildren();
+    archivedPagesPanel.hidden = true;
+  }
+
   function showLogin(message = "") {
     pageSelectionGeneration += 1;
+    activeListGeneration += 1;
+    archivedListGeneration += 1;
     loginPanel.hidden = false;
     workspace.hidden = true;
     loginStatus.textContent = message;
-    selectedId = null;
+    selectedPage = null;
     selectedRevisionNumber = null;
+    pageSavePendingId = null;
+    childCreatePendingParentId = null;
+    movePendingId = null;
+    archivePendingId = null;
+    restorePendingId = null;
+    breadcrumbs.textContent = "";
+    pageParent.replaceChildren();
     resetBodyEditor();
+    clearNavigation();
     editor.hidden = true;
     empty.hidden = false;
+    applySelectionControls();
   }
 
   function showWorkspace() {
@@ -276,30 +665,70 @@ export async function startBrowserApp(
     status.textContent = fallback;
   }
 
+  async function refreshActivePages() {
+    const generation = ++activeListGeneration;
+    const pages = await getPageListRequest(apiFetch, "active");
+    const hierarchy = pageTreeFromPages(pages, "active");
+    if (generation !== activeListGeneration) return false;
+    activePages = pages;
+    renderPageTree(list, hierarchy);
+    return true;
+  }
+
+  async function loadArchivedPages() {
+    if (archivedListPending) return;
+    const generation = ++archivedListGeneration;
+    archivedListPending = true;
+    archivedPendingGeneration = generation;
+    showArchivedPages.disabled = true;
+    archivedPagesPanel.hidden = false;
+    try {
+      const pages = await getPageListRequest(apiFetch, "archived");
+      const hierarchy = pageTreeFromPages(pages, "archived", activePages);
+      if (generation !== archivedListGeneration) return;
+      archivedPages = pages;
+      renderPageTree(archivedList, hierarchy);
+    } catch (error) {
+      if (generation !== archivedListGeneration) return;
+      handleWorkspaceFailure(error, "Could not load archived pages.");
+    } finally {
+      if (archivedPendingGeneration === generation) {
+        archivedListPending = false;
+        archivedPendingGeneration = null;
+        showArchivedPages.disabled = false;
+      }
+    }
+  }
+
   async function selectPage(id) {
     const selectionGeneration = ++pageSelectionGeneration;
+    archivedListGeneration += 1;
     let metadataLoaded = false;
-    selectedId = null;
+    selectedPage = null;
     selectedRevisionNumber = null;
+    breadcrumbs.textContent = "";
     resetBodyEditor();
     editor.hidden = true;
     empty.hidden = false;
+    applySelectionControls();
     try {
-      const result = await requestJson(apiFetch, "/api/v1/pages/" + id, {
-        credentials: "same-origin",
-        method: "GET",
-      });
+      const result = pageMutationFromResponse(
+        await requestJson(apiFetch, "/api/v1/pages/" + id, {
+          credentials: "same-origin",
+          method: "GET",
+        }),
+      );
       if (selectionGeneration !== pageSelectionGeneration) return;
-      selectedId = result.page.id;
-      selectedRevisionNumber = result.revisionNumber;
       metadataLoaded = true;
-      pageTitle.value = result.page.title;
-      editor.hidden = false;
-      empty.hidden = true;
+      showSelectedPage(result.page, result.revisionNumber);
 
-      const blockDocument = await getBlockDocumentRequest(apiFetch, selectedId);
+      const blockDocument = await getBlockDocumentRequest(
+        apiFetch,
+        result.page.id,
+      );
       if (selectionGeneration !== pageSelectionGeneration) return;
       showEditableBody(blockDocument);
+      applySelectionControls();
     } catch (error) {
       if (selectionGeneration !== pageSelectionGeneration) return;
       if (metadataLoaded) {
@@ -315,29 +744,12 @@ export async function startBrowserApp(
     }
   }
 
-  async function refresh() {
-    const body = await requestJson(apiFetch, "/api/v1/pages", {
-      credentials: "same-origin",
-      method: "GET",
-    });
-    if (!Array.isArray(body.pages)) throw new Error("NativePOS is unavailable");
-    list.replaceChildren(
-      ...body.pages.map((page) => {
-        const item = documentObject.createElement("li");
-        const button = documentObject.createElement("button");
-        button.type = "button";
-        button.textContent = page.title;
-        button.addEventListener("click", async () => {
-          await selectPage(page.id);
-        });
-        item.append(button);
-        return item;
-      }),
-    );
+  async function refreshArchivedIfVisible() {
+    if (!archivedPagesPanel.hidden) await loadArchivedPages();
   }
 
   async function revealWorkspace(generation) {
-    await refresh();
+    await refreshActivePages();
     if (generation !== authenticationGeneration) return false;
     showWorkspace();
     return true;
@@ -390,65 +802,302 @@ export async function startBrowserApp(
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (rootCreatePending || newTitle.disabled) return;
+    const selectionGeneration = pageSelectionGeneration;
+    const authenticationAtStart = authenticationGeneration;
+    rootCreatePending = true;
+    newTitle.disabled = true;
     try {
       const result = await createPageRequest(
         apiFetch,
         newTitle.value,
         csrfTokenFromDocument(documentObject),
       );
+      if (authenticationAtStart !== authenticationGeneration) return;
       newTitle.value = "";
+      if (selectionGeneration === pageSelectionGeneration) {
+        pageSelectionGeneration += 1;
+        showSelectedPage(result.page, result.revisionNumber);
+        showEditableBody({
+          blocks: [],
+          pageId: result.page.id,
+          revisionNumber: 0,
+        });
+        status.textContent = "Page created.";
+      }
+      await refreshActivePages();
+    } catch (error) {
+      handleWorkspaceFailure(error, "Could not create page.");
+    } finally {
+      rootCreatePending = false;
+      newTitle.disabled = false;
+      applySelectionControls();
+    }
+  });
+
+  childForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (
+      !isLiveSelection() ||
+      childCreatePendingParentId === selectedPage.id ||
+      childTitle.disabled
+    ) {
+      return;
+    }
+    const parentId = selectedPage.id;
+    const selectionGeneration = pageSelectionGeneration;
+    childCreatePendingParentId = parentId;
+    applySelectionControls();
+    try {
+      const result = await createPageRequest(
+        apiFetch,
+        childTitle.value,
+        csrfTokenFromDocument(documentObject),
+        parentId,
+      );
+      if (
+        selectionGeneration !== pageSelectionGeneration ||
+        !isLiveSelection()
+      ) {
+        await refreshActivePages();
+        return;
+      }
+      childTitle.value = "";
       pageSelectionGeneration += 1;
-      selectedId = result.page.id;
-      selectedRevisionNumber = result.revisionNumber;
-      pageTitle.value = result.page.title;
-      editor.hidden = false;
-      empty.hidden = true;
+      showSelectedPage(result.page, result.revisionNumber);
       showEditableBody({
         blocks: [],
         pageId: result.page.id,
         revisionNumber: 0,
       });
-      status.textContent = "Page created.";
-      await refresh();
+      status.textContent = "Child page created.";
+      await refreshActivePages();
     } catch (error) {
-      handleWorkspaceFailure(error, "Could not create page.");
+      handleWorkspaceFailure(error, "Could not create child page.");
+    } finally {
+      if (childCreatePendingParentId === parentId) {
+        childCreatePendingParentId = null;
+      }
+      applySelectionControls();
     }
   });
 
   save.addEventListener("click", async () => {
-    if (!selectedId || selectedRevisionNumber === null) return;
+    if (
+      !isLiveSelection() ||
+      selectedRevisionNumber === null ||
+      pageSavePendingId === selectedPage.id
+    ) {
+      return;
+    }
+    const id = selectedPage.id;
+    const revisionNumber = selectedRevisionNumber;
+    const selectionGeneration = pageSelectionGeneration;
+    pageSavePendingId = id;
+    applySelectionControls();
     try {
       const result = await updatePageRequest(
         apiFetch,
-        selectedId,
+        id,
         pageTitle.value,
-        selectedRevisionNumber,
+        revisionNumber,
         csrfTokenFromDocument(documentObject),
       );
-      selectedRevisionNumber = result.revisionNumber;
+      if (
+        selectionGeneration !== pageSelectionGeneration ||
+        selectedPage?.id !== id
+      ) {
+        return;
+      }
+      showSelectedPage(result.page, result.revisionNumber, {
+        preserveParentDraft: true,
+      });
       status.textContent = "Page saved.";
-      await refresh();
+      await refreshActivePages();
     } catch (error) {
-      handleWorkspaceFailure(error, "Could not save page.");
+      if (
+        selectionGeneration !== pageSelectionGeneration ||
+        selectedPage?.id !== id
+      ) {
+        return;
+      }
+      if (isAuthenticationError(error)) {
+        showLogin("Your session has ended. Please sign in again.");
+      } else if (error instanceof Error && error.statusCode === 409) {
+        status.textContent =
+          "This page changed. Reload the page before saving.";
+      } else {
+        status.textContent = "Could not save page.";
+      }
+    } finally {
+      if (pageSavePendingId === id) pageSavePendingId = null;
+      applySelectionControls();
     }
+  });
+
+  saveParent.addEventListener("click", async () => {
+    if (
+      !isLiveSelection() ||
+      selectedRevisionNumber === null ||
+      movePendingId === selectedPage.id
+    )
+      return;
+    const id = selectedPage.id;
+    const revisionNumber = selectedRevisionNumber;
+    const selectionGeneration = pageSelectionGeneration;
+    const parentId = pageParent.value || null;
+    movePendingId = id;
+    applySelectionControls();
+    try {
+      const result = await movePageRequest(
+        apiFetch,
+        id,
+        parentId,
+        revisionNumber,
+        csrfTokenFromDocument(documentObject),
+      );
+      if (
+        selectionGeneration !== pageSelectionGeneration ||
+        selectedPage?.id !== id
+      ) {
+        return;
+      }
+      showSelectedPage(result.page, result.revisionNumber, {
+        preserveTitleDraft: true,
+      });
+      status.textContent = "Page moved.";
+      await refreshActivePages();
+    } catch (error) {
+      if (
+        selectionGeneration !== pageSelectionGeneration ||
+        selectedPage?.id !== id
+      ) {
+        return;
+      }
+      if (isAuthenticationError(error)) {
+        showLogin("Your session has ended. Please sign in again.");
+      } else if (error instanceof Error && error.statusCode === 409) {
+        status.textContent =
+          "This page changed. Reload the page before moving it.";
+      } else {
+        status.textContent = "Could not move page.";
+      }
+    } finally {
+      if (movePendingId === id) movePendingId = null;
+      applySelectionControls();
+    }
+  });
+
+  archivePage.addEventListener("click", async () => {
+    if (
+      !isLiveSelection() ||
+      selectedRevisionNumber === null ||
+      archivePendingId === selectedPage.id
+    ) {
+      return;
+    }
+    const id = selectedPage.id;
+    const revisionNumber = selectedRevisionNumber;
+    const selectionGeneration = pageSelectionGeneration;
+    archivePendingId = id;
+    applySelectionControls();
+    try {
+      const result = await archivePageRequest(
+        apiFetch,
+        id,
+        revisionNumber,
+        csrfTokenFromDocument(documentObject),
+      );
+      if (
+        selectionGeneration !== pageSelectionGeneration ||
+        selectedPage?.id !== id
+      ) {
+        return;
+      }
+      showSelectedPage(result.page, result.revisionNumber);
+      status.textContent = "Page archived.";
+      await refreshActivePages();
+      await refreshArchivedIfVisible();
+    } catch (error) {
+      if (
+        selectionGeneration !== pageSelectionGeneration ||
+        selectedPage?.id !== id
+      ) {
+        return;
+      }
+      handleWorkspaceFailure(error, "Could not archive page.");
+    } finally {
+      if (archivePendingId === id) archivePendingId = null;
+      applySelectionControls();
+    }
+  });
+
+  restorePage.addEventListener("click", async () => {
+    if (
+      !isArchivedSelection() ||
+      selectedRevisionNumber === null ||
+      restorePendingId === selectedPage.id
+    ) {
+      return;
+    }
+    const id = selectedPage.id;
+    const revisionNumber = selectedRevisionNumber;
+    const selectionGeneration = pageSelectionGeneration;
+    const parentId = pageParent.value || null;
+    restorePendingId = id;
+    applySelectionControls();
+    try {
+      const result = await restorePageRequest(
+        apiFetch,
+        id,
+        parentId,
+        revisionNumber,
+        csrfTokenFromDocument(documentObject),
+      );
+      if (
+        selectionGeneration !== pageSelectionGeneration ||
+        selectedPage?.id !== id
+      ) {
+        return;
+      }
+      showSelectedPage(result.page, result.revisionNumber);
+      status.textContent = "Page restored.";
+      await refreshActivePages();
+      await refreshArchivedIfVisible();
+    } catch (error) {
+      if (
+        selectionGeneration !== pageSelectionGeneration ||
+        selectedPage?.id !== id
+      ) {
+        return;
+      }
+      handleWorkspaceFailure(error, "Could not restore page.");
+    } finally {
+      if (restorePendingId === id) restorePendingId = null;
+      applySelectionControls();
+    }
+  });
+
+  showArchivedPages.addEventListener("click", async () => {
+    await loadArchivedPages();
   });
 
   saveBody.addEventListener("click", async () => {
     if (
-      !selectedId ||
+      !selectedPage ||
       selectedBodyRevisionNumber === null ||
       pageBody.disabled ||
       saveBody.disabled
     ) {
       return;
     }
-    const id = selectedId;
+    const id = selectedPage.id;
     const selectionGeneration = pageSelectionGeneration;
     const revisionNumber = selectedBodyRevisionNumber;
     const blockId = selectedBodyBlockId;
     const bodyText = pageBody.value;
-    pageBody.disabled = true;
-    saveBody.disabled = true;
+    bodySavePending = true;
+    applyBodyEditability();
     try {
       const blockDocument = await updateBlockDocumentRequest(
         apiFetch,
@@ -466,7 +1115,7 @@ export async function startBrowserApp(
       );
       if (
         selectionGeneration !== pageSelectionGeneration ||
-        selectedId !== id
+        selectedPage?.id !== id
       ) {
         return;
       }
@@ -476,7 +1125,7 @@ export async function startBrowserApp(
     } catch (error) {
       if (
         selectionGeneration !== pageSelectionGeneration ||
-        selectedId !== id
+        selectedPage?.id !== id
       ) {
         return;
       }
@@ -491,11 +1140,10 @@ export async function startBrowserApp(
     } finally {
       if (
         selectionGeneration === pageSelectionGeneration &&
-        selectedId === id &&
-        selectedBodyRevisionNumber !== null
+        selectedPage?.id === id
       ) {
-        pageBody.disabled = false;
-        saveBody.disabled = false;
+        bodySavePending = false;
+        applyBodyEditability();
       }
     }
   });

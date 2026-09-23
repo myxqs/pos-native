@@ -51,19 +51,65 @@
             <button type="submit">Create</button>
           </div>
         </form>
-        <nav aria-label="Pages">
+        <nav aria-label="Active pages">
           <ul id="page-list"></ul>
         </nav>
+        <button
+          id="show-archived-pages"
+          class="secondary-button archive-toggle"
+          type="button"
+          aria-controls="archived-pages"
+        >
+          Show archived pages
+        </button>
+        <section
+          id="archived-pages"
+          hidden
+          aria-labelledby="archived-pages-title"
+        >
+          <h2 id="archived-pages-title">Archived pages</h2>
+          <ul id="archived-page-list"></ul>
+        </section>
       </aside>
       <main>
         <p class="eyebrow">Private workspace</p>
         <h1>NativePOS</h1>
         <section id="editor" hidden>
+          <nav id="breadcrumbs" aria-label="Page breadcrumbs"></nav>
           <label for="page-title">Page title</label>
           <div class="form-row">
             <input id="page-title" maxlength="500" />
             <button id="save-page" type="button">Save</button>
           </div>
+          <div class="hierarchy-controls">
+            <label for="page-parent">Parent page</label>
+            <div class="form-row">
+              <select id="page-parent" disabled></select>
+              <button id="save-parent" type="button" disabled>Move</button>
+              <button id="restore-page" type="button" hidden>Restore</button>
+            </div>
+            <button
+              id="archive-page"
+              class="secondary-button"
+              type="button"
+              hidden
+            >
+              Archive page
+            </button>
+          </div>
+          <form id="create-child-page" aria-label="Create child page">
+            <label for="new-child-page-title">New child page</label>
+            <div class="form-row">
+              <input
+                id="new-child-page-title"
+                name="title"
+                maxlength="500"
+                required
+                disabled
+              />
+              <button type="submit">Create child</button>
+            </div>
+          </form>
           <div class="body-editor">
             <label for="page-body">Page body</label>
             <textarea

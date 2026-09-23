@@ -22,11 +22,34 @@ export interface BrowserDocument {
   querySelector(selector: string): BrowserElement | null;
 }
 
+export interface BrowserPage {
+  readonly archivedAt: string | null;
+  readonly id: string;
+  readonly parentId: string | null;
+  readonly title: string;
+}
+
+export interface BrowserPageMutation {
+  readonly page: BrowserPage;
+  readonly revisionNumber: number;
+}
+
+export interface BrowserPageTreeNode {
+  readonly children: readonly BrowserPageTreeNode[];
+  readonly page: BrowserPage;
+}
+
+export interface BrowserPageTree {
+  readonly breadcrumbs: ReadonlyMap<string, readonly BrowserPage[]>;
+  readonly roots: readonly BrowserPageTreeNode[];
+}
+
 export function createPageRequest(
   apiFetch: typeof fetch,
   title: string,
   csrfToken: string,
-): Promise<{ page: { id: string; title: string }; revisionNumber: number }>;
+  parentId?: string | null,
+): Promise<BrowserPageMutation>;
 
 export function updatePageRequest(
   apiFetch: typeof fetch,
@@ -34,7 +57,41 @@ export function updatePageRequest(
   title: string,
   revisionNumber: number,
   csrfToken: string,
-): Promise<{ page: { id: string; title: string }; revisionNumber: number }>;
+): Promise<BrowserPageMutation>;
+
+export function getPageListRequest(
+  apiFetch: typeof fetch,
+  scope?: "active" | "archived",
+): Promise<readonly BrowserPage[]>;
+
+export function movePageRequest(
+  apiFetch: typeof fetch,
+  id: string,
+  parentId: string | null,
+  revisionNumber: number,
+  csrfToken: string,
+): Promise<BrowserPageMutation>;
+
+export function archivePageRequest(
+  apiFetch: typeof fetch,
+  id: string,
+  revisionNumber: number,
+  csrfToken: string,
+): Promise<BrowserPageMutation>;
+
+export function restorePageRequest(
+  apiFetch: typeof fetch,
+  id: string,
+  parentId: string | null,
+  revisionNumber: number,
+  csrfToken: string,
+): Promise<BrowserPageMutation>;
+
+export function pageTreeFromPages(
+  pages: readonly BrowserPage[],
+  scope?: "active" | "archived",
+  knownPages?: readonly BrowserPage[],
+): BrowserPageTree;
 
 export interface BrowserBlockDraft {
   readonly clientRef: string;

@@ -64,7 +64,8 @@ h1 {
   margin-top: 0.35rem;
 }
 input,
-textarea {
+textarea,
+select {
   min-width: 0;
   flex: 1;
   padding: 0.7rem;
@@ -102,6 +103,53 @@ li button:hover,
 li button:focus-visible {
   background: var(--bg);
 }
+#page-list,
+#archived-page-list {
+  margin: 1rem 0;
+}
+#page-list ul,
+#archived-page-list ul {
+  margin: 0;
+  padding-left: 0.9rem;
+  border-left: 1px solid var(--border);
+}
+#page-list li,
+#archived-page-list li {
+  margin: 0.15rem 0;
+}
+#page-list li button,
+#archived-page-list li button {
+  padding: 0.45rem 0.55rem;
+}
+.archive-toggle {
+  width: 100%;
+  margin-top: 0.5rem;
+  text-align: left;
+}
+#archived-pages {
+  margin-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+#archived-pages h2 {
+  margin: 1rem 0 0;
+  font-size: 0.9rem;
+}
+#breadcrumbs {
+  min-height: 1.4rem;
+  margin: 0 0 1rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.hierarchy-controls,
+#create-child-page {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 1.5rem;
+}
+.hierarchy-controls .secondary-button {
+  width: fit-content;
+  margin-top: 0.35rem;
+}
 .body-editor {
   margin-top: 1.5rem;
 }
@@ -110,7 +158,9 @@ li button:focus-visible {
   margin: 0.5rem 0 0;
 }
 button:disabled,
-textarea:disabled {
+textarea:disabled,
+input:disabled,
+select:disabled {
   cursor: not-allowed;
   opacity: 0.65;
 }

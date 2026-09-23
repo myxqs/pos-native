@@ -94,8 +94,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -114,7 +114,7 @@ Run:
 rg -U -q "no\s+network service|current API has no\s+mutation routes|remaining M3 work is a clean local commit" README.md STATUS.md docs/architecture/security.md
 if ($LASTEXITCODE -eq 0) { exit 1 }
 if ($LASTEXITCODE -ne 1) { exit $LASTEXITCODE }
-node --input-type=module -e "import { readFileSync } from 'node:fs'; const text=readFileSync('.github/workflows/verify.yml','utf8'); for (const fragment of ['name: TypeScript verification','name: verify','node-version: 24','npm ci','npm run verify','npm run build','contents: read']) if (!text.includes(fragment)) throw new Error('Missing '+fragment);"
+node --input-type=module -e "import { readFileSync } from 'node:fs'; const text=readFileSync('.github/workflows/verify.yml','utf8'); for (const fragment of ['name: TypeScript verification','name: verify','actions/checkout@v7','actions/setup-node@v7','node-version: 24','npm ci','npm run verify','npm run build','contents: read']) if (!text.includes(fragment)) throw new Error('Missing '+fragment); if (text.includes('@v4')) throw new Error('Deprecated v4 action remains');"
 ```
 
 Expected: exit `0` for both commands.

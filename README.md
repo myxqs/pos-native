@@ -44,7 +44,8 @@ unset.
 
 ## Repository map
 
-- `apps/` — deployable web, API, and MCP applications.
+- `apps/` — deployable web and API applications; the dedicated MCP adapter is
+  planned, not yet implemented.
 - `packages/domain/` — canonical IDs, validation, mutation and audit contracts.
 - `packages/contracts/` — versioned public API DTOs.
 - `docs/architecture/` — system boundaries and threat model.

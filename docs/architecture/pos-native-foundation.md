@@ -15,10 +15,11 @@ Notion clone, a multi-tenant SaaS product, or Local Steward.
    page/block/revision persistence and filesystem asset abstraction.
 3. **Private API:** local account/session authentication, versioned HTTP API,
    page/block mutation endpoints, rate limits and security headers.
-4. **Workspace UI:** React PWA shell, page tree, page view, the TipTap adapter
-   selected by ADR-0008, and accessible desktop/mobile navigation. The adapter
-   maps to the native block-document API; it never owns canonical IDs or
-   persistence.
+4. **Workspace UI:** the current responsive browser shell provides an active
+   hierarchy tree, breadcrumbs, child creation, move, archive, and explicit
+   archived-page restore. A React PWA shell and the TipTap adapter selected by
+   ADR-0008 remain later product work. Any adapter maps to the native
+   block-document API; it never owns canonical IDs or persistence.
 5. **Flexible data sources:** property definitions/values, record pages,
    relations, formula subset, rollups and saved table/board/list views.
 6. **Navigation:** full-text/trigram search, links, backlinks, graph/context
@@ -46,6 +47,29 @@ revision and audit records; omitted blocks are soft-archived. The current
 browser adapter deliberately declines richer or nested documents until a
 capable representation is proven.
 
+Page archive state is enforced again at the body persistence boundary. A page
+that becomes archived after the API's initial liveness check cannot receive a
+new body revision, block mutation, or body audit event; the archived body stays
+readable for recovery.
+
+## Hierarchy policy (M3)
+
+Pages use one nullable `parent_id` edge rather than a second tree store. Roots
+are depth zero and every resulting page—including an archived descendant—must
+remain at or below thirty-two parent edges, have an extant ancestry, and avoid
+cycles. Live pages additionally require live ancestors. Archive is leaf-only;
+restore is deliberate and targets a live parent or root. Each move, archive,
+and restore follows the existing metadata compare-and-swap, revision, and
+append-only audit boundary. Body-document revisions remain independent.
+
+The browser requests the active tree during normal navigation and requests
+archived records only after the user opens that recovery surface. It renders a
+validated hierarchy with DOM `textContent`, rejects malformed server trees,
+keeps archived body editing read-only, and guards late requests/mutations from
+replacing a newer selection or draft. A successful late metadata mutation still
+reconciles the navigation lists, but it does not replace the newer editor state
+or its unsaved title/parent draft.
+
 ## Initial domain boundary
 
 The first vertical slice implements a pure `createPage` command. It validates
@@ -53,6 +77,16 @@ input, creates stable native IDs/timestamps, emits a page revision, and emits
 an audit event through one result envelope. A database-backed repository will
 replace the in-memory composition only in the persistence phase; the command
 contract remains stable.
+
+## Reference implementation boundary
+
+NativePOS retains the existing TypeScript/PostgreSQL canonical model. External
+repositories are capability references, not alternate stores or automatic
+dependencies. `docs/architecture/DONOR_MATRIX.md` records the bounded public
+review and the exact conditions required before any future source adaptation.
+This keeps useful context, provenance, import, recovery, and protocol ideas
+available without gluing multiple products together or weakening the common
+domain/API/audit boundary.
 
 ## Security baseline
 

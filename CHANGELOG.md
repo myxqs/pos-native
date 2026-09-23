@@ -45,6 +45,14 @@
 - Safe visible single-paragraph page-body editor that fails closed for richer
   documents, preserves native block identity, and guards against stale browser
   responses.
+- Native hierarchical pages with stable parent edges, child creation,
+  reparenting, leaf-only archive, explicit restore, active/archived navigation,
+  and bounded breadcrumbs.
+- Browser hierarchy controls that preserve independent title/body revisions,
+  reject malformed trees, use safe DOM text rendering, and protect newer
+  selections and drafts from late requests.
+- A bounded public donor matrix that records reference-only source evaluation
+  and conditions for future selective adaptation.
 
 ### Changed
 
@@ -63,3 +71,11 @@
   fallback cleanup no longer reports a false failure after publication.
 - ADR-0008 now records TipTap/ProseMirror as an uninstalled future adapter
   direction while requiring a later exact dependency/license/security review.
+- Repository hierarchy validation now checks every resulting descendant, so a
+  move cannot place a live or archived subtree node beyond the 32-edge limit.
+- Block-document persistence now refuses an in-flight write if its page became
+  archived after route validation, preserving a fixed 409 response and empty
+  body history for the rejected write.
+- Successful page metadata mutations now reconcile active/archived navigation
+  after a newer selection, while keeping that newer editor and its title/parent
+  draft intact.

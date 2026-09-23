@@ -74,7 +74,7 @@ plain JavaScript browser shell, Vitest 5. No package or service is installed.
   restore mutations; `PageRepository.update` accepts that union and persists
   its matching revision/audit envelope atomically.
 
-- [ ] **Step 1: Write deterministic failing domain tests**
+- [x] **Step 1: Write deterministic failing domain tests**
 
   Add fixed-UUID tests proving a root has `parentId: null`, a child preserves a
   supplied parent ID, a move preserves page identity and changes only parent
@@ -83,7 +83,7 @@ plain JavaScript browser shell, Vitest 5. No package or service is installed.
   tests for malformed parent IDs, move/archive of an already archived page,
   restore of a live page, and invalid metadata revision.
 
-- [ ] **Step 2: Observe RED**
+- [x] **Step 2: Observe RED**
 
   Run:
 
@@ -94,14 +94,14 @@ plain JavaScript browser shell, Vitest 5. No package or service is installed.
   Expected: new hierarchy commands/types do not exist or snapshots lack
   `parentId`.
 
-- [ ] **Step 3: Implement minimal immutable commands**
+- [x] **Step 3: Implement minimal immutable commands**
 
   Parse only native IDs and metadata-local state in the domain. Leave
   graph-wide parent existence/cycle/child checks to the repository. Use injected
   IDs/time, preserve creation time/identity, set `archivedAt` only in archive,
   and emit one revision/audit envelope for each changed command.
 
-- [ ] **Step 4: Verify and commit**
+- [x] **Step 4: Verify and commit**
 
   ```sh
   npm test -- packages/domain/test/page.test.ts packages/domain/test/block-document.test.ts
@@ -130,7 +130,7 @@ plain JavaScript browser shell, Vitest 5. No package or service is installed.
   `PageRevisionConflictError`.
 - `update` validates a full candidate graph before writing page/revision/audit.
 
-- [ ] **Step 1: Write failing in-memory and opt-in PostgreSQL tests**
+- [x] **Step 1: Write failing in-memory and opt-in PostgreSQL tests**
 
   Prove root/child persistence and filtering; reject missing/archived parents,
   self-parent, direct/indirect cycles, repeated/corrupt ancestor chains, an
@@ -141,7 +141,7 @@ plain JavaScript browser shell, Vitest 5. No package or service is installed.
   Add opt-in PostgreSQL cases for parent mapping, stale move CAS, and rollback
   after hierarchy validation.
 
-- [ ] **Step 2: Observe RED**
+- [x] **Step 2: Observe RED**
 
   ```sh
   npm test -- packages/database/test/page-repository.test.ts packages/database/test/postgres-page-repository.integration.test.ts
@@ -149,7 +149,7 @@ plain JavaScript browser shell, Vitest 5. No package or service is installed.
 
   Expected: parent values are discarded and graph invariants are unenforced.
 
-- [ ] **Step 3: Implement repository-owned validation**
+- [x] **Step 3: Implement repository-owned validation**
 
   Map `parentId` in both directions. In memory, build a candidate map before
   the existing rollback-shaped write. In PostgreSQL, take a transaction-scoped
@@ -158,7 +158,7 @@ plain JavaScript browser shell, Vitest 5. No package or service is installed.
   in that transaction. Do not add a duplicate hierarchy table or alter the
   existing self-foreign-key migration.
 
-- [ ] **Step 4: Verify and commit**
+- [x] **Step 4: Verify and commit**
 
   ```sh
   npm test -- packages/database/test/page-repository.test.ts packages/database/test/postgres-page-repository.integration.test.ts packages/database/test/block-document-repository.test.ts
@@ -186,7 +186,7 @@ plain JavaScript browser shell, Vitest 5. No package or service is installed.
   `PUT /api/v1/pages/:id/restore` use a current page metadata `If-Match`.
 - List accepts only no archive query or `?archived=only`.
 
-- [ ] **Step 1: Write failing route tests**
+- [x] **Step 1: Write failing route tests**
 
   Cover nested create/list/read, active versus archived list scopes, move,
   archive/restore, malformed/unknown payload fields, missing/archived parents,
@@ -194,7 +194,7 @@ plain JavaScript browser shell, Vitest 5. No package or service is installed.
   Assert fixed 400/404/409 response contracts and no extra history after a
   rejected request.
 
-- [ ] **Step 2: Observe RED**
+- [x] **Step 2: Observe RED**
 
   ```sh
   npm test -- apps/api/test/page-routes.test.ts
@@ -202,14 +202,14 @@ plain JavaScript browser shell, Vitest 5. No package or service is installed.
 
   Expected: hierarchy routes are missing and create rejects `parentId`.
 
-- [ ] **Step 3: Implement narrow API adapters**
+- [x] **Step 3: Implement narrow API adapters**
 
   Parse native IDs with Zod, call only server-derived domain commands, map typed
   hierarchy and archived-state errors to fixed responses, and preserve the
   existing title route behavior. Reject ordinary title/body mutation of an
   archived page; do not relax the block-document route's authorizer.
 
-- [ ] **Step 4: Verify and commit**
+- [x] **Step 4: Verify and commit**
 
   ```sh
   npm test -- apps/api/test/page-routes.test.ts apps/api/test/block-document-routes.test.ts apps/api/test/app.test.ts
@@ -239,7 +239,7 @@ plain JavaScript browser shell, Vitest 5. No package or service is installed.
 - `pageTreeFromPages` returns a validated nested hierarchy and bounded
   breadcrumbs; invalid server hierarchy throws a generic availability error.
 
-- [ ] **Step 1: Write failing browser-shell tests**
+- [x] **Step 1: Write failing browser-shell tests**
 
   Test nested active-page rendering, child creation, breadcrumb output, valid
   parent selection/move, archive removing a page from active navigation,
@@ -248,7 +248,7 @@ plain JavaScript browser shell, Vitest 5. No package or service is installed.
   failures, and late active/archived list responses after a newer refresh or
   selection.
 
-- [ ] **Step 2: Observe RED**
+- [x] **Step 2: Observe RED**
 
   ```sh
   npm test -- apps/api/test/web-shell.test.ts
@@ -256,7 +256,7 @@ plain JavaScript browser shell, Vitest 5. No package or service is installed.
 
   Expected: hierarchy controls/tree/breadcrumb helpers do not exist.
 
-- [ ] **Step 3: Implement the narrow responsive UX**
+- [x] **Step 3: Implement the narrow responsive UX**
 
   Add labelled controls for child creation, parent selection/save, archive,
   restore, active nested lists, archived list, and breadcrumbs. Render only
@@ -264,7 +264,7 @@ plain JavaScript browser shell, Vitest 5. No package or service is installed.
   disable relevant controls while requests are pending. Preserve the distinct
   body revision editor semantics introduced in M2.
 
-- [ ] **Step 4: Verify and commit**
+- [x] **Step 4: Verify and commit**
 
   ```sh
   npm test -- apps/api/test/web-shell.test.ts apps/api/test/page-routes.test.ts
@@ -284,16 +284,17 @@ plain JavaScript browser shell, Vitest 5. No package or service is installed.
 - Modify: `CHANGELOG.md`
 - Modify: `docs/architecture/data-model.md`
 - Modify: `docs/architecture/pos-native-foundation.md`
+- Add: `docs/architecture/DONOR_MATRIX.md`
 - Modify: this plan
 
-- [ ] **Step 1: Update truthful documentation**
+- [x] **Step 1: Update truthful documentation**
 
   Record the page hierarchy policy, API/browser behavior, synthetic evidence,
   and remaining PostgreSQL/browser/Docker/owner/backup/migration gates. Set the
   next product slice to structured data sources and relations only after this
   slice is accepted.
 
-- [ ] **Step 2: Run full verification**
+- [x] **Step 2: Run full verification**
 
   ```sh
   npm run verify
@@ -304,13 +305,21 @@ plain JavaScript browser shell, Vitest 5. No package or service is installed.
   git status --short
   ```
 
-- [ ] **Step 3: Obtain independent review and repair valid findings**
+- [x] **Step 3: Obtain independent review and repair valid findings**
 
   Use a fresh reviewer on the exact worktree/branch. Fix every Critical or
   Important finding through a focused regression test, then rerun the affected
   verification. Document intentional live gates separately from defects.
 
-- [ ] **Step 4: Commit and fast-forward only if clean**
+  Review outcome on 2026-09-23: no Critical findings. Three Important findings
+  were repaired through red-to-green regressions: archive-state enforcement at
+  the block-document persistence boundary; navigation reconciliation after a
+  late successful title/move/archive/restore response; and preservation of an
+  unsaved title draft through archive/restore. The opt-in PostgreSQL archive
+  regression is intentionally skipped without `TEST_DATABASE_URL`; it is not
+  counted as live persistence proof.
+
+- [x] **Step 4: Commit and fast-forward only if clean**
 
   ```sh
   git add STATUS.md CHANGELOG.md docs/architecture/data-model.md docs/architecture/pos-native-foundation.md docs/superpowers/plans/2026-09-21-page-hierarchy.md

@@ -2,7 +2,8 @@
 
 ## Current milestone
 
-M1 — Sovereign canonical core and first visible vertical slice (in progress).
+M3 — Page hierarchy, archive, and navigation (implemented in source; live
+acceptance gates remain).
 
 ## Completed
 
@@ -67,28 +68,48 @@ M1 — Sovereign canonical core and first visible vertical slice (in progress).
   empty document or one root paragraph, retains a server block ID, keeps title
   and body revisions distinct, rejects unsupported richer documents without
   changing them, and ignores late selection responses.
+- M3 hierarchical pages: stable nullable parent edges, bounded 32-edge
+  ancestry, safe reparenting, leaf-only archive, explicit restore, separate
+  metadata/body revisions, and page/revision/audit atomicity.
+- M3 API and browser tree: authenticated child creation/move/archive/restore,
+  explicit archived navigation, safe breadcrumbs, DOM `textContent` rendering,
+  malformed-tree rejection, and generation/pending guards for late responses.
+- M3 review repairs: a body write re-checks page liveness at its persistence
+  boundary, returning a fixed archive conflict without adding body history;
+  successful late metadata responses reconcile navigation without replacing a
+  newer selection or its unsaved title/parent drafts.
+- M3 persistence validates every resulting descendant—including archived
+  descendants—so a direct repository/API mutation cannot create a tree the
+  browser would refuse to render.
+- Bounded public-source review recorded in `docs/architecture/DONOR_MATRIX.md`.
+  No donor code, dependency, canonical store, personal data, or external MCP
+  service has been introduced.
 
 ## In progress
 
-- The next product-first slice is native page hierarchy: parent/child pages,
-  stable move/reparent and soft-archive semantics, breadcrumbs and a usable
-  sidebar tree. It must preserve existing page/block identity, revision/audit
-  boundaries, and the synthetic-versus-live evidence distinction.
+- M3 has passed its independent source review and its repair regressions. The
+  remaining M3 work is a clean local commit/fast-forward checkpoint. The next
+  product slice is structured data sources and relational records/properties;
+  it must preserve page identity, revision/audit boundaries, and the
+  synthetic-versus-live evidence distinction. Donor ideas may be considered
+  only through the recorded matrix when they are relevant.
 
 ## Verification state
 
-- npm run verify: PASS on 2026-09-21 — formatting, lint, strict typecheck, and
-  170 tests passed across twenty-four suites; eight PostgreSQL integration
-  tests skipped across three suites because TEST_DATABASE_URL is not set.
-  Asset and backup filesystem tests used isolated temporary roots and exercised
-  the Windows symbolic-link refusal path.
-- npm run db:generate: PASS on 2026-09-21 — no ungenerated schema changes.
-- npm run build -- --listEmittedFiles: PASS on 2026-09-21 — compiled source
-  only; no test source was emitted, and runtime configuration remains
-  fail-closed.
-- npm audit --omit=dev --json: PASS on 2026-09-21 — zero production
+- npm run verify: PASS on 2026-09-23 — formatting, lint, strict typecheck, and
+  208 tests passed across twenty-four test files; thirteen PostgreSQL
+  integration tests skipped across three files because TEST_DATABASE_URL is not
+  set. Asset
+  and backup filesystem tests used isolated temporary roots and exercised the
+  Windows symbolic-link refusal path.
+- npm run db:generate: PASS on 2026-09-23 — ten tables inspected; no schema
+  changes and no migration generated.
+- npm run build -- --listEmittedFiles: PASS on 2026-09-23 — production
+  TypeScript build completed.
+- npm audit --omit=dev --json: PASS on 2026-09-23 — zero production
   vulnerabilities.
-- git diff --check: PASS on 2026-09-21 — no whitespace errors.
+- git diff --check: PASS on 2026-09-23 — no whitespace errors after the
+  independent-review repairs and documentation update.
 - Docker client 29.8.0 and Compose 5.5.1 are present, but the Docker Desktop
   Linux-engine pipe is absent, so no database container has been started.
 - `docker compose config` remains intentionally blocked because the untracked
@@ -108,6 +129,10 @@ M1 — Sovereign canonical core and first visible vertical slice (in progress).
   adapter is synthetic-controller tested only; it is not a real-browser or
   mobile acceptance result, and it deliberately does not implement the full
   rich block-editor requirement.
+- Page hierarchy PostgreSQL persistence/serialization and real-browser/mobile
+  acceptance are also opt-in/live gates. The source has synthetic controller and
+  in-memory proof only until `TEST_DATABASE_URL`, an owner account, and a live
+  browser session are available.
 - The live PostgreSQL suite is intentionally skipped until TEST_DATABASE_URL is
   supplied; this is an environment gate, not a passing integration result.
 - No owner account has been created. The local interactive bootstrap command is
@@ -146,16 +171,19 @@ M1 — Sovereign canonical core and first visible vertical slice (in progress).
 - ADR-0008: TipTap/ProseMirror is a future UI-adapter direction only; native
   block IDs, relational rows, revisions, audit history, and APIs remain the
   canonical boundary, and no editor package is installed.
+- NativePOS remains the existing TypeScript/PostgreSQL product. The new donor
+  review is a selective-reference process, not a Python/SQLite rebuild or a
+  merger of unrelated runtime stores.
 
 ## Exact next action
 
-Plan and implement page hierarchy as the next product-first slice: persistent
-parent/child relationships, safe reparent/move/archive operations, hierarchy
-breadcrumbs, and a responsive sidebar tree. Do not expose asset upload or
-begin Notion work. After the user approves a Windows reboot and Docker starts,
-run migrations, live asset-metadata/block-document integration,
-restart-persistence, owner bootstrap, authenticated browser-flow, and live
-backup/restore acceptance tests.
+Commit and fast-forward the reviewed M3 checkpoint, then plan and implement
+structured data sources, record pages, typed properties, and relations. Do not
+expose asset upload or begin Notion work. After the user approves a Windows
+reboot and Docker starts, run migrations, live
+asset-metadata/block-document/hierarchy integration, restart-persistence,
+owner bootstrap, authenticated browser-flow, and live backup/restore acceptance
+tests.
 
 ## Commands to resume
 
@@ -173,6 +201,8 @@ backup/restore acceptance tests.
 - docs/superpowers/plans/2026-09-21-backup-restore-proof.md
 - docs/superpowers/plans/2026-09-21-asset-metadata-service.md
 - docs/superpowers/plans/2026-09-21-editor-and-block-document-core.md
+- docs/superpowers/plans/2026-09-21-page-hierarchy.md
+- docs/architecture/DONOR_MATRIX.md
 - docs/operations/backup-restore.md
 - docs/operations/assets.md
 - docs/operations/development.md

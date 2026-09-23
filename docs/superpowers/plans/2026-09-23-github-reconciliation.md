@@ -56,7 +56,7 @@
 Run:
 
 ```powershell
-rg -U -q "no\s+network service|current API has no\s+mutation routes|remaining M3 work is a clean local commit" README.md STATUS.md docs/architecture/security.md
+rg -U -q "no\s+network service|current API has no\s+mutation routes|remaining M3 work is a clean local commit|three deployable adapters|The MCP service is a model-neutral adapter|MCP ─────┘" README.md STATUS.md docs/architecture/security.md docs/architecture/system-overview.md docs/architecture/ai-mcp.md
 if ($LASTEXITCODE -eq 0) { exit 1 }
 if ($LASTEXITCODE -ne 1) { exit $LASTEXITCODE }
 exit 0

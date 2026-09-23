@@ -8,19 +8,39 @@ have been met.
 
 ## Current delivery slice
 
-This repository currently establishes the domain contracts and audited mutation
-boundary used by every future human, importer, API, and MCP write. It has no
-network service, database connection, external integration, or personal data.
+The active implementation is the TypeScript/PostgreSQL architecture in this
+repository. It includes PostgreSQL schema migrations and persistence adapters,
+a compiled Fastify API runtime, and a restrained responsive browser shell. The
+current authenticated API covers sessions, pages, page hierarchy/archive
+operations, and canonical block documents; the browser shell exercises the
+same page and block boundary.
+
+This is not yet a proven live deployment: PostgreSQL integration is opt-in,
+and real owner bootstrap, browser/mobile end-to-end, backup/restore, rich
+editor, PWA/offline, and external-provider acceptance remain separate gates.
+No personal data or Notion content has been imported.
+
+The existing Notion workspace remains canonical until the approved migration,
+integrity, retrieval, backup, and restore gates pass. The public Python/SQLite
+v0.1 history is preserved as a legacy/reference implementation only; it is not
+an active NativePOS runtime or feature-development track. Open-Self and other
+public projects are reference donors only, with no donor code, dependency, or
+store integrated into NativePOS.
 
 ## Development
 
 Requirements: Node.js 24 or later.
 
 ```powershell
-npm test
+npm ci
+npm run verify
+npm run build
 ```
 
-No third-party package is required for the current core-contract test suite.
+The lockfile pins the project dependencies. Standard verification does not
+need a running PostgreSQL service; its live PostgreSQL integration tests are
+explicitly opt-in through `TEST_DATABASE_URL` and remain skipped when it is
+unset.
 
 ## Repository map
 

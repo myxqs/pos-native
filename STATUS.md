@@ -2,8 +2,12 @@
 
 ## Current milestone
 
-M3 — Page hierarchy, archive, and navigation (implemented in source; live
-acceptance gates remain).
+M4 — Structured data sources, records, typed properties, and relations
+(paused during GitHub reconciliation; no M4 source changes).
+
+M3 — Page hierarchy, archive, and navigation landed on the TypeScript/
+PostgreSQL `main` line at `12dd0a6d6820d7e12f1e62f9b7644fa1f619c7d4`; live
+acceptance gates remain.
 
 ## Completed
 
@@ -81,18 +85,33 @@ acceptance gates remain).
 - M3 persistence validates every resulting descendant—including archived
   descendants—so a direct repository/API mutation cannot create a tree the
   browser would refuse to render.
+- M3 is landed at `12dd0a6d6820d7e12f1e62f9b7644fa1f619c7d4`; the clean M4
+  worktree remains parked at that same checkpoint with no M4 source edits.
 - Bounded public-source review recorded in `docs/architecture/DONOR_MATRIX.md`.
   No donor code, dependency, canonical store, personal data, or external MCP
   service has been introduced.
 
 ## In progress
 
-- M3 has passed its independent source review and its repair regressions. The
-  remaining M3 work is a clean local commit/fast-forward checkpoint. The next
-  product slice is structured data sources and relational records/properties;
-  it must preserve page identity, revision/audit boundaries, and the
-  synthetic-versus-live evidence distinction. Donor ideas may be considered
-  only through the recorded matrix when they are relevant.
+- GitHub reconciliation is in progress: preserve the unrelated Python/SQLite
+  history as legacy/reference, publish and verify the TypeScript/PostgreSQL
+  candidate, replace stale Python CI requirements, and only then make the
+  TypeScript line the protected default branch.
+- M4 is paused pending that reconciliation and must not start automatically.
+  Its eventual data-source/record/property/relation slice must preserve page
+  identity, revision/audit boundaries, and the synthetic-versus-live evidence
+  distinction.
+
+## Canonical and repository boundaries
+
+- TypeScript/PostgreSQL is the active NativePOS implementation. Its live
+  PostgreSQL and end-to-end deployment acceptance remain open gates.
+- Notion remains untouched and canonical until the explicit product, migration,
+  integrity, retrieval, backup, and restore gates pass.
+- The Python/SQLite v0.1 repository history is legacy/reference only and has no
+  parallel feature-development authority.
+- Open-Self and other public projects are donor/reference material only. No
+  donor runtime, database, dependency, or copied code is part of NativePOS.
 
 ## Verification state
 
@@ -177,13 +196,14 @@ acceptance gates remain).
 
 ## Exact next action
 
-Commit and fast-forward the reviewed M3 checkpoint, then plan and implement
-structured data sources, record pages, typed properties, and relations. Do not
-expose asset upload or begin Notion work. After the user approves a Windows
-reboot and Docker starts, run migrations, live
-asset-metadata/block-document/hierarchy integration, restart-persistence,
-owner bootstrap, authenticated browser-flow, and live backup/restore acceptance
-tests.
+Complete the verified GitHub reconciliation: publish the candidate's truthful
+documentation and TypeScript CI, prove the candidate, protect it, make it the
+default, preserve/rename the Python legacy branch, and report the resulting
+branch/tag/rules evidence. Stop after the reconciliation report; do not start
+M4 automatically, expose asset upload, or begin Notion work. The later live
+acceptance gates remain migrations, asset-metadata/block-document/hierarchy
+integration, restart persistence, owner bootstrap, authenticated browser flow,
+and live backup/restore after Docker is available.
 
 ## Commands to resume
 

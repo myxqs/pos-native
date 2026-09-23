@@ -141,7 +141,9 @@ export function validatePageHierarchy(
   const previous = pages.get(candidate.id) ?? null;
   pages.set(candidate.id, candidate);
 
-  validateParentChain(pages, candidate);
+  for (const page of pages.values()) {
+    validateParentChain(pages, page, page.archivedAt === null);
+  }
 
   if (
     previous?.archivedAt === null &&
@@ -166,6 +168,7 @@ export function assertPageListScope(scope: PageListScope): void {
 function validateParentChain(
   pages: ReadonlyMap<NativeId, Page>,
   candidate: Page,
+  requireLiveParents: boolean,
 ): void {
   const visited = new Set<NativeId>();
   let currentId = candidate.id;
@@ -194,7 +197,7 @@ function validateParentChain(
     if (!parent) {
       throw new PageHierarchyError("page parent does not exist");
     }
-    if (parent.archivedAt !== null) {
+    if (requireLiveParents && parent.archivedAt !== null) {
       throw new PageHierarchyError("page parent is archived");
     }
     currentId = parent.id;

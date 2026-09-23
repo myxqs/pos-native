@@ -226,6 +226,99 @@ liveTest(
 );
 
 liveTest(
+  "rejects a PostgreSQL subtree move when a live or archived descendant would exceed 32 parent edges",
+  async () => {
+    if (!repository) throw new Error("live repository was not initialised");
+    const command = (title: string, parentId: NativeId | null = null) =>
+      createPage(
+        {
+          title,
+          ...(parentId === null ? {} : { parentId }),
+          actorType: "user",
+          actorId: "integration-user",
+          source: "integration-test",
+        },
+        {
+          newId: randomUUID,
+          now: () => new Date("2026-09-16T10:00:00.000Z"),
+        },
+      );
+
+    let destination = command("Destination root");
+    await repository.create(destination);
+    for (let depth = 1; depth <= 31; depth += 1) {
+      const child = command(`Destination ${depth}`, destination.page.id);
+      await repository.create(child);
+      destination = child;
+    }
+
+    const subtreeRoot = command("Subtree root");
+    const subtreeChild = command("Subtree child", subtreeRoot.page.id);
+    await repository.create(subtreeRoot);
+    await repository.create(subtreeChild);
+
+    const moveWithLiveDescendant = movePage(
+      subtreeRoot.page,
+      1,
+      {
+        parentId: destination.page.id,
+        actorType: "user",
+        actorId: "integration-user",
+        source: "integration-test",
+      },
+      {
+        newId: randomUUID,
+        now: () => new Date("2026-09-16T11:00:00.000Z"),
+      },
+    );
+    await expect(
+      repository.update(moveWithLiveDescendant),
+    ).rejects.toBeInstanceOf(PageHierarchyError);
+    await expect(repository.getById(subtreeRoot.page.id)).resolves.toEqual({
+      page: subtreeRoot.page,
+      revisionNumber: 1,
+    });
+
+    const archivedChild = archivePage(
+      subtreeChild.page,
+      1,
+      {
+        actorType: "user",
+        actorId: "integration-user",
+        source: "integration-test",
+      },
+      {
+        newId: randomUUID,
+        now: () => new Date("2026-09-16T12:00:00.000Z"),
+      },
+    );
+    await repository.update(archivedChild);
+
+    const moveWithArchivedDescendant = movePage(
+      subtreeRoot.page,
+      1,
+      {
+        parentId: destination.page.id,
+        actorType: "user",
+        actorId: "integration-user",
+        source: "integration-test",
+      },
+      {
+        newId: randomUUID,
+        now: () => new Date("2026-09-16T13:00:00.000Z"),
+      },
+    );
+    await expect(
+      repository.update(moveWithArchivedDescendant),
+    ).rejects.toBeInstanceOf(PageHierarchyError);
+    await expect(repository.getById(subtreeRoot.page.id)).resolves.toEqual({
+      page: subtreeRoot.page,
+      revisionNumber: 1,
+    });
+  },
+);
+
+liveTest(
   "serializes two independently valid moves that would otherwise form a cycle",
   async () => {
     if (!repository) throw new Error("live repository was not initialised");

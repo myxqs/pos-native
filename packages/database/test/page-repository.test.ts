@@ -306,6 +306,87 @@ test("allows 32 parent edges and rejects a 33-edge hierarchy", async () => {
   );
 });
 
+test("rejects moving a subtree when any live or archived descendant would exceed 32 parent edges", async () => {
+  const repository = new InMemoryPageRepository();
+  let destination = pageCreation({ sequence: 100 });
+  await repository.create(destination);
+
+  for (let depth = 1; depth <= 31; depth += 1) {
+    const child = pageCreation({
+      sequence: 100 + depth,
+      parentId: destination.page.id,
+    });
+    await repository.create(child);
+    destination = child;
+  }
+
+  const subtreeRoot = pageCreation({ sequence: 200 });
+  const subtreeChild = pageCreation({
+    sequence: 201,
+    parentId: subtreeRoot.page.id,
+  });
+  await repository.create(subtreeRoot);
+  await repository.create(subtreeChild);
+
+  const moveWithLiveDescendant = movePage(
+    subtreeRoot.page,
+    1,
+    {
+      parentId: destination.page.id,
+      actorType: "user",
+      actorId: "user-1",
+      source: "human-ui",
+    },
+    dependencies(300),
+  );
+  await expect(
+    repository.update(moveWithLiveDescendant),
+  ).rejects.toBeInstanceOf(PageHierarchyError);
+  await expect(repository.getById(subtreeRoot.page.id)).resolves.toEqual({
+    page: subtreeRoot.page,
+    revisionNumber: 1,
+  });
+  await expect(repository.getById(subtreeChild.page.id)).resolves.toEqual({
+    page: subtreeChild.page,
+    revisionNumber: 1,
+  });
+  expect(repository.revisionsFor(subtreeRoot.page.id)).toHaveLength(1);
+  expect(repository.auditFor(subtreeRoot.page.id)).toHaveLength(1);
+
+  const archivedChild = archivePage(
+    subtreeChild.page,
+    1,
+    {
+      actorType: "user",
+      actorId: "user-1",
+      source: "human-ui",
+    },
+    dependencies(301),
+  );
+  await repository.update(archivedChild);
+
+  const moveWithArchivedDescendant = movePage(
+    subtreeRoot.page,
+    1,
+    {
+      parentId: destination.page.id,
+      actorType: "user",
+      actorId: "user-1",
+      source: "human-ui",
+    },
+    dependencies(302),
+  );
+  await expect(
+    repository.update(moveWithArchivedDescendant),
+  ).rejects.toBeInstanceOf(PageHierarchyError);
+  await expect(repository.getById(subtreeRoot.page.id)).resolves.toEqual({
+    page: subtreeRoot.page,
+    revisionNumber: 1,
+  });
+  expect(repository.revisionsFor(subtreeRoot.page.id)).toHaveLength(1);
+  expect(repository.auditFor(subtreeRoot.page.id)).toHaveLength(1);
+});
+
 test("archives only leaves and restores only to a live parent", async () => {
   const repository = new InMemoryPageRepository();
   const root = pageCreation({ sequence: 1 });

@@ -11,9 +11,10 @@ import {
   type ReplaceBlockDocumentMutation,
   replaceBlockDocument,
 } from "../../domain/src/block-document.ts";
-import { createPage } from "../../domain/src/page.ts";
+import { archivePage, createPage } from "../../domain/src/page.ts";
 import {
   BlockDocumentIdentityConflictError,
+  BlockDocumentPageArchivedError,
   BlockDocumentRevisionConflictError,
 } from "../src/block-document-repository.ts";
 import { PostgresBlockDocumentRepository } from "../src/postgres-block-document-repository.ts";
@@ -137,6 +138,58 @@ liveTest(
     ).resolves.toMatchObject({
       rows: [{ current_block_document_revision_number: 1 }],
     });
+  },
+);
+
+liveTest(
+  "rejects a body write after its page is archived without adding body history",
+  async () => {
+    if (!blockRepository || !pageRepository || !pool) {
+      throw new Error("live repository was not initialised");
+    }
+    const empty = await createRegisteredPage();
+    const persistedPage = await pageRepository.getById(empty.pageId);
+    if (!persistedPage) throw new Error("registered page is missing");
+    await pageRepository.update(
+      archivePage(
+        persistedPage.page,
+        persistedPage.revisionNumber,
+        {
+          actorType: "user",
+          actorId: "integration-user",
+          source: "integration-test",
+        },
+        {
+          newId: randomUUID,
+          now: () => new Date("2026-09-21T12:30:00.000Z"),
+        },
+      ),
+    );
+    const mutation = changedMutation(
+      empty,
+      [
+        {
+          clientRef: "root",
+          blockType: "paragraph",
+          content: { text: "Archived body" },
+        },
+      ],
+      "2026-09-21T13:00:00.000Z",
+    );
+
+    await expect(blockRepository.replace(mutation)).rejects.toBeInstanceOf(
+      BlockDocumentPageArchivedError,
+    );
+    await expect(blockRepository.getByPageId(empty.pageId)).resolves.toEqual({
+      document: empty,
+      revisionNumber: 0,
+    });
+    await expect(
+      pool.query(
+        "SELECT revision_number FROM revisions WHERE entity_type = $1 AND entity_id = $2",
+        ["block-document", empty.pageId],
+      ),
+    ).resolves.toMatchObject({ rows: [] });
   },
 );
 

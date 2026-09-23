@@ -73,6 +73,10 @@ export class InMemoryPageRepository implements PageRepository {
     return this.#pages.get(id) ?? null;
   }
 
+  isPageLive(id: NativeId): boolean {
+    return this.#pages.get(id)?.page.archivedAt === null;
+  }
+
   async list(scope: PageListScope = "active"): Promise<readonly Page[]> {
     assertPageListScope(scope);
     return [...this.#pages.values()]

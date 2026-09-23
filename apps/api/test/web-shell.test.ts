@@ -1567,6 +1567,345 @@ test("browser archives a selected leaf without exposing it in ordinary navigatio
   ).toEqual(["Leaf"]);
 });
 
+test("browser reconciles active navigation when an archive resolves after a newer selection", async () => {
+  const { documentObject, elements } = createBrowserDocument();
+  const first = livePage("first", "First");
+  const second = livePage("second", "Second");
+  const archivedFirst = archivedPage("first", "First");
+  const archiveResponse = createDeferred<Response>();
+  let archiveRequested!: () => void;
+  const archiveStarted = new Promise<void>((resolve) => {
+    archiveRequested = resolve;
+  });
+  let activeReads = 0;
+  const apiFetch = vi.fn((url: string, options?: { method?: string }) => {
+    if (url === "/api/v1/auth/session") {
+      return Promise.resolve(jsonResponse({ authenticated: true }));
+    }
+    if (url === "/api/v1/pages" && options?.method === "GET") {
+      activeReads += 1;
+      return Promise.resolve(
+        jsonResponse({ pages: activeReads === 1 ? [first, second] : [second] }),
+      );
+    }
+    if (url === "/api/v1/pages/first" && options?.method === "GET") {
+      return Promise.resolve(jsonResponse({ page: first, revisionNumber: 1 }));
+    }
+    if (url === "/api/v1/pages/second" && options?.method === "GET") {
+      return Promise.resolve(jsonResponse({ page: second, revisionNumber: 1 }));
+    }
+    if (
+      (url === "/api/v1/pages/first/blocks" ||
+        url === "/api/v1/pages/second/blocks") &&
+      options?.method === "GET"
+    ) {
+      return Promise.resolve(
+        jsonResponse({
+          document: {
+            blocks: [],
+            pageId: url.includes("first") ? "first" : "second",
+            revisionNumber: 0,
+          },
+        }),
+      );
+    }
+    if (url === "/api/v1/pages/first/archive") {
+      archiveRequested();
+      return archiveResponse.promise;
+    }
+    throw new Error(`Unexpected browser request: ${url}`);
+  });
+
+  await startBrowserApp(documentObject, apiFetch as typeof fetch);
+  await pageListButton(elements).emit("click");
+  const archiving = element(elements, "#archive-page").emit("click");
+  await archiveStarted;
+  await pageListButton(elements, 1).emit("click");
+  element(elements, "#page-title").value = "Second draft";
+  archiveResponse.resolve(
+    jsonResponse({ page: archivedFirst, revisionNumber: 2 }),
+  );
+  await archiving;
+
+  expect(element(elements, "#page-title").value).toBe("Second draft");
+  expect(
+    navigationButtons(element(elements, "#page-list")).map(
+      (button) => button.textContent,
+    ),
+  ).toEqual(["Second"]);
+});
+
+test("browser preserves an unsaved title draft when an archive response resolves", async () => {
+  const { documentObject, elements } = createBrowserDocument();
+  const root = livePage("root", "Root");
+  const archivedRoot = archivedPage("root", "Root");
+  const archiveResponse = createDeferred<Response>();
+  let archiveRequested!: () => void;
+  const archiveStarted = new Promise<void>((resolve) => {
+    archiveRequested = resolve;
+  });
+  let activeReads = 0;
+  const apiFetch = vi.fn((url: string, options?: { method?: string }) => {
+    if (url === "/api/v1/auth/session") {
+      return Promise.resolve(jsonResponse({ authenticated: true }));
+    }
+    if (url === "/api/v1/pages" && options?.method === "GET") {
+      activeReads += 1;
+      return Promise.resolve(
+        jsonResponse({ pages: activeReads === 1 ? [root] : [] }),
+      );
+    }
+    if (url === "/api/v1/pages/root" && options?.method === "GET") {
+      return Promise.resolve(jsonResponse({ page: root, revisionNumber: 1 }));
+    }
+    if (url === "/api/v1/pages/root/blocks" && options?.method === "GET") {
+      return Promise.resolve(
+        jsonResponse({
+          document: { blocks: [], pageId: "root", revisionNumber: 0 },
+        }),
+      );
+    }
+    if (url === "/api/v1/pages/root/archive") {
+      archiveRequested();
+      return archiveResponse.promise;
+    }
+    throw new Error(`Unexpected browser request: ${url}`);
+  });
+
+  await startBrowserApp(documentObject, apiFetch as typeof fetch);
+  await pageListButton(elements).emit("click");
+  const archiving = element(elements, "#archive-page").emit("click");
+  await archiveStarted;
+  element(elements, "#page-title").value = "Unsent title draft";
+  archiveResponse.resolve(
+    jsonResponse({ page: archivedRoot, revisionNumber: 2 }),
+  );
+  await archiving;
+
+  expect(element(elements, "#page-title").value).toBe("Unsent title draft");
+});
+
+test("browser reconciles active navigation when a move resolves after a newer selection", async () => {
+  const { documentObject, elements } = createBrowserDocument();
+  const first = livePage("first", "First");
+  const second = livePage("second", "Second");
+  const movedFirst = livePage("first", "Moved first", "second");
+  const moveResponse = createDeferred<Response>();
+  let moveRequested!: () => void;
+  const moveStarted = new Promise<void>((resolve) => {
+    moveRequested = resolve;
+  });
+  let activeReads = 0;
+  const apiFetch = vi.fn((url: string, options?: { method?: string }) => {
+    if (url === "/api/v1/auth/session") {
+      return Promise.resolve(jsonResponse({ authenticated: true }));
+    }
+    if (url === "/api/v1/pages" && options?.method === "GET") {
+      activeReads += 1;
+      return Promise.resolve(
+        jsonResponse({
+          pages: activeReads === 1 ? [first, second] : [second, movedFirst],
+        }),
+      );
+    }
+    if (url === "/api/v1/pages/first" && options?.method === "GET") {
+      return Promise.resolve(jsonResponse({ page: first, revisionNumber: 1 }));
+    }
+    if (url === "/api/v1/pages/second" && options?.method === "GET") {
+      return Promise.resolve(jsonResponse({ page: second, revisionNumber: 1 }));
+    }
+    if (
+      (url === "/api/v1/pages/first/blocks" ||
+        url === "/api/v1/pages/second/blocks") &&
+      options?.method === "GET"
+    ) {
+      return Promise.resolve(
+        jsonResponse({
+          document: {
+            blocks: [],
+            pageId: url.includes("first") ? "first" : "second",
+            revisionNumber: 0,
+          },
+        }),
+      );
+    }
+    if (url === "/api/v1/pages/first/parent") {
+      moveRequested();
+      return moveResponse.promise;
+    }
+    throw new Error(`Unexpected browser request: ${url}`);
+  });
+
+  await startBrowserApp(documentObject, apiFetch as typeof fetch);
+  await pageListButton(elements).emit("click");
+  element(elements, "#page-parent").value = "second";
+  const moving = element(elements, "#save-parent").emit("click");
+  await moveStarted;
+  await pageListButton(elements, 1).emit("click");
+  element(elements, "#page-title").value = "Second draft";
+  moveResponse.resolve(jsonResponse({ page: movedFirst, revisionNumber: 2 }));
+  await moving;
+
+  expect(element(elements, "#page-title").value).toBe("Second draft");
+  expect(
+    navigationButtons(element(elements, "#page-list")).map(
+      (button) => button.textContent,
+    ),
+  ).toEqual(["Second", "Moved first"]);
+});
+
+test("browser reconciles active navigation when a title save resolves after a newer selection", async () => {
+  const { documentObject, elements } = createBrowserDocument();
+  const first = livePage("first", "First");
+  const renamedFirst = livePage("first", "Renamed first");
+  const second = livePage("second", "Second");
+  const saveResponse = createDeferred<Response>();
+  let saveRequested!: () => void;
+  const saveStarted = new Promise<void>((resolve) => {
+    saveRequested = resolve;
+  });
+  let activeReads = 0;
+  const apiFetch = vi.fn((url: string, options?: { method?: string }) => {
+    if (url === "/api/v1/auth/session") {
+      return Promise.resolve(jsonResponse({ authenticated: true }));
+    }
+    if (url === "/api/v1/pages" && options?.method === "GET") {
+      activeReads += 1;
+      return Promise.resolve(
+        jsonResponse({
+          pages: activeReads === 1 ? [first, second] : [renamedFirst, second],
+        }),
+      );
+    }
+    if (url === "/api/v1/pages/first" && options?.method === "GET") {
+      return Promise.resolve(jsonResponse({ page: first, revisionNumber: 1 }));
+    }
+    if (url === "/api/v1/pages/second" && options?.method === "GET") {
+      return Promise.resolve(jsonResponse({ page: second, revisionNumber: 1 }));
+    }
+    if (
+      (url === "/api/v1/pages/first/blocks" ||
+        url === "/api/v1/pages/second/blocks") &&
+      options?.method === "GET"
+    ) {
+      return Promise.resolve(
+        jsonResponse({
+          document: {
+            blocks: [],
+            pageId: url.includes("first") ? "first" : "second",
+            revisionNumber: 0,
+          },
+        }),
+      );
+    }
+    if (url === "/api/v1/pages/first" && options?.method === "PATCH") {
+      saveRequested();
+      return saveResponse.promise;
+    }
+    throw new Error(`Unexpected browser request: ${url}`);
+  });
+
+  await startBrowserApp(documentObject, apiFetch as typeof fetch);
+  await pageListButton(elements).emit("click");
+  element(elements, "#page-title").value = "Renamed first";
+  const saving = element(elements, "#save-page").emit("click");
+  await saveStarted;
+  await pageListButton(elements, 1).emit("click");
+  element(elements, "#page-title").value = "Second draft";
+  saveResponse.resolve(jsonResponse({ page: renamedFirst, revisionNumber: 2 }));
+  await saving;
+
+  expect(element(elements, "#page-title").value).toBe("Second draft");
+  expect(
+    navigationButtons(element(elements, "#page-list")).map(
+      (button) => button.textContent,
+    ),
+  ).toEqual(["Renamed first", "Second"]);
+});
+
+test("browser reconciles active navigation when a restore resolves after a newer selection", async () => {
+  const { documentObject, elements } = createBrowserDocument();
+  const second = livePage("second", "Second");
+  const archivedFirst = archivedPage("first", "First");
+  const restoredFirst = livePage("first", "Restored first");
+  const restoreResponse = createDeferred<Response>();
+  let restoreRequested!: () => void;
+  const restoreStarted = new Promise<void>((resolve) => {
+    restoreRequested = resolve;
+  });
+  let activeReads = 0;
+  let archivedReads = 0;
+  const apiFetch = vi.fn((url: string, options?: { method?: string }) => {
+    if (url === "/api/v1/auth/session") {
+      return Promise.resolve(jsonResponse({ authenticated: true }));
+    }
+    if (url === "/api/v1/pages" && options?.method === "GET") {
+      activeReads += 1;
+      return Promise.resolve(
+        jsonResponse({
+          pages: activeReads === 1 ? [second] : [second, restoredFirst],
+        }),
+      );
+    }
+    if (url === "/api/v1/pages?archived=only") {
+      archivedReads += 1;
+      return Promise.resolve(
+        jsonResponse({ pages: archivedReads === 1 ? [archivedFirst] : [] }),
+      );
+    }
+    if (url === "/api/v1/pages/first" && options?.method === "GET") {
+      return Promise.resolve(
+        jsonResponse({ page: archivedFirst, revisionNumber: 1 }),
+      );
+    }
+    if (url === "/api/v1/pages/second" && options?.method === "GET") {
+      return Promise.resolve(jsonResponse({ page: second, revisionNumber: 1 }));
+    }
+    if (
+      (url === "/api/v1/pages/first/blocks" ||
+        url === "/api/v1/pages/second/blocks") &&
+      options?.method === "GET"
+    ) {
+      return Promise.resolve(
+        jsonResponse({
+          document: {
+            blocks: [],
+            pageId: url.includes("first") ? "first" : "second",
+            revisionNumber: 0,
+          },
+        }),
+      );
+    }
+    if (url === "/api/v1/pages/first/restore") {
+      restoreRequested();
+      return restoreResponse.promise;
+    }
+    throw new Error(`Unexpected browser request: ${url}`);
+  });
+
+  await startBrowserApp(documentObject, apiFetch as typeof fetch);
+  await element(elements, "#show-archived-pages").emit("click");
+  await archivedPageListButton(elements).emit("click");
+  const restoring = element(elements, "#restore-page").emit("click");
+  await restoreStarted;
+  await pageListButton(elements).emit("click");
+  element(elements, "#page-title").value = "Second draft";
+  restoreResponse.resolve(
+    jsonResponse({ page: restoredFirst, revisionNumber: 2 }),
+  );
+  await restoring;
+
+  expect(element(elements, "#page-title").value).toBe("Second draft");
+  expect(
+    navigationButtons(element(elements, "#page-list")).map(
+      (button) => button.textContent,
+    ),
+  ).toEqual(["Second", "Restored first"]);
+  expect(navigationButtons(element(elements, "#archived-page-list"))).toEqual(
+    [],
+  );
+});
+
 test("browser restores an archived page only to the root or a live parent", async () => {
   const { documentObject, elements } = createBrowserDocument();
   const root = livePage("root", "Root");

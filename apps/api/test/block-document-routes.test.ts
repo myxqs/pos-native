@@ -1,6 +1,9 @@
 import { expect, test, vi } from "vitest";
 
-import { InMemoryBlockDocumentRepository } from "../../../packages/database/src/block-document-repository.ts";
+import {
+  InMemoryBlockDocumentRepository,
+  type BlockDocumentRepository,
+} from "../../../packages/database/src/block-document-repository.ts";
 import { InMemoryPageRepository } from "../../../packages/database/src/page-repository.ts";
 import { archivePage, createPage } from "../../../packages/domain/src/page.ts";
 import { buildApp } from "../src/app.ts";
@@ -8,11 +11,29 @@ import type { PageAuthorizer } from "../src/page-routes.ts";
 
 const pageId = "11111111-1111-4111-8111-111111111111";
 
+function createDeferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
 async function blockDocumentApp(options?: {
   readonly authorize?: PageAuthorizer;
+  readonly beforeReplace?: () => Promise<void>;
 }) {
   const pageRepository = new InMemoryPageRepository();
-  const blockDocumentRepository = new InMemoryBlockDocumentRepository();
+  const blockDocumentRepository = new InMemoryBlockDocumentRepository({
+    isPageLive: (id) => pageRepository.isPageLive(id),
+  });
+  const routeBlockDocumentRepository: BlockDocumentRepository = {
+    getByPageId: (id) => blockDocumentRepository.getByPageId(id),
+    async replace(mutation) {
+      await options?.beforeReplace?.();
+      return blockDocumentRepository.replace(mutation);
+    },
+  };
   const created = createPage(
     {
       title: "Projects",
@@ -62,7 +83,7 @@ async function blockDocumentApp(options?: {
       newId: () => generatedIds.shift() ?? "",
       now: () => new Date("2026-09-21T13:00:00.000Z"),
     },
-    blockDocumentRepository,
+    blockDocumentRepository: routeBlockDocumentRepository,
     blockDocumentDependencies: {
       newId: () => generatedIds.shift() ?? "",
       now: () => new Date("2026-09-21T13:00:00.000Z"),
@@ -186,6 +207,67 @@ test("keeps an archived page body readable but rejects body writes", async () =>
   });
   expect(write.statusCode).toBe(409);
   expect(write.json()).toEqual({ error: "page is archived" });
+  expect(blockDocumentRepository.revisionsFor(id)).toHaveLength(0);
+  expect(blockDocumentRepository.auditFor(id)).toHaveLength(0);
+  await app.close();
+});
+
+test("rejects a body write that becomes archived after route validation", async () => {
+  const replacementReleased = createDeferred<void>();
+  let replacementRequested!: () => void;
+  const replacementStarted = new Promise<void>((resolve) => {
+    replacementRequested = resolve;
+  });
+  const {
+    app,
+    pageRepository,
+    page,
+    blockDocumentRepository,
+    pageId: id,
+  } = await blockDocumentApp({
+    beforeReplace: async () => {
+      replacementRequested();
+      await replacementReleased.promise;
+    },
+  });
+
+  const write = app.inject({
+    method: "PUT",
+    url: "/api/v1/pages/" + id + "/blocks",
+    headers: { "if-match": '"0"' },
+    payload: {
+      blocks: [
+        {
+          clientRef: "root",
+          blockType: "paragraph",
+          content: { text: "In-flight body" },
+        },
+      ],
+    },
+  });
+  await replacementStarted;
+  await pageRepository.update(
+    archivePage(
+      page,
+      1,
+      { actorType: "user", actorId: "user-1", source: "human-ui" },
+      {
+        newId: (() => {
+          const ids = [
+            "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          ];
+          return () => ids.shift() ?? "";
+        })(),
+        now: () => new Date("2026-09-21T13:30:00.000Z"),
+      },
+    ),
+  );
+  replacementReleased.resolve();
+
+  const response = await write;
+  expect(response.statusCode).toBe(409);
+  expect(response.json()).toEqual({ error: "page is archived" });
   expect(blockDocumentRepository.revisionsFor(id)).toHaveLength(0);
   expect(blockDocumentRepository.auditFor(id)).toHaveLength(0);
   await app.close();

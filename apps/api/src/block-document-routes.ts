@@ -10,7 +10,10 @@ import {
   asNativeId,
   ValidationError,
 } from "../../../packages/domain/src/ids.ts";
-import type { BlockDocumentRepository } from "../../../packages/database/src/block-document-repository.ts";
+import {
+  BlockDocumentPageArchivedError,
+  type BlockDocumentRepository,
+} from "../../../packages/database/src/block-document-repository.ts";
 import type { PageRepository } from "../../../packages/database/src/page-repository.ts";
 import type { PageAuthorizer } from "./page-routes.ts";
 
@@ -114,6 +117,9 @@ export function registerBlockDocumentRoutes(
         await options.blockDocumentRepository.replace(result.mutation),
       );
     } catch (error) {
+      if (error instanceof BlockDocumentPageArchivedError) {
+        return reply.code(409).send({ error: "page is archived" });
+      }
       if (error instanceof BlockDocumentRevisionConflictError) {
         return reply
           .code(409)

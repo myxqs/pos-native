@@ -468,6 +468,12 @@ export async function startBrowserApp(
     return selectedPage?.archivedAt === null;
   }
 
+  function mutationAppliesToSelection(id, selectionGeneration) {
+    return (
+      selectionGeneration === pageSelectionGeneration && selectedPage?.id === id
+    );
+  }
+
   function resetBodyEditor() {
     selectedBodyRevisionNumber = null;
     selectedBodyBlockId = null;
@@ -893,6 +899,7 @@ export async function startBrowserApp(
     const id = selectedPage.id;
     const revisionNumber = selectedRevisionNumber;
     const selectionGeneration = pageSelectionGeneration;
+    const authenticationAtStart = authenticationGeneration;
     pageSavePendingId = id;
     applySelectionControls();
     try {
@@ -903,26 +910,22 @@ export async function startBrowserApp(
         revisionNumber,
         csrfTokenFromDocument(documentObject),
       );
-      if (
-        selectionGeneration !== pageSelectionGeneration ||
-        selectedPage?.id !== id
-      ) {
-        return;
+      if (authenticationAtStart !== authenticationGeneration) return;
+      if (mutationAppliesToSelection(id, selectionGeneration)) {
+        showSelectedPage(result.page, result.revisionNumber, {
+          preserveParentDraft: true,
+        });
+        status.textContent = "Page saved.";
       }
-      showSelectedPage(result.page, result.revisionNumber, {
-        preserveParentDraft: true,
-      });
-      status.textContent = "Page saved.";
       await refreshActivePages();
+      if (authenticationAtStart !== authenticationGeneration) return;
     } catch (error) {
-      if (
-        selectionGeneration !== pageSelectionGeneration ||
-        selectedPage?.id !== id
-      ) {
+      if (authenticationAtStart !== authenticationGeneration) {
         return;
-      }
-      if (isAuthenticationError(error)) {
+      } else if (isAuthenticationError(error)) {
         showLogin("Your session has ended. Please sign in again.");
+      } else if (!mutationAppliesToSelection(id, selectionGeneration)) {
+        return;
       } else if (error instanceof Error && error.statusCode === 409) {
         status.textContent =
           "This page changed. Reload the page before saving.";
@@ -945,6 +948,7 @@ export async function startBrowserApp(
     const id = selectedPage.id;
     const revisionNumber = selectedRevisionNumber;
     const selectionGeneration = pageSelectionGeneration;
+    const authenticationAtStart = authenticationGeneration;
     const parentId = pageParent.value || null;
     movePendingId = id;
     applySelectionControls();
@@ -956,26 +960,22 @@ export async function startBrowserApp(
         revisionNumber,
         csrfTokenFromDocument(documentObject),
       );
-      if (
-        selectionGeneration !== pageSelectionGeneration ||
-        selectedPage?.id !== id
-      ) {
-        return;
+      if (authenticationAtStart !== authenticationGeneration) return;
+      if (mutationAppliesToSelection(id, selectionGeneration)) {
+        showSelectedPage(result.page, result.revisionNumber, {
+          preserveTitleDraft: true,
+        });
+        status.textContent = "Page moved.";
       }
-      showSelectedPage(result.page, result.revisionNumber, {
-        preserveTitleDraft: true,
-      });
-      status.textContent = "Page moved.";
       await refreshActivePages();
+      if (authenticationAtStart !== authenticationGeneration) return;
     } catch (error) {
-      if (
-        selectionGeneration !== pageSelectionGeneration ||
-        selectedPage?.id !== id
-      ) {
+      if (authenticationAtStart !== authenticationGeneration) {
         return;
-      }
-      if (isAuthenticationError(error)) {
+      } else if (isAuthenticationError(error)) {
         showLogin("Your session has ended. Please sign in again.");
+      } else if (!mutationAppliesToSelection(id, selectionGeneration)) {
+        return;
       } else if (error instanceof Error && error.statusCode === 409) {
         status.textContent =
           "This page changed. Reload the page before moving it.";
@@ -999,6 +999,7 @@ export async function startBrowserApp(
     const id = selectedPage.id;
     const revisionNumber = selectedRevisionNumber;
     const selectionGeneration = pageSelectionGeneration;
+    const authenticationAtStart = authenticationGeneration;
     archivePendingId = id;
     applySelectionControls();
     try {
@@ -1008,24 +1009,25 @@ export async function startBrowserApp(
         revisionNumber,
         csrfTokenFromDocument(documentObject),
       );
-      if (
-        selectionGeneration !== pageSelectionGeneration ||
-        selectedPage?.id !== id
-      ) {
-        return;
+      if (authenticationAtStart !== authenticationGeneration) return;
+      if (mutationAppliesToSelection(id, selectionGeneration)) {
+        showSelectedPage(result.page, result.revisionNumber, {
+          preserveParentDraft: true,
+          preserveTitleDraft: true,
+        });
+        status.textContent = "Page archived.";
       }
-      showSelectedPage(result.page, result.revisionNumber);
-      status.textContent = "Page archived.";
       await refreshActivePages();
+      if (authenticationAtStart !== authenticationGeneration) return;
       await refreshArchivedIfVisible();
     } catch (error) {
-      if (
-        selectionGeneration !== pageSelectionGeneration ||
-        selectedPage?.id !== id
-      ) {
+      if (authenticationAtStart !== authenticationGeneration) {
         return;
+      } else if (isAuthenticationError(error)) {
+        showLogin("Your session has ended. Please sign in again.");
+      } else if (mutationAppliesToSelection(id, selectionGeneration)) {
+        handleWorkspaceFailure(error, "Could not archive page.");
       }
-      handleWorkspaceFailure(error, "Could not archive page.");
     } finally {
       if (archivePendingId === id) archivePendingId = null;
       applySelectionControls();
@@ -1043,6 +1045,7 @@ export async function startBrowserApp(
     const id = selectedPage.id;
     const revisionNumber = selectedRevisionNumber;
     const selectionGeneration = pageSelectionGeneration;
+    const authenticationAtStart = authenticationGeneration;
     const parentId = pageParent.value || null;
     restorePendingId = id;
     applySelectionControls();
@@ -1054,24 +1057,25 @@ export async function startBrowserApp(
         revisionNumber,
         csrfTokenFromDocument(documentObject),
       );
-      if (
-        selectionGeneration !== pageSelectionGeneration ||
-        selectedPage?.id !== id
-      ) {
-        return;
+      if (authenticationAtStart !== authenticationGeneration) return;
+      if (mutationAppliesToSelection(id, selectionGeneration)) {
+        showSelectedPage(result.page, result.revisionNumber, {
+          preserveParentDraft: true,
+          preserveTitleDraft: true,
+        });
+        status.textContent = "Page restored.";
       }
-      showSelectedPage(result.page, result.revisionNumber);
-      status.textContent = "Page restored.";
       await refreshActivePages();
+      if (authenticationAtStart !== authenticationGeneration) return;
       await refreshArchivedIfVisible();
     } catch (error) {
-      if (
-        selectionGeneration !== pageSelectionGeneration ||
-        selectedPage?.id !== id
-      ) {
+      if (authenticationAtStart !== authenticationGeneration) {
         return;
+      } else if (isAuthenticationError(error)) {
+        showLogin("Your session has ended. Please sign in again.");
+      } else if (mutationAppliesToSelection(id, selectionGeneration)) {
+        handleWorkspaceFailure(error, "Could not restore page.");
       }
-      handleWorkspaceFailure(error, "Could not restore page.");
     } finally {
       if (restorePendingId === id) restorePendingId = null;
       applySelectionControls();

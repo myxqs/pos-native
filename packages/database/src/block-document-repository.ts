@@ -17,6 +17,13 @@ export class BlockDocumentIdentityConflictError extends Error {
   }
 }
 
+export class BlockDocumentPageArchivedError extends Error {
+  constructor() {
+    super("page is archived");
+    this.name = "BlockDocumentPageArchivedError";
+  }
+}
+
 export interface PersistedBlockDocument {
   readonly document: BlockDocument;
   readonly revisionNumber: number;
@@ -44,9 +51,16 @@ export class InMemoryBlockDocumentRepository implements BlockDocumentRepository 
     "block-document.updated"
   >[] = [];
   readonly #failAt: FailurePoint | undefined;
+  readonly #isPageLive: (pageId: NativeId) => boolean;
 
-  constructor(options: { failAt?: FailurePoint } = {}) {
+  constructor(
+    options: {
+      failAt?: FailurePoint;
+      isPageLive?: (pageId: NativeId) => boolean;
+    } = {},
+  ) {
     this.#failAt = options.failAt;
+    this.#isPageLive = options.isPageLive ?? (() => true);
   }
 
   registerPage(
@@ -78,6 +92,9 @@ export class InMemoryBlockDocumentRepository implements BlockDocumentRepository 
     const currentState = this.#pages.get(candidateDocument.pageId);
     if (!currentState) {
       throw new Error("page does not exist");
+    }
+    if (!this.#isPageLive(candidateDocument.pageId)) {
+      throw new BlockDocumentPageArchivedError();
     }
     if (candidateDocument.revisionNumber !== currentState.revisionNumber + 1) {
       throw new BlockDocumentRevisionConflictError();

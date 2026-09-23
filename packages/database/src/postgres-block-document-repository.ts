@@ -11,6 +11,7 @@ import {
 import { asNativeId, type NativeId } from "../../domain/src/ids.ts";
 import {
   BlockDocumentIdentityConflictError,
+  BlockDocumentPageArchivedError,
   BlockDocumentRevisionConflictError,
   type BlockDocumentRepository,
   type PersistedBlockDocument,
@@ -61,6 +62,7 @@ export class PostgresBlockDocumentRepository implements BlockDocumentRepository 
       const pageRows = await transaction
         .select({
           id: pages.id,
+          archivedAt: pages.archivedAt,
           revisionNumber: pages.currentBlockDocumentRevisionNumber,
         })
         .from(pages)
@@ -69,6 +71,9 @@ export class PostgresBlockDocumentRepository implements BlockDocumentRepository 
       const page = pageRows[0];
       if (!page) {
         throw new Error("page does not exist");
+      }
+      if (page.archivedAt !== null) {
+        throw new BlockDocumentPageArchivedError();
       }
       if (candidateDocument.revisionNumber !== page.revisionNumber + 1) {
         throw new BlockDocumentRevisionConflictError();
@@ -113,10 +118,19 @@ export class PostgresBlockDocumentRepository implements BlockDocumentRepository 
               pages.currentBlockDocumentRevisionNumber,
               document.revisionNumber - 1,
             ),
+            isNull(pages.archivedAt),
           ),
         )
         .returning({ id: pages.id });
       if (updatedPages.length !== 1) {
+        const currentPageRows = await transaction
+          .select({ archivedAt: pages.archivedAt })
+          .from(pages)
+          .where(eq(pages.id, document.pageId))
+          .limit(1);
+        if (currentPageRows[0]?.archivedAt !== null) {
+          throw new BlockDocumentPageArchivedError();
+        }
         throw new BlockDocumentRevisionConflictError();
       }
 

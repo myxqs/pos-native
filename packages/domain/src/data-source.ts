@@ -48,7 +48,9 @@ export interface PropertyDefinition {
 }
 
 export function propertyNameKey(name: string): string {
-  return name.normalize("NFKC").toLowerCase();
+  return name
+    .normalize("NFKC")
+    .replace(/[A-Z]/g, (character) => character.toLowerCase());
 }
 
 export interface DataSourceItem {

@@ -1,5 +1,5 @@
 ALTER TABLE "property_definitions" ADD COLUMN "name_key" text;--> statement-breakpoint
-UPDATE "property_definitions" SET "name_key" = lower(normalize("name", NFKC));--> statement-breakpoint
+UPDATE "property_definitions" SET "name_key" = translate(normalize("name", NFKC), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz');--> statement-breakpoint
 ALTER TABLE "property_definitions" ALTER COLUMN "name_key" SET NOT NULL;--> statement-breakpoint
 DROP INDEX "property_definitions_source_name_ci_unique";--> statement-breakpoint
 CREATE UNIQUE INDEX "property_definitions_source_name_key_unique" ON "property_definitions" USING btree ("source_id","name_key");--> statement-breakpoint

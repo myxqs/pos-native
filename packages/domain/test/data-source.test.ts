@@ -124,6 +124,14 @@ test("derives one locale-independent comparison key for equivalent property name
 
   assert.equal(ascii.definition.nameKey, "status");
   assert.equal(compatibilityForm.definition.nameKey, "status");
+  assert.equal(
+    createPropertyDefinition(
+      dataSource,
+      { name: "İ", kind: "text", ...actor },
+      dependencies(),
+    ).definition.nameKey,
+    "İ",
+  );
 });
 
 test("rejects bad definition shapes, reserved derived fields, and unbounded options", () => {

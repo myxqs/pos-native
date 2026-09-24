@@ -110,7 +110,7 @@ test("backfills canonical property-name keys before enforcing the new constraint
   );
   const addNullable = migration.indexOf('ADD COLUMN "name_key" text;');
   const backfill = migration.indexOf(
-    'SET "name_key" = lower(normalize("name", NFKC))',
+    `SET "name_key" = translate(normalize("name", NFKC), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')`,
   );
   const makeRequired = migration.indexOf(
     'ALTER COLUMN "name_key" SET NOT NULL',

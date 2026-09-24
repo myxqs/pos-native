@@ -54,6 +54,16 @@
         <nav aria-label="Active pages">
           <ul id="page-list"></ul>
         </nav>
+        <section class="collections-nav" aria-labelledby="collections-title">
+          <h2 id="collections-title">Collections</h2>
+          <form id="create-data-source" aria-label="Create collection">
+            <div class="form-row">
+              <input id="new-data-source-name" maxlength="120" required />
+              <button type="submit">Create</button>
+            </div>
+          </form>
+          <ul id="data-source-list"></ul>
+        </section>
         <button
           id="show-archived-pages"
           class="secondary-button archive-toggle"
@@ -123,6 +133,56 @@
             </div>
             <p id="body-status" role="status" aria-live="polite"></p>
           </div>
+        </section>
+        <section id="collection-panel" hidden>
+          <h2 id="collection-name"></h2>
+          <form id="create-property-definition" aria-label="Create field">
+            <label for="new-property-name">New field</label>
+            <div class="form-row">
+              <input id="new-property-name" maxlength="120" required />
+              <select id="new-property-kind">
+                <option value="text">Text</option>
+                <option value="number">Number</option>
+                <option value="checkbox">Checkbox</option>
+                <option value="status">Status</option>
+                <option value="relation">Relation</option>
+              </select>
+              <button type="submit">Add field</button>
+            </div>
+            <input
+              id="new-property-options"
+              placeholder="Status options, comma separated"
+            />
+            <input
+              id="new-property-target"
+              placeholder="Relation target collection ID"
+            />
+          </form>
+          <form id="create-record" aria-label="Create collection record">
+            <label for="new-record-title">New record</label>
+            <div class="form-row">
+              <input id="new-record-title" maxlength="500" required />
+              <button type="submit">Create record</button>
+            </div>
+          </form>
+          <ul id="record-list"></ul>
+          <section id="record-inspector" hidden>
+            <h3 id="record-title"></h3>
+            <button
+              id="open-record-page"
+              class="secondary-button"
+              type="button"
+            >
+              Open page
+            </button>
+            <form id="set-record-property" aria-label="Set record property">
+              <select id="record-property-definition"></select>
+              <input id="record-property-value" required />
+              <button type="submit">Save value</button>
+            </form>
+            <p id="record-revision"></p>
+          </section>
+          <p id="collection-status" role="status" aria-live="polite"></p>
         </section>
         <p id="empty-state">Create a page to begin.</p>
         <p id="status" role="status" aria-live="polite"></p>

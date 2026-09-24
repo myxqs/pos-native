@@ -120,6 +120,41 @@ export function updateBlockDocumentRequest(
   csrfToken: string,
 ): Promise<BrowserBlockDocument>;
 
+export interface BrowserDataSource {
+  readonly id: string;
+  readonly name: string;
+}
+
+export interface BrowserRecord {
+  readonly item: { readonly id: string; readonly sourceId: string };
+  readonly page: { readonly id: string; readonly title: string };
+  readonly propertyRevisionNumber: number;
+  readonly values: Readonly<Record<string, unknown>>;
+}
+
+export function getDataSourcesRequest(
+  apiFetch: typeof fetch,
+): Promise<readonly BrowserDataSource[]>;
+export function createDataSourceRequest(
+  apiFetch: typeof fetch,
+  name: string,
+  csrfToken: string,
+): Promise<BrowserDataSource>;
+export function createRecordRequest(
+  apiFetch: typeof fetch,
+  sourceId: string,
+  title: string,
+  csrfToken: string,
+): Promise<BrowserRecord>;
+export function setRecordPropertyRequest(
+  apiFetch: typeof fetch,
+  recordId: string,
+  definitionId: string,
+  value: unknown,
+  revisionNumber: number,
+  csrfToken: string,
+): Promise<BrowserRecord>;
+
 export function getSessionRequest(apiFetch: typeof fetch): Promise<boolean>;
 
 export function loginRequest(

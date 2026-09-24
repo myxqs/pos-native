@@ -142,6 +142,121 @@ export async function updateBlockDocumentRequest(
   return blockDocumentFromResponse(body, id);
 }
 
+export async function getDataSourcesRequest(apiFetch) {
+  const body = await requestJson(
+    apiFetch,
+    "/api/v1/data-sources?limit=100&offset=0",
+    { credentials: "same-origin", method: "GET" },
+  );
+  if (!isPlainRecord(body) || !Array.isArray(body.sources))
+    throw new Error("NativePOS is unavailable");
+  return body.sources;
+}
+
+export async function createDataSourceRequest(apiFetch, name, csrfToken) {
+  const body = await requestJson(apiFetch, "/api/v1/data-sources", {
+    body: JSON.stringify({ name }),
+    credentials: "same-origin",
+    headers: jsonHeaders(csrfToken),
+    method: "POST",
+  });
+  if (!isPlainRecord(body) || !isPlainRecord(body.source))
+    throw new Error("NativePOS is unavailable");
+  return body.source;
+}
+
+export async function getDefinitionsRequest(apiFetch, sourceId) {
+  const body = await requestJson(
+    apiFetch,
+    `/api/v1/data-sources/${sourceId}/definitions`,
+    { credentials: "same-origin", method: "GET" },
+  );
+  if (!isPlainRecord(body) || !Array.isArray(body.definitions))
+    throw new Error("NativePOS is unavailable");
+  return body.definitions;
+}
+
+export async function createDefinitionRequest(
+  apiFetch,
+  sourceId,
+  definition,
+  csrfToken,
+) {
+  const body = await requestJson(
+    apiFetch,
+    `/api/v1/data-sources/${sourceId}/definitions`,
+    {
+      body: JSON.stringify(definition),
+      credentials: "same-origin",
+      headers: jsonHeaders(csrfToken),
+      method: "POST",
+    },
+  );
+  if (!isPlainRecord(body) || !isPlainRecord(body.definition))
+    throw new Error("NativePOS is unavailable");
+  return body.definition;
+}
+
+export async function getRecordsRequest(apiFetch, sourceId) {
+  const body = await requestJson(
+    apiFetch,
+    `/api/v1/data-sources/${sourceId}/items?limit=100&offset=0`,
+    { credentials: "same-origin", method: "GET" },
+  );
+  if (!isPlainRecord(body) || !Array.isArray(body.records))
+    throw new Error("NativePOS is unavailable");
+  return body.records;
+}
+
+export async function createRecordRequest(
+  apiFetch,
+  sourceId,
+  title,
+  csrfToken,
+) {
+  return recordFromResponse(
+    await requestJson(apiFetch, `/api/v1/data-sources/${sourceId}/items`, {
+      body: JSON.stringify({ title }),
+      credentials: "same-origin",
+      headers: jsonHeaders(csrfToken),
+      method: "POST",
+    }),
+  );
+}
+
+export async function getRecordRequest(apiFetch, recordId) {
+  return recordFromResponse(
+    await requestJson(apiFetch, `/api/v1/records/${recordId}`, {
+      credentials: "same-origin",
+      method: "GET",
+    }),
+  );
+}
+
+export async function setRecordPropertyRequest(
+  apiFetch,
+  recordId,
+  definitionId,
+  value,
+  revisionNumber,
+  csrfToken,
+) {
+  return recordFromResponse(
+    await requestJson(
+      apiFetch,
+      `/api/v1/records/${recordId}/properties/${definitionId}`,
+      {
+        body: JSON.stringify({ value }),
+        credentials: "same-origin",
+        headers: jsonHeaders(csrfToken, {
+          "if-match": `"${revisionNumber}"`,
+        }),
+        method: "PUT",
+      },
+    ),
+  );
+}
+
 export async function getSessionRequest(apiFetch) {
   const response = await apiFetch("/api/v1/auth/session", {
     credentials: "same-origin",
@@ -359,6 +474,20 @@ function blockDocumentFromResponse(value, pageId) {
   return document;
 }
 
+function recordFromResponse(value) {
+  if (
+    !isPlainRecord(value) ||
+    !isPlainRecord(value.record) ||
+    !isPlainRecord(value.record.item) ||
+    !isPlainRecord(value.record.page) ||
+    !Number.isSafeInteger(value.record.propertyRevisionNumber) ||
+    value.record.propertyRevisionNumber < 1
+  ) {
+    throw new Error("NativePOS is unavailable");
+  }
+  return value.record;
+}
+
 function editableParagraph(document) {
   if (document.blocks.length === 0) {
     return { blockId: null, revisionNumber: document.revisionNumber, text: "" };
@@ -401,6 +530,244 @@ async function requestJson(apiFetch, url, options) {
   }
   if (!response.ok) throw createRequestError(response.status);
   return body;
+}
+
+function initializeCollectionBrowser(documentObject, apiFetch, callbacks) {
+  const sourceList = documentObject.querySelector("#data-source-list");
+  if (!sourceList) return { refresh: async () => {}, reset: () => {} };
+  const sourceForm = requiredElement(documentObject, "#create-data-source");
+  const sourceName = requiredElement(documentObject, "#new-data-source-name");
+  const panel = requiredElement(documentObject, "#collection-panel");
+  const collectionName = requiredElement(documentObject, "#collection-name");
+  const definitionForm = requiredElement(
+    documentObject,
+    "#create-property-definition",
+  );
+  const definitionName = requiredElement(documentObject, "#new-property-name");
+  const definitionKind = requiredElement(documentObject, "#new-property-kind");
+  const definitionOptions = requiredElement(
+    documentObject,
+    "#new-property-options",
+  );
+  const definitionTarget = requiredElement(
+    documentObject,
+    "#new-property-target",
+  );
+  const recordForm = requiredElement(documentObject, "#create-record");
+  const recordTitleInput = requiredElement(documentObject, "#new-record-title");
+  const recordList = requiredElement(documentObject, "#record-list");
+  const inspector = requiredElement(documentObject, "#record-inspector");
+  const recordTitle = requiredElement(documentObject, "#record-title");
+  const openRecordPage = requiredElement(documentObject, "#open-record-page");
+  const propertyForm = requiredElement(documentObject, "#set-record-property");
+  const propertyDefinition = requiredElement(
+    documentObject,
+    "#record-property-definition",
+  );
+  const propertyValue = requiredElement(
+    documentObject,
+    "#record-property-value",
+  );
+  const recordRevision = requiredElement(documentObject, "#record-revision");
+  const status = requiredElement(documentObject, "#collection-status");
+  let selectedSource = null;
+  let definitions = [];
+  let selectedRecord = null;
+
+  function handleError(error, fallback) {
+    if (isAuthenticationError(error)) callbacks.onAuthenticationError();
+    else status.textContent = fallback;
+  }
+
+  function renderRecord(record) {
+    selectedRecord = record;
+    inspector.hidden = false;
+    recordTitle.textContent = record.page.title;
+    recordRevision.textContent = `Property revision ${record.propertyRevisionNumber}`;
+  }
+
+  async function selectRecord(id) {
+    try {
+      renderRecord(await getRecordRequest(apiFetch, id));
+      status.textContent = "";
+    } catch (error) {
+      handleError(error, "Could not load record.");
+    }
+  }
+
+  async function loadSelectedSource() {
+    if (!selectedSource) return;
+    const [nextDefinitions, records] = await Promise.all([
+      getDefinitionsRequest(apiFetch, selectedSource.id),
+      getRecordsRequest(apiFetch, selectedSource.id),
+    ]);
+    definitions = nextDefinitions;
+    propertyDefinition.replaceChildren(
+      ...definitions
+        .filter((definition) => definition.kind !== "relation")
+        .map((definition) => {
+          const option = documentObject.createElement("option");
+          option.value = definition.id;
+          option.textContent = definition.name;
+          return option;
+        }),
+    );
+    recordList.replaceChildren(
+      ...records.map((record) => {
+        const item = documentObject.createElement("li");
+        const button = documentObject.createElement("button");
+        button.type = "button";
+        button.textContent = record.page.title;
+        button.addEventListener("click", () => selectRecord(record.item.id));
+        item.append(button);
+        return item;
+      }),
+    );
+  }
+
+  async function selectSource(source) {
+    selectedSource = source;
+    selectedRecord = null;
+    inspector.hidden = true;
+    panel.hidden = false;
+    collectionName.textContent = source.name;
+    try {
+      await loadSelectedSource();
+      status.textContent = "";
+    } catch (error) {
+      handleError(error, "Could not load collection.");
+    }
+  }
+
+  async function refresh() {
+    const sources = await getDataSourcesRequest(apiFetch);
+    sourceList.replaceChildren(
+      ...sources.map((source) => {
+        const item = documentObject.createElement("li");
+        const button = documentObject.createElement("button");
+        button.type = "button";
+        button.textContent = source.name;
+        button.addEventListener("click", () => selectSource(source));
+        item.append(button);
+        return item;
+      }),
+    );
+  }
+
+  function reset() {
+    selectedSource = null;
+    selectedRecord = null;
+    definitions = [];
+    sourceList.replaceChildren();
+    recordList.replaceChildren();
+    inspector.hidden = true;
+    panel.hidden = true;
+    status.textContent = "";
+  }
+
+  sourceForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    try {
+      const source = await createDataSourceRequest(
+        apiFetch,
+        sourceName.value,
+        callbacks.csrfToken(),
+      );
+      sourceName.value = "";
+      await refresh();
+      await selectSource(source);
+    } catch (error) {
+      handleError(error, "Could not create collection.");
+    }
+  });
+
+  definitionForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!selectedSource) return;
+    const definition = {
+      name: definitionName.value,
+      kind: definitionKind.value,
+    };
+    if (definition.kind === "status") {
+      definition.options = definitionOptions.value
+        .split(",")
+        .map((option) => option.trim())
+        .filter(Boolean);
+    }
+    if (definition.kind === "relation") {
+      definition.targetSourceId = definitionTarget.value;
+    }
+    try {
+      await createDefinitionRequest(
+        apiFetch,
+        selectedSource.id,
+        definition,
+        callbacks.csrfToken(),
+      );
+      definitionName.value = "";
+      await loadSelectedSource();
+      status.textContent = "Field created.";
+    } catch (error) {
+      handleError(error, "Could not create field.");
+    }
+  });
+
+  recordForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!selectedSource) return;
+    try {
+      const record = await createRecordRequest(
+        apiFetch,
+        selectedSource.id,
+        recordTitleInput.value,
+        callbacks.csrfToken(),
+      );
+      recordTitleInput.value = "";
+      await Promise.all([loadSelectedSource(), callbacks.onRecordCreated()]);
+      renderRecord(record);
+      status.textContent = "Record created.";
+    } catch (error) {
+      handleError(error, "Could not create record.");
+    }
+  });
+
+  propertyForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!selectedRecord || !propertyDefinition.value) return;
+    const definition = definitions.find(
+      (entry) => entry.id === propertyDefinition.value,
+    );
+    const value =
+      definition?.kind === "checkbox"
+        ? propertyValue.value.toLowerCase() === "true"
+        : propertyValue.value;
+    try {
+      renderRecord(
+        await setRecordPropertyRequest(
+          apiFetch,
+          selectedRecord.item.id,
+          propertyDefinition.value,
+          value,
+          selectedRecord.propertyRevisionNumber,
+          callbacks.csrfToken(),
+        ),
+      );
+      status.textContent = "Value saved.";
+    } catch (error) {
+      if (error instanceof Error && error.statusCode === 409) {
+        status.textContent = "This record changed. Reload it before saving.";
+        await selectRecord(selectedRecord.item.id);
+      } else {
+        handleError(error, "Could not save value.");
+      }
+    }
+  });
+
+  openRecordPage.addEventListener("click", async () => {
+    if (selectedRecord) await callbacks.onOpenPage(selectedRecord.item.id);
+  });
+
+  return { refresh, reset };
 }
 
 export async function startBrowserApp(
@@ -459,6 +826,8 @@ export async function startBrowserApp(
   let restorePendingId = null;
   let archivedListPending = false;
   let archivedPendingGeneration = null;
+  let refreshCollections = async () => {};
+  let resetCollections = () => {};
 
   function isArchivedSelection() {
     return selectedPage?.archivedAt !== null && selectedPage !== null;
@@ -652,6 +1021,7 @@ export async function startBrowserApp(
     pageParent.replaceChildren();
     resetBodyEditor();
     clearNavigation();
+    resetCollections();
     editor.hidden = true;
     empty.hidden = false;
     applySelectionControls();
@@ -754,8 +1124,17 @@ export async function startBrowserApp(
     if (!archivedPagesPanel.hidden) await loadArchivedPages();
   }
 
+  ({ refresh: refreshCollections, reset: resetCollections } =
+    initializeCollectionBrowser(documentObject, apiFetch, {
+      csrfToken: () => csrfTokenFromDocument(documentObject),
+      onAuthenticationError: () =>
+        showLogin("Your session has ended. Please sign in again."),
+      onRecordCreated: refreshActivePages,
+      onOpenPage: selectPage,
+    }));
+
   async function revealWorkspace(generation) {
-    await refreshActivePages();
+    await Promise.all([refreshActivePages(), refreshCollections()]);
     if (generation !== authenticationGeneration) return false;
     showWorkspace();
     return true;

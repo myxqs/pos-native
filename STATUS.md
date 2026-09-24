@@ -101,9 +101,9 @@ remain the next vertical slice.
 
 ## In progress
 
-- Design and implement the authenticated structured-data API and browser flow
-  without weakening the existing session, CSRF, page-identity, revision, or
-  audit boundaries.
+- The authenticated structured-data API and minimal browser collection flow are
+  implemented. The next product gate is durable database backup/restore and
+  restart acceptance for the now-reachable application state.
 
 ## Canonical and repository boundaries
 
@@ -120,9 +120,9 @@ remain the next vertical slice.
 ## Verification state
 
 - npm run verify: PASS on 2026-09-24 — formatting, lint, strict typecheck, and
-  227 tests passed; 16 opt-in PostgreSQL tests were skipped because the standard
+  232 tests passed; 17 opt-in PostgreSQL tests were skipped because the standard
   command does not set TEST_DATABASE_URL.
-- Live PostgreSQL suite: PASS on 2026-09-24 — all 243 tests passed across 29
+- Live PostgreSQL suite: PASS on 2026-09-24 — all 249 tests passed across 31
   files with TEST_DATABASE_URL and `--no-file-parallelism`; migration 0007 was
   also applied successfully to an already-populated isolated test database.
 - npm run db:generate: PASS on 2026-09-24 — fifteen tables inspected and
@@ -140,9 +140,9 @@ remain the next vertical slice.
 
 ## Known failures / blockers
 
-- Live database dump/restore, restart persistence, owner bootstrap, and the
-  authenticated browser journey remain unverified. The passing PostgreSQL
-  integration suite is not a substitute for those end-to-end gates.
+- Live database dump/restore and restart persistence remain unverified. A
+  synthetic loopback-only browser acceptance run proved login, collection and
+  field creation, page-backed record creation, and revisioned value editing.
 - Browser login/session/logout flows have only synthetic controller coverage.
   They cannot be presented as a persistent end-to-end experience until an owner
   account and the runtime run against a live PostgreSQL database in a browser.
@@ -194,11 +194,10 @@ remain the next vertical slice.
 
 ## Exact next action
 
-Specify and implement the smallest authenticated structured-data API/browser
-vertical slice over the now-live-tested repository boundary. Do not expose
-asset upload or begin Notion work. Remaining live gates include restart
-persistence, owner bootstrap, authenticated browser flow, and database-backed
-backup/restore rehearsal.
+Complete the smallest database-backed backup/restore and restart-persistence
+rehearsal for the reachable NativePOS state. Do not expose asset upload or begin
+Notion work. Retain loopback-only deployment and synthetic data until the Usable
+Product Gate.
 
 ## Commands to resume
 

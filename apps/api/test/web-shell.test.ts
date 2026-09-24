@@ -7,7 +7,10 @@ import { expect, test, vi } from "vitest";
 import type { BrowserDocument, BrowserElement } from "../../web/app.js";
 import {
   archivePageRequest,
+  createDataSourceRequest,
   createPageRequest,
+  createRecordRequest,
+  getDataSourcesRequest,
   getBlockDocumentRequest,
   getPageListRequest,
   getSessionRequest,
@@ -16,6 +19,7 @@ import {
   movePageRequest,
   pageTreeFromPages,
   restorePageRequest,
+  setRecordPropertyRequest,
   startBrowserApp,
   updateBlockDocumentRequest,
   updatePageRequest,
@@ -406,6 +410,59 @@ test("browser hierarchy request helpers send scoped reads and revisioned mutatio
     },
     method: "PUT",
   });
+});
+
+test("browser structured-data helpers use bounded reads, CSRF, and quoted record revisions", async () => {
+  const record = {
+    item: { id: "record-1", sourceId: "source-1" },
+    page: { id: "record-1", title: "Ship skeleton" },
+    propertyRevisionNumber: 1,
+    values: {},
+  };
+  const apiFetch = vi
+    .fn()
+    .mockResolvedValueOnce(jsonResponse({ sources: [] }))
+    .mockResolvedValueOnce(
+      jsonResponse({ source: { id: "source-1", name: "Projects" } }, 201),
+    )
+    .mockResolvedValueOnce(jsonResponse({ record }, 201))
+    .mockResolvedValueOnce(
+      jsonResponse({ record: { ...record, propertyRevisionNumber: 2 } }),
+    );
+
+  await getDataSourcesRequest(apiFetch);
+  await createDataSourceRequest(apiFetch, "Projects", "csrf-token");
+  await createRecordRequest(
+    apiFetch,
+    "source-1",
+    "Ship skeleton",
+    "csrf-token",
+  );
+  await setRecordPropertyRequest(
+    apiFetch,
+    "record-1",
+    "definition-1",
+    "Open",
+    1,
+    "csrf-token",
+  );
+
+  expect(apiFetch).toHaveBeenNthCalledWith(
+    1,
+    "/api/v1/data-sources?limit=100&offset=0",
+    { credentials: "same-origin", method: "GET" },
+  );
+  expect(apiFetch).toHaveBeenNthCalledWith(
+    4,
+    "/api/v1/records/record-1/properties/definition-1",
+    expect.objectContaining({
+      headers: expect.objectContaining({
+        "if-match": '"1"',
+        "x-pos-csrf": "csrf-token",
+      }),
+      method: "PUT",
+    }),
+  );
 });
 
 test("browser page trees are bounded, validated, and breadcrumbed before rendering", () => {

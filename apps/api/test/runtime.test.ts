@@ -6,6 +6,7 @@ import { expect, test, vi } from "vitest";
 import { hashPassword } from "../../../packages/auth/src/password.ts";
 import { InMemoryAuthenticationStore } from "../../../packages/auth/src/session.ts";
 import { InMemoryBlockDocumentRepository } from "../../../packages/database/src/block-document-repository.ts";
+import { InMemoryDataSourceRepository } from "../../../packages/database/src/data-source-repository.ts";
 import { InMemoryPageRepository } from "../../../packages/database/src/page-repository.ts";
 import {
   createProductionRuntime,
@@ -67,6 +68,7 @@ test("composes persistent services into secure authenticated page routes", async
     authenticationStore,
     pageRepository: new InMemoryPageRepository(),
     blockDocumentRepository: new InMemoryBlockDocumentRepository(),
+    dataSourceRepository: new InMemoryDataSourceRepository(),
     close: vi.fn(async () => undefined),
   };
   const createPersistence = vi.fn(() => persistence);
@@ -93,10 +95,17 @@ test("composes persistent services into secure authenticated page routes", async
     headers: { cookie: cookieHeader, "x-pos-csrf": csrf?.value ?? "" },
     payload: { title: "Projects" },
   });
+  const collection = await runtime.app.inject({
+    method: "POST",
+    url: "/api/v1/data-sources",
+    headers: { cookie: cookieHeader, "x-pos-csrf": csrf?.value ?? "" },
+    payload: { name: "Projects" },
+  });
 
   expect(login.statusCode).toBe(200);
   expect(session?.secure).toBe(true);
   expect(created.statusCode).toBe(201);
+  expect(collection.statusCode).toBe(201);
   expect(createPersistence).toHaveBeenCalledWith(
     expect.objectContaining({
       databaseUrl: "postgresql://pos_native:password@localhost:5432/pos_native",

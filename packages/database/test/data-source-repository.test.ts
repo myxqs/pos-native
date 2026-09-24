@@ -64,6 +64,43 @@ test("creates a page-backed record with membership and both histories atomically
   expect(asNativeId(mutation.page.id)).toBe(mutation.item.id);
 });
 
+test("lists sources and records deterministically within explicit bounds", async () => {
+  const repository = new InMemoryDataSourceRepository();
+  const first = createDataSource({ name: "First", ...actor }, dependencies(30));
+  const second = createDataSource(
+    { name: "Second", ...actor },
+    dependencies(31),
+  );
+  const third = createDataSource({ name: "Third", ...actor }, dependencies(32));
+  await repository.createSource(third);
+  await repository.createSource(first);
+  await repository.createSource(second);
+
+  await expect(
+    repository.listSources({ limit: 2, offset: 1 }),
+  ).resolves.toEqual([second.dataSource, third.dataSource]);
+
+  const itemTwo = createDataSourceItem(
+    first.dataSource,
+    { title: "Two", ...actor },
+    dependencies(34),
+  );
+  const itemOne = createDataSourceItem(
+    first.dataSource,
+    { title: "One", ...actor },
+    dependencies(33),
+  );
+  await repository.createItem(first.dataSource.id, itemTwo);
+  await repository.createItem(first.dataSource.id, itemOne);
+
+  await expect(
+    repository.listItems(first.dataSource.id, { limit: 1, offset: 1 }),
+  ).resolves.toMatchObject([{ page: { title: "Two" } }]);
+  await expect(
+    repository.listSources({ limit: 201, offset: 0 }),
+  ).rejects.toThrow("invalid list bounds");
+});
+
 test("rejects duplicate property names within a source using the canonical name key", async () => {
   const repository = new InMemoryDataSourceRepository();
   const source = createDataSource(
@@ -339,6 +376,15 @@ test.skipIf(!process.env.TEST_DATABASE_URL)(
         page: item.page,
         propertyRevisionNumber: 1,
       });
+      expect(
+        await repository.listSources({ limit: 200, offset: 0 }),
+      ).toContainEqual(source.dataSource);
+      expect(
+        await repository.listItems(source.dataSource.id, {
+          limit: 100,
+          offset: 0,
+        }),
+      ).toMatchObject([{ item: item.item, page: item.page }]);
     } finally {
       await pool.end();
     }

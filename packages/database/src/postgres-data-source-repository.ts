@@ -27,9 +27,12 @@ import type {
   CreateDefinitionMutation,
   CreateItemMutation,
   CreateSourceMutation,
+  DataSourceItemSummary,
   DataSourceRepository,
+  ListBounds,
   PersistedDataSourceItem,
 } from "./data-source-repository.ts";
+import { validateListBounds } from "./data-source-repository.ts";
 import { PostgresPageRepository } from "./postgres-page-repository.ts";
 import { validatePageHierarchy } from "./page-repository.ts";
 import {
@@ -77,6 +80,18 @@ export class PostgresDataSourceRepository implements DataSourceRepository {
         .limit(1)
     )[0];
     return row ? sourceFromRow(row) : null;
+  }
+
+  async listSources(bounds: ListBounds): Promise<readonly DataSource[]> {
+    validateListBounds(bounds);
+    return (
+      await this.database
+        .select()
+        .from(dataSources)
+        .orderBy(asc(dataSources.createdAt), asc(dataSources.id))
+        .limit(bounds.limit)
+        .offset(bounds.offset)
+    ).map(sourceFromRow);
   }
 
   async createDefinition(
@@ -212,6 +227,29 @@ export class PostgresDataSourceRepository implements DataSourceRepository {
         );
       },
       { isolationLevel: "repeatable read", accessMode: "read only" },
+    );
+  }
+
+  async listItems(
+    sourceId: NativeId,
+    bounds: ListBounds,
+  ): Promise<readonly DataSourceItemSummary[]> {
+    validateListBounds(bounds);
+    await requireSource(this.database, sourceId);
+    const rows = await this.database
+      .select({ item: dataSourceItems, page: pages })
+      .from(dataSourceItems)
+      .innerJoin(pages, eq(pages.id, dataSourceItems.id))
+      .where(eq(dataSourceItems.sourceId, sourceId))
+      .orderBy(asc(pages.createdAt), asc(pages.id))
+      .limit(bounds.limit)
+      .offset(bounds.offset);
+    return rows.map((row) =>
+      Object.freeze({
+        item: itemFromRow(row.item),
+        page: pageFromRow(row.page),
+        propertyRevisionNumber: row.item.currentPropertyRevisionNumber,
+      }),
     );
   }
 

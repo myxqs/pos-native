@@ -4,11 +4,14 @@ import rateLimit from "@fastify/rate-limit";
 import Fastify, { type FastifyInstance } from "fastify";
 import type { AuthenticationService } from "../../../packages/auth/src/session.ts";
 import type { BlockDocumentRepository } from "../../../packages/database/src/block-document-repository.ts";
+import type { DataSourceRepository } from "../../../packages/database/src/data-source-repository.ts";
+import type { DataSourceDependencies } from "../../../packages/domain/src/data-source.ts";
 import type { CreatePageDependencies } from "../../../packages/domain/src/page.ts";
 import type { BlockDocumentDependencies } from "../../../packages/domain/src/block-document.ts";
 import type { PageRepository } from "../../../packages/database/src/page-repository.ts";
 import { registerAuthenticationRoutes } from "./auth-routes.ts";
 import { registerBlockDocumentRoutes } from "./block-document-routes.ts";
+import { registerDataSourceRoutes } from "./data-source-routes.ts";
 import { registerPageRoutes, type PageAuthorizer } from "./page-routes.ts";
 import {
   readWebAsset,
@@ -24,6 +27,8 @@ export interface AppOptions {
   readonly pageDependencies?: CreatePageDependencies;
   readonly blockDocumentRepository?: BlockDocumentRepository;
   readonly blockDocumentDependencies?: BlockDocumentDependencies;
+  readonly dataSourceRepository?: DataSourceRepository;
+  readonly dataSourceDependencies?: DataSourceDependencies;
   readonly authorize?: PageAuthorizer;
 }
 
@@ -83,6 +88,17 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
       pageRepository: options.pageRepository,
       blockDocumentRepository: options.blockDocumentRepository,
       blockDocumentDependencies: options.blockDocumentDependencies,
+      authorize,
+    });
+  }
+  if (
+    options.dataSourceRepository &&
+    options.dataSourceDependencies &&
+    authorize
+  ) {
+    registerDataSourceRoutes(app, {
+      repository: options.dataSourceRepository,
+      dependencies: options.dataSourceDependencies,
       authorize,
     });
   }

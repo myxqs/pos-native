@@ -48,10 +48,22 @@ export interface PersistedDataSourceItem {
   readonly propertyRevisionNumber: number;
 }
 
+export interface DataSourceItemSummary {
+  readonly item: DataSourceItem;
+  readonly page: Page;
+  readonly propertyRevisionNumber: number;
+}
+
+export interface ListBounds {
+  readonly limit: number;
+  readonly offset: number;
+}
+
 export interface DataSourceRepository {
   readonly pages: PageRepository;
   createSource(mutation: CreateSourceMutation): Promise<DataSource>;
   getSource(id: NativeId): Promise<DataSource | null>;
+  listSources(bounds: ListBounds): Promise<readonly DataSource[]>;
   createDefinition(
     sourceId: NativeId,
     mutation: CreateDefinitionMutation,
@@ -61,6 +73,10 @@ export interface DataSourceRepository {
     sourceId: NativeId,
     mutation: CreateItemMutation,
   ): Promise<DataSourceItem>;
+  listItems(
+    sourceId: NativeId,
+    bounds: ListBounds,
+  ): Promise<readonly DataSourceItemSummary[]>;
   getItem(recordId: NativeId): Promise<PersistedDataSourceItem | null>;
   setProperty(
     recordId: NativeId,
@@ -166,6 +182,13 @@ export class InMemoryDataSourceRepository implements DataSourceRepository {
     return this.#state.sources.get(id) ?? null;
   }
 
+  async listSources(bounds: ListBounds): Promise<readonly DataSource[]> {
+    validateListBounds(bounds);
+    return [...this.#state.sources.values()]
+      .sort(compareCreatedEntities)
+      .slice(bounds.offset, bounds.offset + bounds.limit);
+  }
+
   async createDefinition(
     sourceId: NativeId,
     mutation: CreateDefinitionMutation,
@@ -246,6 +269,23 @@ export class InMemoryDataSourceRepository implements DataSourceRepository {
       values: current.values,
       propertyRevisionNumber: current.propertyRevisionNumber,
     });
+  }
+
+  async listItems(
+    sourceId: NativeId,
+    bounds: ListBounds,
+  ): Promise<readonly DataSourceItemSummary[]> {
+    validateListBounds(bounds);
+    this.#requireSource(this.#state, sourceId);
+    return [...this.#state.items.values()]
+      .filter(({ item }) => item.sourceId === sourceId)
+      .map(({ item, propertyRevisionNumber }) => ({
+        item,
+        page: this.#requirePage(this.#state, item.id),
+        propertyRevisionNumber,
+      }))
+      .sort((left, right) => compareCreatedEntities(left.page, right.page))
+      .slice(bounds.offset, bounds.offset + bounds.limit);
   }
 
   async setProperty(
@@ -477,4 +517,26 @@ export class InMemoryDataSourceRepository implements DataSourceRepository {
       propertyRevisionNumber: current.propertyRevisionNumber,
     });
   }
+}
+
+export function validateListBounds(bounds: ListBounds): void {
+  if (
+    !Number.isSafeInteger(bounds.limit) ||
+    bounds.limit < 1 ||
+    bounds.limit > 200 ||
+    !Number.isSafeInteger(bounds.offset) ||
+    bounds.offset < 0 ||
+    bounds.offset > 10_000
+  )
+    throw new ValidationError("invalid list bounds");
+}
+
+function compareCreatedEntities(
+  left: { readonly createdAt: string; readonly id: NativeId },
+  right: { readonly createdAt: string; readonly id: NativeId },
+): number {
+  return (
+    left.createdAt.localeCompare(right.createdAt) ||
+    left.id.localeCompare(right.id)
+  );
 }

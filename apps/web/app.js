@@ -257,6 +257,47 @@ export async function setRecordPropertyRequest(
   );
 }
 
+export async function addRecordRelationRequest(
+  apiFetch,
+  recordId,
+  definitionId,
+  targetRecordId,
+  revisionNumber,
+  csrfToken,
+) {
+  return recordFromResponse(
+    await requestJson(
+      apiFetch,
+      `/api/v1/records/${recordId}/relations/${definitionId}`,
+      {
+        body: JSON.stringify({ targetRecordId }),
+        credentials: "same-origin",
+        headers: jsonHeaders(csrfToken, {
+          "if-match": `"${revisionNumber}"`,
+        }),
+        method: "POST",
+      },
+    ),
+  );
+}
+
+export async function removeRecordRelationRequest(
+  apiFetch,
+  edgeId,
+  revisionNumber,
+  csrfToken,
+) {
+  return recordFromResponse(
+    await requestJson(apiFetch, `/api/v1/relations/${edgeId}`, {
+      credentials: "same-origin",
+      headers: csrfHeaders(csrfToken, {
+        "if-match": `"${revisionNumber}"`,
+      }),
+      method: "DELETE",
+    }),
+  );
+}
+
 export async function getSessionRequest(apiFetch) {
   const response = await apiFetch("/api/v1/auth/session", {
     credentials: "same-origin",
@@ -485,7 +526,10 @@ function recordFromResponse(value) {
   ) {
     throw new Error("NativePOS is unavailable");
   }
-  return value.record;
+  return {
+    ...value.record,
+    outgoing: Array.isArray(value.outgoing) ? value.outgoing : [],
+  };
 }
 
 function editableParagraph(document) {
@@ -568,6 +612,16 @@ function initializeCollectionBrowser(documentObject, apiFetch, callbacks) {
     documentObject,
     "#record-property-value",
   );
+  const relationForm = requiredElement(documentObject, "#add-record-relation");
+  const relationDefinition = requiredElement(
+    documentObject,
+    "#record-relation-definition",
+  );
+  const relationTarget = requiredElement(
+    documentObject,
+    "#record-relation-target",
+  );
+  const relationList = requiredElement(documentObject, "#record-relation-list");
   const recordRevision = requiredElement(documentObject, "#record-revision");
   const status = requiredElement(documentObject, "#collection-status");
   let selectedSource = null;
@@ -584,6 +638,33 @@ function initializeCollectionBrowser(documentObject, apiFetch, callbacks) {
     inspector.hidden = false;
     recordTitle.textContent = record.page.title;
     recordRevision.textContent = `Property revision ${record.propertyRevisionNumber}`;
+    relationList.replaceChildren(
+      ...record.outgoing.map((edge) => {
+        const item = documentObject.createElement("li");
+        const button = documentObject.createElement("button");
+        button.type = "button";
+        button.textContent = `Remove relation to ${edge.targetRecordId}`;
+        button.addEventListener("click", async () => {
+          try {
+            await removeRecordRelationRequest(
+              apiFetch,
+              edge.id,
+              selectedRecord.propertyRevisionNumber,
+              callbacks.csrfToken(),
+            );
+            await selectRecord(selectedRecord.item.id);
+            status.textContent = "Relation removed.";
+          } catch (error) {
+            await handleRecordMutationError(
+              error,
+              "Could not remove relation.",
+            );
+          }
+        });
+        item.append(button);
+        return item;
+      }),
+    );
   }
 
   async function selectRecord(id) {
@@ -612,6 +693,16 @@ function initializeCollectionBrowser(documentObject, apiFetch, callbacks) {
           return option;
         }),
     );
+    relationDefinition.replaceChildren(
+      ...definitions
+        .filter((definition) => definition.kind === "relation")
+        .map((definition) => {
+          const option = documentObject.createElement("option");
+          option.value = definition.id;
+          option.textContent = definition.name;
+          return option;
+        }),
+    );
     recordList.replaceChildren(
       ...records.map((record) => {
         const item = documentObject.createElement("li");
@@ -626,6 +717,7 @@ function initializeCollectionBrowser(documentObject, apiFetch, callbacks) {
   }
 
   async function selectSource(source) {
+    callbacks.onSelectSource();
     selectedSource = source;
     selectedRecord = null;
     inspector.hidden = true;
@@ -754,17 +846,45 @@ function initializeCollectionBrowser(documentObject, apiFetch, callbacks) {
       );
       status.textContent = "Value saved.";
     } catch (error) {
-      if (error instanceof Error && error.statusCode === 409) {
-        status.textContent = "This record changed. Reload it before saving.";
-        await selectRecord(selectedRecord.item.id);
-      } else {
-        handleError(error, "Could not save value.");
-      }
+      await handleRecordMutationError(error, "Could not save value.");
+    }
+  });
+
+  async function handleRecordMutationError(error, fallback) {
+    if (error instanceof Error && error.statusCode === 409 && selectedRecord) {
+      await selectRecord(selectedRecord.item.id);
+      status.textContent =
+        "This record changed. Review it before saving again.";
+    } else {
+      handleError(error, fallback);
+    }
+  }
+
+  relationForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!selectedRecord || !relationDefinition.value) return;
+    try {
+      await addRecordRelationRequest(
+        apiFetch,
+        selectedRecord.item.id,
+        relationDefinition.value,
+        relationTarget.value,
+        selectedRecord.propertyRevisionNumber,
+        callbacks.csrfToken(),
+      );
+      relationTarget.value = "";
+      await selectRecord(selectedRecord.item.id);
+      status.textContent = "Relation added.";
+    } catch (error) {
+      await handleRecordMutationError(error, "Could not add relation.");
     }
   });
 
   openRecordPage.addEventListener("click", async () => {
-    if (selectedRecord) await callbacks.onOpenPage(selectedRecord.item.id);
+    if (selectedRecord) {
+      panel.hidden = true;
+      await callbacks.onOpenPage(selectedRecord.item.id);
+    }
   });
 
   return { refresh, reset };
@@ -1077,6 +1197,8 @@ export async function startBrowserApp(
   }
 
   async function selectPage(id) {
+    const collectionPanel = documentObject.querySelector("#collection-panel");
+    if (collectionPanel) collectionPanel.hidden = true;
     const selectionGeneration = ++pageSelectionGeneration;
     archivedListGeneration += 1;
     let metadataLoaded = false;
@@ -1131,6 +1253,13 @@ export async function startBrowserApp(
         showLogin("Your session has ended. Please sign in again."),
       onRecordCreated: refreshActivePages,
       onOpenPage: selectPage,
+      onSelectSource: () => {
+        pageSelectionGeneration += 1;
+        selectedPage = null;
+        selectedRevisionNumber = null;
+        editor.hidden = true;
+        empty.hidden = true;
+      },
     }));
 
   async function revealWorkspace(generation) {

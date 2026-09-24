@@ -130,6 +130,10 @@ export interface BrowserRecord {
   readonly page: { readonly id: string; readonly title: string };
   readonly propertyRevisionNumber: number;
   readonly values: Readonly<Record<string, unknown>>;
+  readonly outgoing: readonly {
+    readonly id: string;
+    readonly targetRecordId: string;
+  }[];
 }
 
 export function getDataSourcesRequest(
@@ -151,6 +155,20 @@ export function setRecordPropertyRequest(
   recordId: string,
   definitionId: string,
   value: unknown,
+  revisionNumber: number,
+  csrfToken: string,
+): Promise<BrowserRecord>;
+export function addRecordRelationRequest(
+  apiFetch: typeof fetch,
+  recordId: string,
+  definitionId: string,
+  targetRecordId: string,
+  revisionNumber: number,
+  csrfToken: string,
+): Promise<BrowserRecord>;
+export function removeRecordRelationRequest(
+  apiFetch: typeof fetch,
+  edgeId: string,
   revisionNumber: number,
   csrfToken: string,
 ): Promise<BrowserRecord>;

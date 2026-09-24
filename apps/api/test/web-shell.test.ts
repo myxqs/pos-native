@@ -7,6 +7,7 @@ import { expect, test, vi } from "vitest";
 import type { BrowserDocument, BrowserElement } from "../../web/app.js";
 import {
   archivePageRequest,
+  addRecordRelationRequest,
   createDataSourceRequest,
   createPageRequest,
   createRecordRequest,
@@ -19,6 +20,7 @@ import {
   movePageRequest,
   pageTreeFromPages,
   restorePageRequest,
+  removeRecordRelationRequest,
   setRecordPropertyRequest,
   startBrowserApp,
   updateBlockDocumentRequest,
@@ -428,6 +430,12 @@ test("browser structured-data helpers use bounded reads, CSRF, and quoted record
     .mockResolvedValueOnce(jsonResponse({ record }, 201))
     .mockResolvedValueOnce(
       jsonResponse({ record: { ...record, propertyRevisionNumber: 2 } }),
+    )
+    .mockResolvedValueOnce(
+      jsonResponse({ record: { ...record, propertyRevisionNumber: 3 } }, 201),
+    )
+    .mockResolvedValueOnce(
+      jsonResponse({ record: { ...record, propertyRevisionNumber: 4 } }),
     );
 
   await getDataSourcesRequest(apiFetch);
@@ -446,6 +454,15 @@ test("browser structured-data helpers use bounded reads, CSRF, and quoted record
     1,
     "csrf-token",
   );
+  await addRecordRelationRequest(
+    apiFetch,
+    "record-1",
+    "relation-1",
+    "record-2",
+    2,
+    "csrf-token",
+  );
+  await removeRecordRelationRequest(apiFetch, "edge-1", 3, "csrf-token");
 
   expect(apiFetch).toHaveBeenNthCalledWith(
     1,
@@ -461,6 +478,14 @@ test("browser structured-data helpers use bounded reads, CSRF, and quoted record
         "x-pos-csrf": "csrf-token",
       }),
       method: "PUT",
+    }),
+  );
+  expect(apiFetch).toHaveBeenNthCalledWith(
+    6,
+    "/api/v1/relations/edge-1",
+    expect.objectContaining({
+      headers: expect.objectContaining({ "if-match": '"3"' }),
+      method: "DELETE",
     }),
   );
 });

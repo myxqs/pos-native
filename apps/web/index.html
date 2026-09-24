@@ -180,6 +180,16 @@
               <input id="record-property-value" required />
               <button type="submit">Save value</button>
             </form>
+            <form id="add-record-relation" aria-label="Add record relation">
+              <select id="record-relation-definition"></select>
+              <input
+                id="record-relation-target"
+                placeholder="Target record ID"
+                required
+              />
+              <button type="submit">Add relation</button>
+            </form>
+            <ul id="record-relation-list"></ul>
             <p id="record-revision"></p>
           </section>
           <p id="collection-status" role="status" aria-live="polite"></p>

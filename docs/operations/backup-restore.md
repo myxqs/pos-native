@@ -91,6 +91,12 @@ the browser retrieved the restored page tree, body, collection, records,
 property revision, and relation. This directly demonstrates database and
 process restart persistence for this synthetic state.
 
+The disposable PostgreSQL container was then restarted and allowed to report
+ready before a second readback. The same row counts remained, and a second
+loopback-only application process accepted the same restored session and loaded
+the restored workspace. Database-server and application-process restart
+persistence were therefore exercised separately.
+
 The exercise did not place credentials in the repository, did not contact
 Notion, and did not modify a canonical or production database. It used a fresh
 target and never overwrote a backup destination.

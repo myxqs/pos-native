@@ -64,7 +64,8 @@ remain later gates.
   hierarchy, hashed session state, asset metadata, structured definitions,
   records, typed values, relation edges, revisions, and audit events. The built
   loopback application then accepted the preserved synthetic session and read
-  the restored workspace after a process/database boundary.
+  the restored workspace. A later PostgreSQL container restart retained the
+  same counts, and a second application process again accepted that session.
 - Canonical asset metadata foundation: generated native asset identities and
   opaque keys, bounded provenance, metadata-only creation revision/audit
   envelopes, in-memory rollback-shaped repository coverage, a PostgreSQL

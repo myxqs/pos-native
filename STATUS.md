@@ -7,9 +7,10 @@ paragraph-body adapter are implemented in source, but the mature editor
 foundation, major block types, links/backlinks, and live PostgreSQL/browser
 acceptance remain incomplete.
 
-M3 — Structured data sources, records, typed properties, and relations is
-planned next (the repository's earlier local plans called this M4); no source
-changes have started.
+M3 — Structured data sources, records, typed properties, and relations now
+have domain, in-memory, and PostgreSQL persistence foundations (the repository's
+earlier local plans called this M4). Authenticated API and browser product flows
+remain the next vertical slice.
 
 ## Completed
 
@@ -20,7 +21,7 @@ changes have started.
   ADRs, threat model, PostgreSQL Compose foundation, and status handover.
 - Native UUID page identity; page create/update domain commands; immutable
   revision snapshots; append-oriented audit envelopes; atomic repository port.
-- Drizzle PostgreSQL schema and migrations through 0005, including page revision
+- Drizzle PostgreSQL schema and migrations through 0007, including page revision
   compare-and-swap state derived from any existing page history; the migration
   aborts safely rather than inventing revision history for legacy pages.
 - Versioned page create/list/read/update API, with runtime validation,
@@ -87,6 +88,10 @@ changes have started.
 - Hierarchy persistence validates every resulting descendant—including archived
   descendants—so a direct repository/API mutation cannot create a tree the
   browser would refuse to render.
+- Structured data foundations: source-scoped definitions with canonical Unicode
+  name keys, typed scalar values, page-backed records, soft-archived relation
+  edges, optimistic property revisions, revision/audit history, database shape
+  constraints, and stable concurrent duplicate-name conflicts.
 - GitHub reconciliation completed: the TypeScript/PostgreSQL candidate and
   truthful TypeScript CI are the retained active line; unrelated Python/SQLite
   history remains legacy/reference only.
@@ -96,17 +101,15 @@ changes have started.
 
 ## In progress
 
-- Baseline documentation reconciliation and live PostgreSQL acceptance are the
-  immediate gate. After it passes, complete the remaining M2 editor vertical
-  slice before beginning M3 implementation.
-- M3 planning may continue. Its data-source/record/property/relation slice must
-  preserve page identity, revision/audit boundaries, and the
-  synthetic-versus-live evidence distinction.
+- Design and implement the authenticated structured-data API and browser flow
+  without weakening the existing session, CSRF, page-identity, revision, or
+  audit boundaries.
 
 ## Canonical and repository boundaries
 
-- TypeScript/PostgreSQL is the active NativePOS implementation. Its live
-  PostgreSQL and end-to-end deployment acceptance remain open gates.
+- TypeScript/PostgreSQL is the active NativePOS implementation. Its isolated
+  live PostgreSQL integration suite passes; authenticated browser and deployment
+  acceptance remain open gates.
 - Notion remains untouched and canonical until the explicit product, migration,
   integrity, retrieval, backup, and restore gates pass.
 - The Python/SQLite v0.1 repository history is legacy/reference only and has no
@@ -117,46 +120,38 @@ changes have started.
 ## Verification state
 
 - npm run verify: PASS on 2026-09-24 — formatting, lint, strict typecheck, and
-  208 tests passed across twenty-four test files; thirteen PostgreSQL
-  integration tests skipped across three files because TEST_DATABASE_URL is not
-  set. Asset
-  and backup filesystem tests used isolated temporary roots and exercised the
-  Windows symbolic-link refusal path.
-- npm run db:generate: PASS on 2026-09-23 — ten tables inspected; no schema
-  changes and no migration generated.
+  227 tests passed; 16 opt-in PostgreSQL tests were skipped because the standard
+  command does not set TEST_DATABASE_URL.
+- Live PostgreSQL suite: PASS on 2026-09-24 — all 243 tests passed across 29
+  files with TEST_DATABASE_URL and `--no-file-parallelism`; migration 0007 was
+  also applied successfully to an already-populated isolated test database.
+- npm run db:generate: PASS on 2026-09-24 — fifteen tables inspected and
+  additive structured-data migration 0007 generated and hardened for safe
+  name-key backfill before the non-null constraint.
 - npm run build: PASS on 2026-09-24 — production TypeScript build completed.
 - npm audit --omit=dev --json: PASS on 2026-09-23 — zero production
   vulnerabilities.
 - git diff --check: PASS on 2026-09-23 — no whitespace errors after the
   independent-review repairs and documentation update.
-- Docker client 29.8.0 and Compose 5.5.1 are present, but Docker Desktop has
-  not established its Linux-engine pipe, so no database container has started.
-- `docker compose config` remains intentionally blocked because the untracked
-  `.env` database values do not exist; no credentials were invented or written.
+- Docker client/server 29.8.0 and the Docker Desktop Linux/WSL2 engine are
+  healthy. The isolated `pos-native-m4-test` PostgreSQL container is healthy;
+  its test-only connection values were process-local and were not written to
+  the repository.
 
 ## Known failures / blockers
 
-- The Docker engine is unavailable. Docker Desktop did not establish an engine
-  after a normal start attempt; WSL enumeration is denied in this session and
-  the Docker Desktop helper service cannot be started from this session. No
-  ACL, WSL, Docker-reset, service-configuration, or reboot change has been
-  made.
-- Without a PostgreSQL runtime, migrations, transactional persistence, restart
-  persistence, account/session persistence, backup, and restore are unverified.
+- Live database dump/restore, restart persistence, owner bootstrap, and the
+  authenticated browser journey remain unverified. The passing PostgreSQL
+  integration suite is not a substitute for those end-to-end gates.
 - Browser login/session/logout flows have only synthetic controller coverage.
   They cannot be presented as a persistent end-to-end experience until an owner
   account and the runtime run against a live PostgreSQL database in a browser.
-- Block-document PostgreSQL migration, transaction, and restart-readback tests
-  are intentionally skipped without TEST_DATABASE_URL. The browser paragraph
-  adapter is synthetic-controller tested only; it is not a real-browser or
-  mobile acceptance result, and it deliberately does not implement the full
-  rich block-editor requirement.
-- Page hierarchy PostgreSQL persistence/serialization and real-browser/mobile
-  acceptance are also opt-in/live gates. The source has synthetic controller and
-  in-memory proof only until `TEST_DATABASE_URL`, an owner account, and a live
-  browser session are available.
-- The live PostgreSQL suite is intentionally skipped until TEST_DATABASE_URL is
-  supplied; this is an environment gate, not a passing integration result.
+- The browser paragraph adapter is synthetic-controller tested only; it is not
+  a real-browser or mobile acceptance result, and it deliberately does not
+  implement the full rich block-editor requirement.
+- Page hierarchy PostgreSQL persistence/serialization is live-tested;
+  real-browser/mobile acceptance still requires an owner account and live
+  browser session.
 - No owner account has been created. The local interactive bootstrap command is
   implemented but must wait for a live database plus the owner's chosen email
   and password.
@@ -199,14 +194,11 @@ changes have started.
 
 ## Exact next action
 
-After Docker Desktop/WSL is repaired or a user-approved host remediation is
-available, create a fresh isolated disposable PostgreSQL test environment,
-configure a matching `TEST_DATABASE_URL`, and run the page, block-document,
-and asset-metadata integration suites with `--no-file-parallelism`. Record the
-result. Do not expose asset upload or begin Notion work. Then complete the
-remaining M2 editor vertical slice before M3 implementation. Later live gates remain
-restart persistence, owner bootstrap, authenticated browser flow, and live
-backup/restore.
+Specify and implement the smallest authenticated structured-data API/browser
+vertical slice over the now-live-tested repository boundary. Do not expose
+asset upload or begin Notion work. Remaining live gates include restart
+persistence, owner bootstrap, authenticated browser flow, and database-backed
+backup/restore rehearsal.
 
 ## Commands to resume
 

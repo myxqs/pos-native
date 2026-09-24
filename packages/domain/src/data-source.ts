@@ -40,10 +40,15 @@ export interface PropertyDefinition {
   readonly id: NativeId;
   readonly sourceId: NativeId;
   readonly name: string;
+  readonly nameKey: string;
   readonly kind: PropertyKind;
   readonly options: readonly string[] | null;
   readonly targetSourceId: NativeId | null;
   readonly createdAt: string;
+}
+
+export function propertyNameKey(name: string): string {
+  return name.normalize("NFKC").toLowerCase();
 }
 
 export interface DataSourceItem {
@@ -170,6 +175,7 @@ export function createPropertyDefinition(
   const context = validateAuditContext(command);
   asNativeId(source.id);
   const name = boundedString(command.name, "property name", 120);
+  const nameKey = propertyNameKey(name);
   if (
     [
       "title",
@@ -179,7 +185,7 @@ export function createPropertyDefinition(
       "created time",
       "updated",
       "updated time",
-    ].includes(name.toLowerCase().replace(/\s+/g, " "))
+    ].includes(nameKey.replace(/\s+/g, " "))
   ) {
     throw new ValidationError(
       "derived page fields cannot be property definitions",
@@ -228,6 +234,7 @@ export function createPropertyDefinition(
     id,
     sourceId: source.id,
     name,
+    nameKey,
     kind,
     options,
     targetSourceId,

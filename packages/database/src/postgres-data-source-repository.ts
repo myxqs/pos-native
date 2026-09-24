@@ -4,6 +4,7 @@ import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { AuditEvent, Revision } from "../../domain/src/audit.ts";
 import {
   addRelationEdge,
+  propertyNameKey,
   removeRelationEdge,
   setRecordProperty,
   type DataSource,
@@ -82,39 +83,46 @@ export class PostgresDataSourceRepository implements DataSourceRepository {
     sourceId: NativeId,
     mutation: CreateDefinitionMutation,
   ): Promise<PropertyDefinition> {
-    return this.database.transaction(async (tx) => {
-      const definition = mutation.definition;
-      if (definition.sourceId !== sourceId)
-        throw new ValidationError(
-          "property definition belongs to another source",
-        );
-      await requireSource(tx, sourceId);
-      if (definition.targetSourceId)
-        await requireSource(tx, definition.targetSourceId);
-      const duplicate = await tx
-        .select({ id: propertyDefinitions.id })
-        .from(propertyDefinitions)
-        .where(
-          and(
-            eq(propertyDefinitions.sourceId, sourceId),
-            sql`lower(${propertyDefinitions.name}) = lower(${definition.name})`,
-          ),
-        )
-        .limit(1);
-      if (duplicate.length)
-        throw new ValidationError("property name already exists");
-      await tx.insert(propertyDefinitions).values({
-        id: definition.id,
-        sourceId,
-        name: definition.name,
-        kind: definition.kind,
-        options: definition.options ? [...definition.options] : null,
-        targetSourceId: definition.targetSourceId,
-        createdAt: new Date(definition.createdAt),
+    try {
+      return await this.database.transaction(async (tx) => {
+        const definition = mutation.definition;
+        if (definition.sourceId !== sourceId)
+          throw new ValidationError(
+            "property definition belongs to another source",
+          );
+        await requireSource(tx, sourceId);
+        if (definition.targetSourceId)
+          await requireSource(tx, definition.targetSourceId);
+        const duplicate = await tx
+          .select({ id: propertyDefinitions.id })
+          .from(propertyDefinitions)
+          .where(
+            and(
+              eq(propertyDefinitions.sourceId, sourceId),
+              eq(propertyDefinitions.nameKey, definition.nameKey),
+            ),
+          )
+          .limit(1);
+        if (duplicate.length)
+          throw new ValidationError("property name already exists");
+        await tx.insert(propertyDefinitions).values({
+          id: definition.id,
+          sourceId,
+          name: definition.name,
+          nameKey: definition.nameKey,
+          kind: definition.kind,
+          options: definition.options ? [...definition.options] : null,
+          targetSourceId: definition.targetSourceId,
+          createdAt: new Date(definition.createdAt),
+        });
+        await writeHistory(tx, mutation.revision, mutation.audit);
+        return definition;
       });
-      await writeHistory(tx, mutation.revision, mutation.audit);
-      return definition;
-    });
+    } catch (error) {
+      if (isPropertyDefinitionNameConflict(error))
+        throw new ValidationError("property name already exists");
+      throw error;
+    }
   }
 
   async listDefinitions(
@@ -484,7 +492,12 @@ async function readOutgoing(
     await db
       .select()
       .from(relationEdges)
-      .where(eq(relationEdges.sourceRecordId, id))
+      .where(
+        and(
+          eq(relationEdges.sourceRecordId, id),
+          isNull(relationEdges.archivedAt),
+        ),
+      )
   ).map(edgeFromRow);
 }
 
@@ -593,15 +606,85 @@ function sourceFromRow(row: typeof dataSources.$inferSelect): DataSource {
 function definitionFromRow(
   row: typeof propertyDefinitions.$inferSelect,
 ): PropertyDefinition {
+  const kind = propertyKindFromStorage(row.kind);
+  const options = propertyOptionsFromStorage(kind, row.options);
+  const targetSourceId = row.targetSourceId
+    ? asNativeId(row.targetSourceId)
+    : null;
+  if ((kind === "relation") !== (targetSourceId !== null))
+    throw new ValidationError("stored property definition is invalid");
+  if (row.nameKey !== propertyNameKey(row.name))
+    throw new ValidationError("stored property definition is invalid");
   return Object.freeze({
     id: asNativeId(row.id),
     sourceId: asNativeId(row.sourceId),
     name: row.name,
-    kind: row.kind as PropertyKind,
-    options: row.options ? Object.freeze([...row.options]) : null,
-    targetSourceId: row.targetSourceId ? asNativeId(row.targetSourceId) : null,
+    nameKey: row.nameKey,
+    kind,
+    options,
+    targetSourceId,
     createdAt: row.createdAt.toISOString(),
   });
+}
+
+function propertyKindFromStorage(value: string): PropertyKind {
+  if (
+    [
+      "text",
+      "number",
+      "checkbox",
+      "select",
+      "multi-select",
+      "status",
+      "date",
+      "datetime",
+      "url",
+      "email",
+      "phone",
+      "relation",
+    ].includes(value)
+  )
+    return value as PropertyKind;
+  throw new ValidationError("stored property definition is invalid");
+}
+
+function propertyOptionsFromStorage(
+  kind: PropertyKind,
+  value: unknown,
+): readonly string[] | null {
+  const optionKind =
+    kind === "select" || kind === "multi-select" || kind === "status";
+  if (!optionKind) {
+    if (value !== null)
+      throw new ValidationError("stored property definition is invalid");
+    return null;
+  }
+  if (
+    !Array.isArray(value) ||
+    value.length < 1 ||
+    value.length > 100 ||
+    !value.every((option) => typeof option === "string")
+  )
+    throw new ValidationError("stored property definition is invalid");
+  return Object.freeze([...value]);
+}
+
+function isPropertyDefinitionNameConflict(error: unknown): boolean {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "23505" &&
+    "constraint" in error &&
+    error.constraint === "property_definitions_source_name_key_unique"
+  )
+    return true;
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "cause" in error &&
+    isPropertyDefinitionNameConflict(error.cause)
+  );
 }
 
 function itemFromRow(row: typeof dataSourceItems.$inferSelect): DataSourceItem {

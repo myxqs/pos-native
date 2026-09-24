@@ -109,6 +109,23 @@ test("defines immutable source-scoped scalar and relation fields with native env
   assert.equal(relation.definition.targetSourceId, target.id);
 });
 
+test("derives one locale-independent comparison key for equivalent property names", () => {
+  const dataSource = source();
+  const ascii = createPropertyDefinition(
+    dataSource,
+    { name: "Status", kind: "text", ...actor },
+    dependencies(),
+  );
+  const compatibilityForm = createPropertyDefinition(
+    dataSource,
+    { name: "ＳＴＡＴＵＳ", kind: "text", ...actor },
+    dependencies(),
+  );
+
+  assert.equal(ascii.definition.nameKey, "status");
+  assert.equal(compatibilityForm.definition.nameKey, "status");
+});
+
 test("rejects bad definition shapes, reserved derived fields, and unbounded options", () => {
   const dataSource = source();
   for (const command of [

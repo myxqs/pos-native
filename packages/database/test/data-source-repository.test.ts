@@ -5,7 +5,7 @@ import {
   createDataSourceItem,
   createPropertyDefinition,
 } from "../../domain/src/data-source.ts";
-import { asNativeId } from "../../domain/src/ids.ts";
+import { asNativeId, ValidationError } from "../../domain/src/ids.ts";
 import { InMemoryDataSourceRepository } from "../src/data-source-repository.ts";
 import { PostgresDataSourceRepository } from "../src/postgres-data-source-repository.ts";
 
@@ -64,7 +64,7 @@ test("creates a page-backed record with membership and both histories atomically
   expect(asNativeId(mutation.page.id)).toBe(mutation.item.id);
 });
 
-test("rejects duplicate property names within a source, regardless of case", async () => {
+test("rejects duplicate property names within a source using the canonical name key", async () => {
   const repository = new InMemoryDataSourceRepository();
   const source = createDataSource(
     { name: "Projects", ...actor },
@@ -78,7 +78,7 @@ test("rejects duplicate property names within a source, regardless of case", asy
   );
   const duplicate = createPropertyDefinition(
     source.dataSource,
-    { name: "status", kind: "text", ...actor },
+    { name: "ＳＴＡＴＵＳ", kind: "text", ...actor },
     dependencies(5),
   );
   await repository.createDefinition(source.dataSource.id, first);
@@ -234,6 +234,74 @@ test("rejects updates to an archived record page", async () => {
     1,
   );
 });
+
+test.skipIf(!process.env.TEST_DATABASE_URL)(
+  "PostgreSQL returns stable canonical-name conflicts and rejects corrupt persisted keys",
+  async () => {
+    const { drizzle } = await import("drizzle-orm/node-postgres");
+    const { migrate } = await import("drizzle-orm/node-postgres/migrator");
+    const { Pool } = await import("pg");
+    const { fileURLToPath } = await import("node:url");
+    const { randomUUID } = await import("node:crypto");
+    const schema = await import("../src/schema.ts");
+    const pool = new Pool({ connectionString: process.env.TEST_DATABASE_URL });
+    try {
+      const database = drizzle(pool, { schema });
+      await migrate(database, {
+        migrationsFolder: fileURLToPath(new URL("../drizzle", import.meta.url)),
+      });
+      const repository = new PostgresDataSourceRepository(database);
+      const liveDependencies = {
+        newId: randomUUID,
+        now: () => new Date("2026-09-24T10:00:00.000Z"),
+      };
+      const source = createDataSource(
+        { name: `Concurrent ${randomUUID()}`, ...actor },
+        liveDependencies,
+      );
+      await repository.createSource(source);
+      const first = createPropertyDefinition(
+        source.dataSource,
+        { name: "Status", kind: "text", ...actor },
+        liveDependencies,
+      );
+      const second = createPropertyDefinition(
+        source.dataSource,
+        { name: "ＳＴＡＴＵＳ", kind: "text", ...actor },
+        liveDependencies,
+      );
+
+      const outcomes = await Promise.allSettled([
+        repository.createDefinition(source.dataSource.id, first),
+        repository.createDefinition(source.dataSource.id, second),
+      ]);
+
+      expect(
+        outcomes.filter((result) => result.status === "fulfilled"),
+      ).toHaveLength(1);
+      const rejected = outcomes.find((result) => result.status === "rejected");
+      expect(rejected).toMatchObject({
+        status: "rejected",
+        reason: expect.any(ValidationError),
+      });
+      expect((rejected as PromiseRejectedResult).reason.message).toBe(
+        "property name already exists",
+      );
+      expect(
+        await repository.listDefinitions(source.dataSource.id),
+      ).toHaveLength(1);
+      await pool.query(
+        'update "property_definitions" set "name_key" = $1 where "source_id" = $2',
+        ["corrupt", source.dataSource.id],
+      );
+      await expect(
+        repository.listDefinitions(source.dataSource.id),
+      ).rejects.toThrow("stored property definition is invalid");
+    } finally {
+      await pool.end();
+    }
+  },
+);
 
 test.skipIf(!process.env.TEST_DATABASE_URL)(
   "PostgreSQL creates a record page and membership in one transaction",

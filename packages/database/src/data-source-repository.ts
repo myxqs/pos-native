@@ -185,8 +185,7 @@ export class InMemoryDataSourceRepository implements DataSourceRepository {
         [...state.definitions.values()].some(
           (existing) =>
             existing.sourceId === sourceId &&
-            existing.name.toLocaleLowerCase() ===
-              definition.name.toLocaleLowerCase(),
+            existing.nameKey === definition.nameKey,
         )
       )
         throw new ValidationError("property name already exists");

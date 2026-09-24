@@ -110,15 +110,28 @@ export const propertyDefinitions = pgTable(
       .notNull()
       .references(() => dataSources.id),
     name: text("name").notNull(),
+    nameKey: text("name_key").notNull(),
     kind: text("kind").notNull(),
     options: jsonb("options").$type<string[]>(),
     targetSourceId: uuid("target_source_id").references(() => dataSources.id),
     createdAt: createdAt(),
   },
   (table) => [
-    uniqueIndex("property_definitions_source_name_ci_unique").on(
+    uniqueIndex("property_definitions_source_name_key_unique").on(
       table.sourceId,
-      sql`lower(${table.name})`,
+      table.nameKey,
+    ),
+    check(
+      "property_definitions_kind_supported",
+      sql.raw(
+        `"kind" in ('text', 'number', 'checkbox', 'select', 'multi-select', 'status', 'date', 'datetime', 'url', 'email', 'phone', 'relation')`,
+      ),
+    ),
+    check(
+      "property_definitions_shape_valid",
+      sql.raw(
+        `("kind" = 'relation' and "target_source_id" is not null and "options" is null) or ("kind" in ('select', 'multi-select', 'status') and "target_source_id" is null and "options" is not null) or ("kind" in ('text', 'number', 'checkbox', 'date', 'datetime', 'url', 'email', 'phone') and "target_source_id" is null and "options" is null)`,
+      ),
     ),
   ],
 );
@@ -137,7 +150,13 @@ export const dataSourceItems = pgTable(
       .default(1),
     createdAt: createdAt(),
   },
-  (table) => [index("data_source_items_source_id_idx").on(table.sourceId)],
+  (table) => [
+    index("data_source_items_source_id_idx").on(table.sourceId),
+    check(
+      "data_source_items_property_revision_positive",
+      sql.raw('"current_property_revision_number" >= 1'),
+    ),
+  ],
 );
 
 export const propertyValues = pgTable(

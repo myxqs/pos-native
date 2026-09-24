@@ -2,12 +2,14 @@
 
 ## Current milestone
 
-M4 — Structured data sources, records, typed properties, and relations
-(paused during GitHub reconciliation; no M4 source changes).
+M2 — Pages and block editing. Hierarchy, archive/restore, and a narrow
+paragraph-body adapter are implemented in source, but the mature editor
+foundation, major block types, links/backlinks, and live PostgreSQL/browser
+acceptance remain incomplete.
 
-M3 — Page hierarchy, archive, and navigation landed on the TypeScript/
-PostgreSQL `main` line at `12dd0a6d6820d7e12f1e62f9b7644fa1f619c7d4`; live
-acceptance gates remain.
+M3 — Structured data sources, records, typed properties, and relations is
+planned next (the repository's earlier local plans called this M4); no source
+changes have started.
 
 ## Completed
 
@@ -18,7 +20,7 @@ acceptance gates remain.
   ADRs, threat model, PostgreSQL Compose foundation, and status handover.
 - Native UUID page identity; page create/update domain commands; immutable
   revision snapshots; append-oriented audit envelopes; atomic repository port.
-- Drizzle PostgreSQL schema and migrations through 0004, including page revision
+- Drizzle PostgreSQL schema and migrations through 0005, including page revision
   compare-and-swap state derived from any existing page history; the migration
   aborts safely rather than inventing revision history for legacy pages.
 - Versioned page create/list/read/update API, with runtime validation,
@@ -72,35 +74,34 @@ acceptance gates remain.
   empty document or one root paragraph, retains a server block ID, keeps title
   and body revisions distinct, rejects unsupported richer documents without
   changing them, and ignores late selection responses.
-- M3 hierarchical pages: stable nullable parent edges, bounded 32-edge
+- Hierarchical pages: stable nullable parent edges, bounded 32-edge
   ancestry, safe reparenting, leaf-only archive, explicit restore, separate
   metadata/body revisions, and page/revision/audit atomicity.
-- M3 API and browser tree: authenticated child creation/move/archive/restore,
+- Hierarchy API and browser tree: authenticated child creation/move/archive/restore,
   explicit archived navigation, safe breadcrumbs, DOM `textContent` rendering,
   malformed-tree rejection, and generation/pending guards for late responses.
-- M3 review repairs: a body write re-checks page liveness at its persistence
+- Hierarchy review repairs: a body write re-checks page liveness at its persistence
   boundary, returning a fixed archive conflict without adding body history;
   successful late metadata responses reconcile navigation without replacing a
   newer selection or its unsaved title/parent drafts.
-- M3 persistence validates every resulting descendant—including archived
+- Hierarchy persistence validates every resulting descendant—including archived
   descendants—so a direct repository/API mutation cannot create a tree the
   browser would refuse to render.
-- M3 is landed at `12dd0a6d6820d7e12f1e62f9b7644fa1f619c7d4`; the clean M4
-  worktree remains parked at that same checkpoint with no M4 source edits.
+- GitHub reconciliation completed: the TypeScript/PostgreSQL candidate and
+  truthful TypeScript CI are the retained active line; unrelated Python/SQLite
+  history remains legacy/reference only.
 - Bounded public-source review recorded in `docs/architecture/DONOR_MATRIX.md`.
   No donor code, dependency, canonical store, personal data, or external MCP
   service has been introduced.
 
 ## In progress
 
-- GitHub reconciliation is in progress: preserve the unrelated Python/SQLite
-  history as legacy/reference, publish and verify the TypeScript/PostgreSQL
-  candidate, replace stale Python CI requirements, and only then make the
-  TypeScript line the protected default branch.
-- M4 is paused pending that reconciliation and must not start automatically.
-  Its eventual data-source/record/property/relation slice must preserve page
-  identity, revision/audit boundaries, and the synthetic-versus-live evidence
-  distinction.
+- Baseline documentation reconciliation and live PostgreSQL acceptance are the
+  immediate gate. After it passes, complete the remaining M2 editor vertical
+  slice before beginning M3 implementation.
+- M3 planning may continue. Its data-source/record/property/relation slice must
+  preserve page identity, revision/audit boundaries, and the
+  synthetic-versus-live evidence distinction.
 
 ## Canonical and repository boundaries
 
@@ -115,7 +116,7 @@ acceptance gates remain.
 
 ## Verification state
 
-- npm run verify: PASS on 2026-09-23 — formatting, lint, strict typecheck, and
+- npm run verify: PASS on 2026-09-24 — formatting, lint, strict typecheck, and
   208 tests passed across twenty-four test files; thirteen PostgreSQL
   integration tests skipped across three files because TEST_DATABASE_URL is not
   set. Asset
@@ -123,21 +124,23 @@ acceptance gates remain.
   Windows symbolic-link refusal path.
 - npm run db:generate: PASS on 2026-09-23 — ten tables inspected; no schema
   changes and no migration generated.
-- npm run build -- --listEmittedFiles: PASS on 2026-09-23 — production
-  TypeScript build completed.
+- npm run build: PASS on 2026-09-24 — production TypeScript build completed.
 - npm audit --omit=dev --json: PASS on 2026-09-23 — zero production
   vulnerabilities.
 - git diff --check: PASS on 2026-09-23 — no whitespace errors after the
   independent-review repairs and documentation update.
-- Docker client 29.8.0 and Compose 5.5.1 are present, but the Docker Desktop
-  Linux-engine pipe is absent, so no database container has been started.
+- Docker client 29.8.0 and Compose 5.5.1 are present, but Docker Desktop has
+  not established its Linux-engine pipe, so no database container has started.
 - `docker compose config` remains intentionally blocked because the untracked
   `.env` database values do not exist; no credentials were invented or written.
 
 ## Known failures / blockers
 
-- The Docker engine is unavailable. Its pending Windows/WSL initialisation must
-  be completed by a user-approved reboot; no reboot has been initiated here.
+- The Docker engine is unavailable. Docker Desktop did not establish an engine
+  after a normal start attempt; WSL enumeration is denied in this session and
+  the Docker Desktop helper service cannot be started from this session. No
+  ACL, WSL, Docker-reset, service-configuration, or reboot change has been
+  made.
 - Without a PostgreSQL runtime, migrations, transactional persistence, restart
   persistence, account/session persistence, backup, and restore are unverified.
 - Browser login/session/logout flows have only synthetic controller coverage.
@@ -196,21 +199,24 @@ acceptance gates remain.
 
 ## Exact next action
 
-Complete the verified GitHub reconciliation: publish the candidate's truthful
-documentation and TypeScript CI, prove the candidate, protect it, make it the
-default, preserve/rename the Python legacy branch, and report the resulting
-branch/tag/rules evidence. Stop after the reconciliation report; do not start
-M4 automatically, expose asset upload, or begin Notion work. The later live
-acceptance gates remain migrations, asset-metadata/block-document/hierarchy
-integration, restart persistence, owner bootstrap, authenticated browser flow,
-and live backup/restore after Docker is available.
+After Docker Desktop/WSL is repaired or a user-approved host remediation is
+available, create a fresh isolated disposable PostgreSQL test environment,
+configure a matching `TEST_DATABASE_URL`, and run the page, block-document,
+and asset-metadata integration suites with `--no-file-parallelism`. Record the
+result. Do not expose asset upload or begin Notion work. Then complete the
+remaining M2 editor vertical slice before M3 implementation. Later live gates remain
+restart persistence, owner bootstrap, authenticated browser flow, and live
+backup/restore.
 
 ## Commands to resume
 
     npm run verify
     npm audit --omit=dev --json
-    docker version
-    docker compose config
+    # After `docker info` succeeds, create an untracked .env from .env.example.
+    # Use only a fresh disposable database: POSTGRES_DB=pos_native_test.
+    docker compose -p pos-native-live-test up -d postgres
+    $env:TEST_DATABASE_URL = "postgresql://pos_native:<local-password>@localhost:5432/pos_native_test"
+    npm test -- packages/database/test/postgres-page-repository.integration.test.ts packages/database/test/postgres-block-document-repository.integration.test.ts packages/database/test/postgres-asset-metadata-repository.integration.test.ts --no-file-parallelism
 
 ## Important paths
 

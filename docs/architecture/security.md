@@ -1,6 +1,7 @@
 # Security Architecture
 
-The initial threat model is in `pos-native-foundation.md`. M1-M3 apply it
+The initial threat model is in `pos-native-foundation.md`. The implemented
+source slices apply it
 through Argon2id password hashing, secure cookie sessions, CSRF protection,
 CSP/security headers, rate limits, runtime validation, token-scope and
 idempotency contracts, and append-oriented audit records. Secrets exist only

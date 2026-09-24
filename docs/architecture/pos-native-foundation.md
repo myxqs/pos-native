@@ -9,16 +9,20 @@ Notion clone, a multi-tenant SaaS product, or Local Steward.
 
 ## Delivery decomposition
 
-1. **Foundation (current):** monorepo, contracts, canonical identifiers,
-   validation, common mutation/audit boundary, ADRs and threat model.
-2. **Persistence:** PostgreSQL schema/migrations, transactional repositories,
-   page/block/revision persistence and filesystem asset abstraction.
-3. **Private API:** local account/session authentication, versioned HTTP API,
-   page/block mutation endpoints, rate limits and security headers.
+1. **Foundation and persistence (current source):** monorepo, contracts,
+   canonical identifiers, validation, common mutation/audit boundary, ADRs,
+   threat model, PostgreSQL schema/migrations, transactional repositories,
+   page/block/revision persistence, and filesystem asset abstraction.
+2. **Live persistence acceptance (pending):** a disposable PostgreSQL run must
+   prove migrations and transactional adapters before the source implementation
+   is described as live-persistence ready.
+3. **Private API (current source):** local account/session authentication,
+   versioned HTTP API, page/block mutation endpoints, rate limits and security
+   headers. Owner bootstrap and authenticated browser use remain live gates.
 4. **Workspace UI:** the current responsive browser shell provides an active
    hierarchy tree, breadcrumbs, child creation, move, archive, and explicit
-   archived-page restore. A React PWA shell and the TipTap adapter selected by
-   ADR-0008 remain later product work. Any adapter maps to the native
+   archived-page restore. A React PWA shell and the TipTap/ProseMirror adapter
+   direction recorded by ADR-0008 remain later product work. Any adapter maps to the native
    block-document API; it never owns canonical IDs or persistence.
 5. **Flexible data sources:** property definitions/values, record pages,
    relations, formula subset, rollups and saved table/board/list views.
@@ -34,7 +38,7 @@ Notion clone, a multi-tenant SaaS product, or Local Steward.
 
 ## Core mutation flow
 
-`human client | importer | API | MCP` -> runtime validation -> domain command
+`human client | (future importer) | API | (future MCP)` -> runtime validation -> domain command
 -> transaction/repository -> revision + append-only audit event -> response.
 
 No client, importer, MCP tool, or UI component may write storage directly.
@@ -52,7 +56,7 @@ that becomes archived after the API's initial liveness check cannot receive a
 new body revision, block mutation, or body audit event; the archived body stays
 readable for recovery.
 
-## Hierarchy policy (M3)
+## Hierarchy policy (current source)
 
 Pages use one nullable `parent_id` edge rather than a second tree store. Roots
 are depth zero and every resulting page—including an archived descendant—must
@@ -72,11 +76,11 @@ or its unsaved title/parent draft.
 
 ## Initial domain boundary
 
-The first vertical slice implements a pure `createPage` command. It validates
+The first vertical slice introduced a pure `createPage` command. It validates
 input, creates stable native IDs/timestamps, emits a page revision, and emits
-an audit event through one result envelope. A database-backed repository will
-replace the in-memory composition only in the persistence phase; the command
-contract remains stable.
+an audit event through one result envelope. The current composition supplies
+both in-memory and PostgreSQL adapters while retaining that stable command
+contract. Live PostgreSQL acceptance remains an explicit environment gate.
 
 ## Reference implementation boundary
 
@@ -91,10 +95,11 @@ domain/API/audit boundary.
 ## Security baseline
 
 - No telemetry or analytics by default.
-- Passwords will use Argon2id; secrets remain environment/configuration only.
-- HTTPS/private Tailscale deployment, secure session cookies, CSRF controls,
-  CSP/security headers, input validation and rate limiting are mandatory API
-  phase gates.
+- Passwords use Argon2id; secrets remain environment/configuration only.
+- Secure session cookies, CSRF controls, CSP/security headers, input
+  validation, and rate limiting are implemented at the API boundary. HTTPS/
+  private-Tailscale deployment and live owner/browser acceptance remain
+  deployment gates.
 - Uploaded assets require generated storage keys, filename isolation, MIME and
   size checks, checksums, and path traversal prevention.
 - Formulas use a bounded parser/evaluator; no JavaScript eval, shell execution,

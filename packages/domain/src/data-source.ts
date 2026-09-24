@@ -438,7 +438,7 @@ export function removeRelationEdge(
   dependencies: DataSourceDependencies,
 ) {
   const context = validateAuditContext(command);
-  validateRelationContext(current);
+  validateRelationContext(current, true);
   assertExpectedRevision(
     current.propertyRevisionNumber,
     command.expectedPropertyRevisionNumber,
@@ -563,13 +563,17 @@ function validateKind(value: unknown): PropertyKind {
 }
 
 function validateRecord(item: DataSourceItem, page: Page): void {
+  validateRecordIdentity(item, page);
+  if (page.archivedAt !== null)
+    throw new ValidationError("record page is archived");
+}
+
+function validateRecordIdentity(item: DataSourceItem, page: Page): void {
   asNativeId(item.id);
   asNativeId(item.sourceId);
   asNativeId(page.id);
   if (item.id !== page.id)
     throw new ValidationError("record membership must match page identity");
-  if (page.archivedAt !== null)
-    throw new ValidationError("record page is archived");
 }
 
 function validateDefinitionOwner(
@@ -595,9 +599,16 @@ function assertExpectedRevision(current: number, expected: number): void {
     throw new ValidationError("stale property revision");
 }
 
-function validateRelationContext(current: RelationContext): void {
+function validateRelationContext(
+  current: RelationContext,
+  allowArchivedTarget = false,
+): void {
   validateRecord(current.sourceItem, current.sourcePage);
-  validateRecord(current.targetItem, current.targetPage);
+  if (allowArchivedTarget) {
+    validateRecordIdentity(current.targetItem, current.targetPage);
+  } else {
+    validateRecord(current.targetItem, current.targetPage);
+  }
   validateDefinitionOwner(current.definition, current.sourceItem);
   validateRevision(current.propertyRevisionNumber);
   if (

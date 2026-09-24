@@ -43,6 +43,13 @@
       "when": 1790001120986,
       "tag": "0005_good_ghost_rider",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790259020313,
+      "tag": "0006_striped_mastermind",
+      "breakpoints": true
     }
   ]
 }

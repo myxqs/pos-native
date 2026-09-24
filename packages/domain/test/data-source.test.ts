@@ -369,6 +369,87 @@ test("adds and soft-archives a source-safe relation edge with property and edge 
   assert.deepEqual(removed.propertyRevision.snapshot.relationEdgeIds, []);
 });
 
+test("removes a live edge after its target is archived but rejects an archived source", () => {
+  const sourceRecord = item();
+  const targetSource = createDataSource(
+    { name: "People", ...actor },
+    { newId: () => id(99), now: () => new Date(at) },
+  ).dataSource;
+  const targetRecord = createDataSourceItem(
+    targetSource,
+    { title: "Person", ...actor },
+    { newId: () => id(50), now: () => new Date(at) },
+  );
+  const field = createPropertyDefinition(
+    source(),
+    {
+      name: "Owner",
+      kind: "relation",
+      targetSourceId: targetSource.id,
+      ...actor,
+    },
+    dependencies(),
+  ).definition;
+  const initial = {
+    sourceItem: sourceRecord.item,
+    sourcePage: sourceRecord.page,
+    targetItem: targetRecord.item,
+    targetPage: targetRecord.page,
+    definition: field,
+    propertyRevisionNumber: 1,
+    values: {},
+    existingEdges: [],
+  };
+  const added = addRelationEdge(
+    initial,
+    { expectedPropertyRevisionNumber: 1, ...actor },
+    dependencies(),
+  );
+  const removal = {
+    ...initial,
+    targetPage: { ...targetRecord.page, archivedAt: at },
+    existingEdges: [added.edge],
+    edge: added.edge,
+    edgeRevisionNumber: 1,
+    propertyRevisionNumber: 2,
+  };
+  const command = { expectedPropertyRevisionNumber: 2, ...actor };
+
+  const removed = removeRelationEdge(removal, command, dependencies());
+  assert.equal(removed.edge.archivedAt, at);
+  assert.deepEqual(removed.propertyRevision.snapshot.relationEdgeIds, []);
+  assert.throws(
+    () =>
+      removeRelationEdge(
+        { ...removal, sourcePage: { ...sourceRecord.page, archivedAt: at } },
+        command,
+        dependencies(),
+      ),
+    /record page is archived/,
+  );
+  assert.throws(
+    () =>
+      removeRelationEdge(
+        {
+          ...removal,
+          targetPage: { ...targetRecord.page, id: id(999), archivedAt: at },
+        },
+        command,
+        dependencies(),
+      ),
+    /record membership must match page identity/,
+  );
+  assert.throws(
+    () =>
+      removeRelationEdge(
+        { ...removal, definition: { ...field, sourceId: id(999) } },
+        command,
+        dependencies(),
+      ),
+    /property definition belongs to another source/,
+  );
+});
+
 test("rejects cross-source relation targets, duplicates, and archived pages", () => {
   const record = item();
   const field = definition("relation");

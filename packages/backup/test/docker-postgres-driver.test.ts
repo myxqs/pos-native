@@ -118,6 +118,94 @@ test("streams verified dump bytes to pg_restore with fail-closed options", async
   ]);
 });
 
+test("parses a fixed bounded PostgreSQL asset receipt projection", async () => {
+  const runner = new RecordingRunner();
+  runner.outputs.push(
+    new TextEncoder().encode(
+      "11111111-1111-4111-8111-111111111111\tasset-11111111-1111-4111-8111-111111111111\t5\t" +
+        "a".repeat(64) +
+        "\n",
+    ),
+  );
+  const driver = new DockerPostgresBackupDriver(
+    {
+      container: "pos-native-postgres-1",
+      database: "pos_native_source",
+      user: "pos_native",
+      maxDumpBytes: 4096,
+    },
+    runner,
+  );
+
+  await expect(driver.listAssets()).resolves.toEqual([
+    {
+      assetId: "11111111-1111-4111-8111-111111111111",
+      storageKey: "asset-11111111-1111-4111-8111-111111111111",
+      byteSize: 5,
+      sha256: "a".repeat(64),
+    },
+  ]);
+  expect(runner.commands[0]).toMatchObject({
+    executable: "docker",
+    maxOutputBytes: 4096,
+  });
+  expect(runner.commands[0]?.arguments).toContain("--no-align");
+  expect(runner.commands[0]?.arguments).toContain("--field-separator");
+});
+
+test.each([
+  [
+    "extra field",
+    "11111111-1111-4111-8111-111111111111\tasset-11111111-1111-4111-8111-111111111111\t5\t" +
+      "a".repeat(64) +
+      "\textra\n",
+  ],
+  [
+    "identity mismatch",
+    "11111111-1111-4111-8111-111111111111\tasset-22222222-2222-4222-8222-222222222222\t5\t" +
+      "a".repeat(64) +
+      "\n",
+  ],
+  [
+    "unsafe size",
+    "11111111-1111-4111-8111-111111111111\tasset-11111111-1111-4111-8111-111111111111\t-1\t" +
+      "a".repeat(64) +
+      "\n",
+  ],
+  [
+    "unsafe checksum",
+    "11111111-1111-4111-8111-111111111111\tasset-11111111-1111-4111-8111-111111111111\t5\tBAD\n",
+  ],
+  [
+    "duplicate",
+    (
+      "11111111-1111-4111-8111-111111111111\tasset-11111111-1111-4111-8111-111111111111\t5\t" +
+      "a".repeat(64) +
+      "\n"
+    ).repeat(2),
+  ],
+  ["extra output", "NOTICE unexpected output\n"],
+] as const)(
+  "rejects %s in the asset receipt projection",
+  async (_label, output) => {
+    const runner = new RecordingRunner();
+    runner.outputs.push(new TextEncoder().encode(output));
+    const driver = new DockerPostgresBackupDriver(
+      {
+        container: "pos-native-postgres-1",
+        database: "pos_native_source",
+        user: "pos_native",
+        maxDumpBytes: 4096,
+      },
+      runner,
+    );
+
+    await expect(driver.listAssets()).rejects.toThrow(
+      "PostgreSQL asset receipt projection is invalid",
+    );
+  },
+);
+
 test("rejects unsafe or unbounded Docker recovery configuration", () => {
   const runner = new RecordingRunner();
 

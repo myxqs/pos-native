@@ -1,12 +1,19 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, test } from "vitest";
 
 import { asNativeId, ValidationError } from "../../domain/src/ids.ts";
+import type { AssetStore } from "../../assets/src/asset-storage.ts";
+import { asAssetStorageKey } from "../../domain/src/asset.ts";
+import {
+  sha256ForBytes,
+  type BackupSourceAsset,
+} from "../src/backup-manifest.ts";
 import type { BackupOperationOptions } from "../src/filesystem-backup.ts";
 import {
   createPostgresDatabaseBackup,
+  createPostgresApplicationBackup,
   restorePostgresDatabaseBackup,
   type PostgresBackupDriver,
 } from "../src/postgres-recovery.ts";
@@ -33,7 +40,10 @@ async function isolatedRoot(): Promise<string> {
   return root;
 }
 
-function fixtureDriver(targetEmpty = true): PostgresBackupDriver & {
+function fixtureDriver(
+  targetEmpty = true,
+  assets: readonly BackupSourceAsset[] = [],
+): PostgresBackupDriver & {
   restoredBytes?: Uint8Array;
   inspected: boolean;
 } {
@@ -42,6 +52,9 @@ function fixtureDriver(targetEmpty = true): PostgresBackupDriver & {
     async createDatabaseDump() {
       return Uint8Array.from(databaseBytes);
     },
+    async listAssets() {
+      return assets;
+    },
     async isRestoreTargetEmpty() {
       this.inspected = true;
       return targetEmpty;
@@ -49,6 +62,17 @@ function fixtureDriver(targetEmpty = true): PostgresBackupDriver & {
     async restoreDatabaseDump(bytes) {
       this.restoredBytes = Uint8Array.from(bytes);
     },
+  };
+}
+
+function readingStore(read: AssetStore["read"]): AssetStore {
+  return {
+    stage: async () => {
+      throw new Error("not used");
+    },
+    read,
+    verify: async () => false,
+    discard: async () => undefined,
   };
 }
 
@@ -68,6 +92,69 @@ test("creates a manifest-verified PostgreSQL backup without asset bytes", async 
 
   expect(created.manifest.database.byteSize).toBe(databaseBytes.byteLength);
   expect(created.manifest.assets).toEqual([]);
+});
+
+test("creates a full-state backup from only PostgreSQL-declared opaque asset keys", async () => {
+  const root = await isolatedRoot();
+  const assetId = asNativeId("11111111-1111-4111-8111-111111111111");
+  const storageKey = asAssetStorageKey(`asset-${assetId}`);
+  const bytes = encoder.encode("synthetic asset");
+  const receipt = {
+    assetId,
+    storageKey,
+    byteSize: bytes.byteLength,
+    sha256: sha256ForBytes(bytes),
+  };
+  const reads: string[] = [];
+
+  const created = await createPostgresApplicationBackup(
+    root,
+    fixtureDriver(true, [receipt]),
+    readingStore(async (key) => {
+      reads.push(key);
+      return Uint8Array.from(bytes);
+    }),
+    {
+      schemaVersion: "0007",
+      applicationVersion: "0.1.0",
+      databaseDumpFormat: "postgresql-custom-v1",
+      assetStoreFormat: "filesystem-v1",
+    },
+    options,
+  );
+
+  expect(reads).toEqual([storageKey]);
+  expect(created.manifest.assets).toHaveLength(1);
+  expect(created.manifest.assets[0]).toMatchObject(receipt);
+});
+
+test("publishes nothing when a PostgreSQL-declared asset fails verification", async () => {
+  const root = await isolatedRoot();
+  const assetId = asNativeId("11111111-1111-4111-8111-111111111111");
+  const storageKey = asAssetStorageKey(`asset-${assetId}`);
+  const expected = encoder.encode("expected");
+  const receipt = {
+    assetId,
+    storageKey,
+    byteSize: expected.byteLength,
+    sha256: sha256ForBytes(expected),
+  };
+
+  await expect(
+    createPostgresApplicationBackup(
+      root,
+      fixtureDriver(true, [receipt]),
+      readingStore(async () => encoder.encode("changed")),
+      {
+        schemaVersion: "0007",
+        applicationVersion: "0.1.0",
+        databaseDumpFormat: "postgresql-custom-v1",
+        assetStoreFormat: "filesystem-v1",
+      },
+      options,
+    ),
+  ).rejects.toThrow("backup source asset receipt does not match bytes");
+  await expect(readdir(root)).resolves.toEqual([]);
 });
 
 test("restores only verified database bytes into an empty target", async () => {

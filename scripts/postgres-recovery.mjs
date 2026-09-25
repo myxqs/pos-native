@@ -3,14 +3,16 @@ import process from "node:process";
 import { asNativeId } from "../dist/packages/domain/src/ids.js";
 import { DockerPostgresBackupDriver } from "../dist/packages/backup/src/docker-postgres-driver.js";
 import {
-  createPostgresDatabaseBackup,
+  createPostgresApplicationBackup,
   restorePostgresDatabaseBackup,
 } from "../dist/packages/backup/src/postgres-recovery.js";
+import { FilesystemAssetStore } from "../dist/packages/assets/src/filesystem-asset-store.js";
 import { runRecoveryCommand } from "../dist/packages/backup/src/recovery-command-runner.js";
 import { verifyFilesystemBackup } from "../dist/packages/backup/src/filesystem-backup.js";
 
 const VALUE_FLAGS = new Set([
   "--application-version",
+  "--asset-root",
   "--backup-id",
   "--backup-root",
   "--container",
@@ -100,6 +102,7 @@ async function main() {
       values,
       new Set([
         "--application-version",
+        "--asset-root",
         "--backup-id",
         "--backup-root",
         "--container",
@@ -116,9 +119,14 @@ async function main() {
         ? {}
         : { backupId: asNativeId(requestedBackupId) }),
     };
-    const created = await createPostgresDatabaseBackup(
+    const assetStore = await FilesystemAssetStore.create(
+      requireValue(values, "--asset-root"),
+      { maxBytes: maxArtifactBytes },
+    );
+    const created = await createPostgresApplicationBackup(
       backupRoot,
       driver,
+      assetStore,
       {
         schemaVersion: requireValue(values, "--schema-version"),
         applicationVersion: requireValue(values, "--application-version"),

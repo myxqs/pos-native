@@ -1,6 +1,8 @@
 import { type NativeId, ValidationError } from "../../domain/src/ids.ts";
+import type { AssetStore } from "../../assets/src/asset-storage.ts";
 import type {
   BackupManifest,
+  BackupSourceAsset,
   BackupSourceMetadata,
 } from "./backup-manifest.ts";
 import {
@@ -12,6 +14,7 @@ import {
 
 export interface PostgresBackupDriver {
   createDatabaseDump(): Promise<Uint8Array>;
+  listAssets(): Promise<readonly BackupSourceAsset[]>;
   isRestoreTargetEmpty(): Promise<boolean>;
   restoreDatabaseDump(bytes: Uint8Array): Promise<void>;
 }
@@ -36,6 +39,31 @@ export async function createPostgresDatabaseBackup(
         throw new ValidationError(
           "asset bytes are unavailable for this database-only backup",
         );
+      },
+    },
+    options,
+  );
+}
+
+export async function createPostgresApplicationBackup(
+  backupRoot: string,
+  driver: PostgresBackupDriver,
+  assetStore: Pick<AssetStore, "read">,
+  metadata: BackupSourceMetadata,
+  options: BackupOperationOptions,
+): Promise<FilesystemBackupLocation> {
+  return createFilesystemBackup(
+    backupRoot,
+    {
+      metadata,
+      async readDatabaseDump() {
+        return driver.createDatabaseDump();
+      },
+      async listAssets() {
+        return driver.listAssets();
+      },
+      async readAsset(asset) {
+        return assetStore.read(asset.storageKey);
       },
     },
     options,

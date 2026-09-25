@@ -1,4 +1,12 @@
 import { ValidationError } from "../../domain/src/ids.ts";
+import {
+  asAssetStorageKey,
+  storageKeyForAsset,
+  validateAssetByteSize,
+  validateAssetSha256,
+} from "../../domain/src/asset.ts";
+import { asNativeId } from "../../domain/src/ids.ts";
+import type { BackupSourceAsset } from "./backup-manifest.ts";
 import type { PostgresBackupDriver } from "./postgres-recovery.ts";
 
 export interface RecoveryCommand {
@@ -21,6 +29,11 @@ export interface DockerPostgresBackupConfiguration {
 
 const SAFE_ARGUMENT_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/u;
 const RESTORE_OUTPUT_LIMIT = 1024 * 1024;
+const ASSET_RECEIPT_QUERY = `
+SELECT id, storage_key, byte_size, sha256
+FROM assets
+ORDER BY created_at, id;
+`.trim();
 const TARGET_OBJECT_COUNT_QUERY = `
 WITH user_namespaces AS (
   SELECT oid, nspname
@@ -81,6 +94,47 @@ function parseObjectCount(bytes: Uint8Array): number {
   return count;
 }
 
+function parseAssetReceipts(bytes: Uint8Array): readonly BackupSourceAsset[] {
+  try {
+    const output = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    if (output.length === 0) return [];
+    if (
+      !output.endsWith("\n") ||
+      output.includes("\r") ||
+      output.includes("\0")
+    ) {
+      throw new Error("invalid framing");
+    }
+    const lines = output.slice(0, -1).split("\n");
+    const ids = new Set<string>();
+    const keys = new Set<string>();
+    return lines.map((line) => {
+      const fields = line.split("\t");
+      if (fields.length !== 4) throw new Error("invalid field count");
+      const [idValue, keyValue, sizeValue, checksumValue] = fields;
+      const assetId = asNativeId(idValue ?? "");
+      const storageKey = asAssetStorageKey(keyValue ?? "");
+      if (storageKey !== storageKeyForAsset(assetId)) {
+        throw new Error("identity mismatch");
+      }
+      if (!/^(0|[1-9]\d*)$/u.test(sizeValue ?? "")) {
+        throw new Error("invalid byte size");
+      }
+      const byteSize = Number(sizeValue);
+      validateAssetByteSize(byteSize, Number.MAX_SAFE_INTEGER);
+      const sha256 = validateAssetSha256(checksumValue ?? "");
+      if (ids.has(assetId) || keys.has(storageKey)) {
+        throw new Error("duplicate receipt");
+      }
+      ids.add(assetId);
+      keys.add(storageKey);
+      return { assetId, storageKey, byteSize, sha256 };
+    });
+  } catch {
+    throw new ValidationError("PostgreSQL asset receipt projection is invalid");
+  }
+}
+
 export class DockerPostgresBackupDriver implements PostgresBackupDriver {
   readonly #container: string;
   readonly #database: string;
@@ -125,6 +179,31 @@ export class DockerPostgresBackupDriver implements PostgresBackupDriver {
       ],
       maxOutputBytes: this.#maxDumpBytes,
     });
+  }
+
+  async listAssets(): Promise<readonly BackupSourceAsset[]> {
+    const output = await this.#runner.run({
+      executable: "docker",
+      arguments: [
+        "exec",
+        this.#container,
+        "psql",
+        "--username",
+        this.#user,
+        "--dbname",
+        this.#database,
+        "--tuples-only",
+        "--no-align",
+        "--field-separator",
+        "\t",
+        "--set",
+        "ON_ERROR_STOP=1",
+        "--command",
+        ASSET_RECEIPT_QUERY,
+      ],
+      maxOutputBytes: this.#maxDumpBytes,
+    });
+    return parseAssetReceipts(output);
   }
 
   async isRestoreTargetEmpty(): Promise<boolean> {

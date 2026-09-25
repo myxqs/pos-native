@@ -65,7 +65,7 @@ test("persists asset metadata with revision and audit history as one mutation", 
     asset: mutation.asset,
     revisionNumber: 1,
   });
-  await expect(repository.list()).resolves.toEqual([mutation.asset]);
+  await expect(repository.list(100)).resolves.toEqual([mutation.asset]);
   expect(repository.revisionsFor(mutation.asset.id)).toEqual([
     mutation.revision,
   ]);
@@ -83,8 +83,36 @@ test("lists assets in creation-time and native-ID order", async () => {
   await repository.create(second);
   await repository.create(first);
 
-  await expect(repository.list()).resolves.toEqual([first.asset, second.asset]);
+  await expect(repository.list(100)).resolves.toEqual([
+    first.asset,
+    second.asset,
+  ]);
 });
+
+test("bounds an ordered asset metadata list at the repository", async () => {
+  const repository = new InMemoryAssetMetadataRepository();
+  const first = assetCreation();
+  const second = assetCreation([
+    secondAssetId,
+    secondRevisionId,
+    secondAuditId,
+  ]);
+  await repository.create(second);
+  await repository.create(first);
+
+  await expect(repository.list(1)).resolves.toEqual([first.asset]);
+});
+
+test.each([0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1])(
+  "rejects invalid asset list limit %s",
+  async (limit) => {
+    const repository = new InMemoryAssetMetadataRepository();
+
+    await expect(repository.list(limit)).rejects.toThrow(
+      "asset list limit must be a positive safe integer",
+    );
+  },
+);
 
 test.each(["before-revision", "before-audit"] as const)(
   "rolls back all asset state when persistence fails at %s",
@@ -96,7 +124,7 @@ test.each(["before-revision", "before-audit"] as const)(
       `injected failure ${failAt.replace("-", " ")}`,
     );
     await expect(repository.getById(mutation.asset.id)).resolves.toBeNull();
-    await expect(repository.list()).resolves.toEqual([]);
+    await expect(repository.list(100)).resolves.toEqual([]);
     expect(repository.revisionsFor(mutation.asset.id)).toEqual([]);
     expect(repository.auditFor(mutation.asset.id)).toEqual([]);
   },

@@ -164,7 +164,7 @@ test("does not compensate a stage operation that never fulfilled", async () => {
     service.create(createInput(encoded.encode("evidence bytes"))),
   ).rejects.toThrow(stageError);
   expect(store.discardedKeys).toEqual([]);
-  await expect(repository.list()).resolves.toEqual([]);
+  await expect(repository.list(100)).resolves.toEqual([]);
 });
 
 test("compensates an unverifiable staged receipt before persistence", async () => {
@@ -177,7 +177,7 @@ test("compensates an unverifiable staged receipt before persistence", async () =
     service.create(createInput(encoded.encode("evidence bytes"))),
   ).rejects.toBeInstanceOf(AssetStorageIntegrityError);
   expect(store.discardedKeys).toEqual([expectedKey]);
-  await expect(repository.list()).resolves.toEqual([]);
+  await expect(repository.list(100)).resolves.toEqual([]);
 });
 
 test("never deletes an untrusted key from a malformed stage receipt", async () => {
@@ -201,7 +201,7 @@ test("never deletes an untrusted key from a malformed stage receipt", async () =
   ).rejects.toThrow("asset stage receipt key does not match");
   expect(store.discardedKeys).toEqual([expectedKey]);
   expect(store.hasStaged(untrustedKey)).toBe(true);
-  await expect(repository.list()).resolves.toEqual([]);
+  await expect(repository.list(100)).resolves.toEqual([]);
 });
 
 test.each([
@@ -284,7 +284,7 @@ test.each([
     ).rejects.toThrow();
     expect(store.verifiedReceipts).toEqual([]);
     expect(store.discardedKeys).toEqual([expectedKey]);
-    await expect(repository.list()).resolves.toEqual([]);
+    await expect(repository.list(100)).resolves.toEqual([]);
   },
 );
 
@@ -323,7 +323,7 @@ test.each([
       service.create(createInput(encoded.encode("evidence bytes"))),
     ).rejects.toBeInstanceOf(AssetStorageIntegrityError);
     expect(store.discardedKeys).toEqual([expectedKey]);
-    await expect(repository.list()).resolves.toEqual([]);
+    await expect(repository.list(100)).resolves.toEqual([]);
   },
 );
 
@@ -350,7 +350,7 @@ test("surfaces both the persistence and cleanup failures without personal metada
   expect(compensation.message).not.toContain("evidence.pdf");
   expect(compensation.message).not.toContain("evidence bytes");
   expect(store.hasStaged(expectedKey)).toBe(true);
-  await expect(repository.list()).resolves.toEqual([]);
+  await expect(repository.list(100)).resolves.toEqual([]);
 });
 
 test("rejects a non-byte input before staging", async () => {

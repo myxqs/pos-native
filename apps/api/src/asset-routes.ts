@@ -9,7 +9,10 @@ import type {
 import type { AssetService } from "../../../packages/assets/src/asset-service.ts";
 import type { AssetStore } from "../../../packages/assets/src/asset-storage.ts";
 import type { AssetMetadataRepository } from "../../../packages/database/src/asset-metadata-repository.ts";
-import { normaliseAssetMetadata } from "../../../packages/domain/src/asset.ts";
+import {
+  normaliseAssetMetadata,
+  type Asset,
+} from "../../../packages/domain/src/asset.ts";
 import {
   asNativeId,
   ValidationError,
@@ -89,7 +92,7 @@ export function registerAssetRoutes(
           source: "nativepos.browser",
           requestId: options.requestId(),
         });
-        return reply.code(201).send({ asset });
+        return reply.code(201).send({ asset: toAssetResponse(asset) });
       } catch (error) {
         if (error instanceof ValidationError) {
           return reply.code(400).send({ error: "invalid asset request" });
@@ -106,7 +109,11 @@ export function registerAssetRoutes(
       return reply.code(400).send({ error: "invalid asset query" });
     }
     try {
-      return { assets: await options.assetRepository.list(limit) };
+      return {
+        assets: (await options.assetRepository.list(limit)).map(
+          toAssetResponse,
+        ),
+      };
     } catch {
       return reply.code(500).send({ error: "asset listing failed" });
     }
@@ -189,6 +196,16 @@ function parseAssetId(params: unknown) {
   } catch {
     return null;
   }
+}
+
+function toAssetResponse(asset: Asset) {
+  return {
+    id: asset.id,
+    originalFilename: asset.originalFilename,
+    mimeType: asset.mimeType,
+    byteSize: asset.byteSize,
+    createdAt: asset.createdAt,
+  };
 }
 
 function decodeFilename(value: unknown): string {

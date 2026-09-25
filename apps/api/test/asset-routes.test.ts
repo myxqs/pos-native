@@ -23,6 +23,13 @@ const createdAsset: Asset = {
     requestId,
   },
 };
+const clientAsset = {
+  id: createdAsset.id,
+  originalFilename: createdAsset.originalFilename,
+  mimeType: createdAsset.mimeType,
+  byteSize: createdAsset.byteSize,
+  createdAt: createdAsset.createdAt,
+};
 
 function allowedAuthorizer(): PageAuthorizer {
   return async () => ({
@@ -135,7 +142,9 @@ test("creates an asset from raw bytes with server-owned audit identity", async (
   });
 
   expect(response.statusCode).toBe(201);
-  expect(response.json()).toEqual({ asset: createdAsset });
+  expect(response.json()).toEqual({ asset: clientAsset });
+  expect(response.body).not.toContain(createdAsset.storageKey);
+  expect(response.body).not.toContain(createdAsset.sha256);
   expect(create).toHaveBeenCalledWith({
     originalFilename: "synthetic proof.txt",
     mimeType: "text/plain",
@@ -305,7 +314,11 @@ test("lists assets in repository order with a default bound of 50", async () => 
   const response = await app.inject({ method: "GET", url: "/api/v1/assets" });
 
   expect(response.statusCode).toBe(200);
-  expect(response.json()).toEqual({ assets: [laterAsset, createdAsset] });
+  expect(response.json()).toEqual({
+    assets: [{ ...clientAsset, id: laterAsset.id }, clientAsset],
+  });
+  expect(response.body).not.toContain(createdAsset.storageKey);
+  expect(response.body).not.toContain(createdAsset.sha256);
   expect(list).toHaveBeenCalledWith(50);
   await app.close();
 });

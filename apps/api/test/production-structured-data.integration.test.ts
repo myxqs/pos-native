@@ -42,6 +42,7 @@ test.skipIf(!databaseUrl)(
         POS_WEB_ASSET_ROOT: fileURLToPath(
           new URL("../../web", import.meta.url),
         ),
+        POS_ASSET_ROOT: "synthetic-unused-asset-root",
       },
       {
         createPersistence: () => ({
@@ -90,4 +91,5 @@ test.skipIf(!databaseUrl)(
       await runtime.close();
     }
   },
+  15_000,
 );

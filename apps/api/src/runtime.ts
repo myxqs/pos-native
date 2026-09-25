@@ -4,17 +4,25 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { z } from "zod";
 
+import { AssetService } from "../../../packages/assets/src/asset-service.ts";
+import {
+  DEFAULT_MAX_ASSET_BYTES,
+  type AssetStore,
+} from "../../../packages/assets/src/asset-storage.ts";
+import { FilesystemAssetStore } from "../../../packages/assets/src/filesystem-asset-store.ts";
 import {
   AuthenticationService,
   type AuthenticationStore,
 } from "../../../packages/auth/src/session.ts";
 import { PostgresBlockDocumentRepository } from "../../../packages/database/src/postgres-block-document-repository.ts";
+import { PostgresAssetMetadataRepository } from "../../../packages/database/src/postgres-asset-metadata-repository.ts";
 import { PostgresDataSourceRepository } from "../../../packages/database/src/postgres-data-source-repository.ts";
 import { PostgresPageRepository } from "../../../packages/database/src/postgres-page-repository.ts";
 import { createPostgresAuthenticationStore } from "../../../packages/database/src/postgres-authentication-store.ts";
 import type { BlockDocumentRepository } from "../../../packages/database/src/block-document-repository.ts";
 import type { PageRepository } from "../../../packages/database/src/page-repository.ts";
 import type { DataSourceRepository } from "../../../packages/database/src/data-source-repository.ts";
+import type { AssetMetadataRepository } from "../../../packages/database/src/asset-metadata-repository.ts";
 import * as schema from "../../../packages/database/src/schema.ts";
 import type { BlockDocumentDependencies } from "../../../packages/domain/src/block-document.ts";
 import type { CreatePageDependencies } from "../../../packages/domain/src/page.ts";
@@ -32,6 +40,13 @@ const runtimeEnvironmentSchema = z.object({
       { message: "must be a PostgreSQL URL" },
     ),
   POS_WEB_ASSET_ROOT: z.string().trim().min(1),
+  POS_ASSET_ROOT: z.string().trim().min(1),
+  POS_MAX_ASSET_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .refine(Number.isSafeInteger)
+    .optional(),
   POS_LISTEN_HOST: z.enum(["127.0.0.1", "::1", "0.0.0.0", "::"]).optional(),
   POS_PORT: z.coerce.number().int().min(1).max(65_535).optional(),
 });
@@ -39,6 +54,8 @@ const runtimeEnvironmentSchema = z.object({
 export interface RuntimeConfiguration {
   readonly databaseUrl: string;
   readonly webAssetRoot: string;
+  readonly assetRoot: string;
+  readonly maxAssetBytes: number;
   readonly host: "127.0.0.1" | "::1" | "0.0.0.0" | "::";
   readonly port: number;
 }
@@ -48,6 +65,7 @@ export interface RuntimePersistence {
   readonly pageRepository: PageRepository;
   readonly blockDocumentRepository: BlockDocumentRepository;
   readonly dataSourceRepository?: DataSourceRepository;
+  readonly assetMetadataRepository?: AssetMetadataRepository;
   close(): Promise<void>;
 }
 
@@ -59,6 +77,9 @@ export interface RuntimeDependencies {
   readonly randomToken?: () => string;
   readonly sessionId?: () => string;
   readonly newId?: () => string;
+  readonly createAssetStore?: (
+    configuration: RuntimeConfiguration,
+  ) => Promise<AssetStore>;
 }
 
 export interface ProductionRuntime {
@@ -78,6 +99,8 @@ export function parseRuntimeConfiguration(
   return {
     databaseUrl: parsed.data.DATABASE_URL,
     webAssetRoot: parsed.data.POS_WEB_ASSET_ROOT,
+    assetRoot: parsed.data.POS_ASSET_ROOT,
+    maxAssetBytes: parsed.data.POS_MAX_ASSET_BYTES ?? DEFAULT_MAX_ASSET_BYTES,
     host: parsed.data.POS_LISTEN_HOST ?? "127.0.0.1",
     port: parsed.data.POS_PORT ?? 3000,
   };
@@ -95,6 +118,11 @@ export async function createProductionRuntime(
   const newId = dependencies.newId ?? randomUUID;
 
   try {
+    const assetStore = persistence.assetMetadataRepository
+      ? await (dependencies.createAssetStore ?? createFilesystemAssetStore)(
+          configuration,
+        )
+      : undefined;
     const app = buildApp({
       authenticationService: new AuthenticationService(
         persistence.authenticationStore,
@@ -115,6 +143,20 @@ export async function createProductionRuntime(
         ? {
             dataSourceRepository: persistence.dataSourceRepository,
             dataSourceDependencies: { newId, now },
+          }
+        : {}),
+      ...(persistence.assetMetadataRepository && assetStore
+        ? {
+            assetService: new AssetService({
+              assetStore,
+              assetRepository: persistence.assetMetadataRepository,
+              newId,
+              now,
+            }),
+            assetRepository: persistence.assetMetadataRepository,
+            assetStore,
+            assetRequestId: newId,
+            maxAssetBytes: configuration.maxAssetBytes,
           }
         : {}),
       secureCookies: true,
@@ -166,10 +208,19 @@ function createPostgresPersistence(
     pageRepository: new PostgresPageRepository(database),
     blockDocumentRepository: new PostgresBlockDocumentRepository(database),
     dataSourceRepository: new PostgresDataSourceRepository(database),
+    assetMetadataRepository: new PostgresAssetMetadataRepository(database),
     async close(): Promise<void> {
       await pool.end();
     },
   };
+}
+
+function createFilesystemAssetStore(
+  configuration: RuntimeConfiguration,
+): Promise<AssetStore> {
+  return FilesystemAssetStore.create(configuration.assetRoot, {
+    maxBytes: configuration.maxAssetBytes,
+  });
 }
 
 function secureToken(): string {

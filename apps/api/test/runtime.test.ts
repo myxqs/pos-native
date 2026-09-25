@@ -4,7 +4,9 @@ import { createServer } from "node:net";
 import { expect, test, vi } from "vitest";
 
 import { hashPassword } from "../../../packages/auth/src/password.ts";
+import type { AssetStore } from "../../../packages/assets/src/asset-storage.ts";
 import { InMemoryAuthenticationStore } from "../../../packages/auth/src/session.ts";
+import { InMemoryAssetMetadataRepository } from "../../../packages/database/src/asset-metadata-repository.ts";
 import { InMemoryBlockDocumentRepository } from "../../../packages/database/src/block-document-repository.ts";
 import { InMemoryDataSourceRepository } from "../../../packages/database/src/data-source-repository.ts";
 import { InMemoryPageRepository } from "../../../packages/database/src/page-repository.ts";
@@ -22,6 +24,7 @@ function runtimeEnvironment(
 ): NodeJS.ProcessEnv {
   return {
     DATABASE_URL: "postgresql://pos_native:password@localhost:5432/pos_native",
+    POS_ASSET_ROOT: "synthetic-asset-root",
     POS_WEB_ASSET_ROOT: webAssetRoot,
     ...overrides,
   };
@@ -36,6 +39,28 @@ test("rejects missing or unsafe runtime configuration before composing services"
       runtimeEnvironment({ DATABASE_URL: "https://database.example.test" }),
     ),
   ).toThrow("NativePOS runtime configuration is invalid");
+  expect(() =>
+    parseRuntimeConfiguration(runtimeEnvironment({ POS_ASSET_ROOT: "   " })),
+  ).toThrow("NativePOS runtime configuration is invalid");
+  for (const value of ["0", "-1", "1.5", "9007199254740992", "nope"]) {
+    expect(() =>
+      parseRuntimeConfiguration(
+        runtimeEnvironment({ POS_MAX_ASSET_BYTES: value }),
+      ),
+    ).toThrow("NativePOS runtime configuration is invalid");
+  }
+});
+
+test("defaults the asset byte limit and accepts a positive safe override", () => {
+  expect(parseRuntimeConfiguration(runtimeEnvironment())).toMatchObject({
+    assetRoot: "synthetic-asset-root",
+    maxAssetBytes: 50 * 1024 * 1024,
+  });
+  expect(
+    parseRuntimeConfiguration(
+      runtimeEnvironment({ POS_MAX_ASSET_BYTES: "4096" }),
+    ),
+  ).toMatchObject({ maxAssetBytes: 4096 });
 });
 
 test("defaults to loopback and accepts only explicit private deployment listeners", () => {
@@ -69,6 +94,7 @@ test("composes persistent services into secure authenticated page routes", async
     pageRepository: new InMemoryPageRepository(),
     blockDocumentRepository: new InMemoryBlockDocumentRepository(),
     dataSourceRepository: new InMemoryDataSourceRepository(),
+    assetMetadataRepository: new InMemoryAssetMetadataRepository(),
     close: vi.fn(async () => undefined),
   };
   const createPersistence = vi.fn(() => persistence);
@@ -79,6 +105,7 @@ test("composes persistent services into secure authenticated page routes", async
     randomToken: () => tokens.shift() ?? "",
     sessionId: () => "22222222-2222-4222-8222-222222222222",
     newId: () => "33333333-3333-4333-8333-333333333333",
+    createAssetStore: async () => inMemoryAssetStore(),
   });
 
   const login = await runtime.app.inject({
@@ -106,12 +133,44 @@ test("composes persistent services into secure authenticated page routes", async
   expect(session?.secure).toBe(true);
   expect(created.statusCode).toBe(201);
   expect(collection.statusCode).toBe(201);
+  const uploaded = await runtime.app.inject({
+    method: "POST",
+    url: "/api/v1/assets",
+    headers: {
+      cookie: cookieHeader,
+      "x-pos-csrf": csrf?.value ?? "",
+      "content-type": "application/octet-stream",
+      "x-nativepos-filename": "runtime.txt",
+      "x-nativepos-media-type": "text/plain",
+    },
+    payload: Buffer.from("proof"),
+  });
+  expect(uploaded.statusCode).toBe(201);
   expect(createPersistence).toHaveBeenCalledWith(
     expect.objectContaining({
       databaseUrl: "postgresql://pos_native:password@localhost:5432/pos_native",
     }),
   );
   await runtime.close();
+  expect(persistence.close).toHaveBeenCalledOnce();
+});
+test("closes persistence when asset storage construction fails", async () => {
+  const persistence: RuntimePersistence = {
+    authenticationStore: new InMemoryAuthenticationStore([]),
+    pageRepository: new InMemoryPageRepository(),
+    blockDocumentRepository: new InMemoryBlockDocumentRepository(),
+    assetMetadataRepository: new InMemoryAssetMetadataRepository(),
+    close: vi.fn(async () => undefined),
+  };
+
+  await expect(
+    createProductionRuntime(runtimeEnvironment(), {
+      createPersistence: () => persistence,
+      createAssetStore: async () => {
+        throw new Error("asset root unavailable");
+      },
+    }),
+  ).rejects.toThrow("asset root unavailable");
   expect(persistence.close).toHaveBeenCalledOnce();
 });
 test("closes persistence when the configured listener cannot start", async () => {
@@ -129,13 +188,17 @@ test("closes persistence when the configured listener cannot start", async () =>
     authenticationStore: new InMemoryAuthenticationStore([]),
     pageRepository: new InMemoryPageRepository(),
     blockDocumentRepository: new InMemoryBlockDocumentRepository(),
+    assetMetadataRepository: new InMemoryAssetMetadataRepository(),
     close: vi.fn(async () => undefined),
   };
   try {
     await expect(
       startProductionRuntime(
         runtimeEnvironment({ POS_PORT: String(address.port) }),
-        { createPersistence: () => persistence },
+        {
+          createPersistence: () => persistence,
+          createAssetStore: async () => inMemoryAssetStore(),
+        },
       ),
     ).rejects.toThrow();
     expect(persistence.close).toHaveBeenCalledOnce();
@@ -150,14 +213,51 @@ test("closes persistence when web application composition fails", async () => {
     authenticationStore: new InMemoryAuthenticationStore([]),
     pageRepository: new InMemoryPageRepository(),
     blockDocumentRepository: new InMemoryBlockDocumentRepository(),
+    assetMetadataRepository: new InMemoryAssetMetadataRepository(),
     close: vi.fn(async () => undefined),
   };
 
   await expect(
     createProductionRuntime(
       runtimeEnvironment({ POS_WEB_ASSET_ROOT: "missing-nativepos-web-root" }),
-      { createPersistence: () => persistence },
+      {
+        createPersistence: () => persistence,
+        createAssetStore: async () => inMemoryAssetStore(),
+      },
     ),
   ).rejects.toThrow("NativePOS web assets are unavailable");
   expect(persistence.close).toHaveBeenCalledOnce();
 });
+
+function inMemoryAssetStore(): AssetStore {
+  const bytesByKey = new Map<string, Uint8Array>();
+  return {
+    async stage(input) {
+      const storageKey = `asset-${input.id}` as Awaited<
+        ReturnType<AssetStore["stage"]>
+      >["storageKey"];
+      const bytes = Uint8Array.from(input.bytes);
+      bytesByKey.set(storageKey, bytes);
+      return {
+        id: input.id,
+        originalFilename: input.originalFilename,
+        mimeType: input.mimeType,
+        storageKey,
+        byteSize: bytes.byteLength,
+        sha256:
+          "c1cda26362828b69266512052b97cb3729e3b052e4ade47c0a1e3383defe73c7",
+      };
+    },
+    async read(storageKey) {
+      const bytes = bytesByKey.get(storageKey);
+      if (!bytes) throw new Error("missing asset");
+      return Uint8Array.from(bytes);
+    },
+    async verify() {
+      return true;
+    },
+    async discard(storageKey) {
+      bytesByKey.delete(storageKey);
+    },
+  };
+}

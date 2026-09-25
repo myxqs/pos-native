@@ -46,6 +46,11 @@ export interface FilesystemBackupLocation {
   readonly manifest: BackupManifest;
 }
 
+export interface VerifiedDatabaseDump {
+  readonly manifest: BackupManifest;
+  readonly bytes: Uint8Array;
+}
+
 function isMissingFile(error: unknown): boolean {
   return (error as NodeJS.ErrnoException).code === "ENOENT";
 }
@@ -532,6 +537,29 @@ export async function verifyFilesystemBackup(
   }
 
   return manifest;
+}
+
+export async function readVerifiedDatabaseDump(
+  configuredRoot: string,
+  requestedBackupId: NativeId,
+  options: BackupOperationOptions,
+): Promise<VerifiedDatabaseDump> {
+  const maxArtifactBytes = requireMaxArtifactBytes(options);
+  const backupId = asNativeId(requestedBackupId);
+  const manifest = await verifyFilesystemBackup(
+    configuredRoot,
+    backupId,
+    options,
+  );
+  const backupRoot = await canonicalBackupRoot(configuredRoot, false);
+  const directory = await requireBackupDirectory(backupRoot, backupId);
+  const bytes = await readVerifiedArtifact(
+    directory,
+    manifest.database,
+    maxArtifactBytes,
+  );
+
+  return { manifest, bytes };
 }
 
 export async function restoreFilesystemBackup(

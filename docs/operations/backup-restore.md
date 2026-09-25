@@ -7,7 +7,9 @@ synthetic fixture-backed proof service in `packages/backup`. On 2026-09-25, the
 currently reachable PostgreSQL application state also passed a disposable
 operator rehearsal with `pg_dump`/`pg_restore`, manifest verification, database
 readback, and a loopback-only application restart. This is recovery evidence,
-not yet a packaged production backup command.
+not a production backup service. A local Docker operator command now packages
+that procedure with bounded output, manifest verification, no-overwrite backup
+publication, and a mandatory clean-target check before restore.
 
 Each backup uses a generated `backup-<native-uuid>` directory with only these
 fixed paths:
@@ -34,6 +36,8 @@ createFilesystemBackup(backupRoot, source, options);
 listFilesystemBackups(backupRoot);
 verifyFilesystemBackup(backupRoot, backupId, options);
 restoreFilesystemBackup(sourceRoot, backupId, targetRoot, options);
+createPostgresDatabaseBackup(backupRoot, driver, metadata, options);
+restorePostgresDatabaseBackup(backupRoot, backupId, driver, options);
 ```
 
 - `createFilesystemBackup` accepts opaque source bytes and canonical asset
@@ -49,11 +53,60 @@ restoreFilesystemBackup(sourceRoot, backupId, targetRoot, options);
   copies the opaque artifacts into the same fixed layout, writes the manifest
   last, and verifies the resulting directory.
 
-The programmatic restore result remains a clean filesystem proof containing an
-opaque database-dump artifact. It does not run a database restore. The live
-rehearsal below deliberately invoked PostgreSQL's tools separately, preserving
-the existing source-port boundary rather than adding a Docker-specific runtime
-dependency to the application.
+The filesystem restore result remains a clean copy proof containing an opaque
+database-dump artifact. The PostgreSQL operator verifies that artifact, refuses
+a target containing user schemas or objects, and only then sends the bytes to
+`pg_restore --exit-on-error --single-transaction`. Docker-specific mechanics
+remain outside the application runtime behind `DockerPostgresBackupDriver`.
+
+## Local PostgreSQL operator
+
+Build before invoking the script, or use `npm run recovery:postgres -- ...`,
+which builds first. The command uses `docker exec` with argument arrays and
+`shell: false`. It does not accept a database URL or password and does not emit
+PostgreSQL command errors, credentials, or dump bytes. The named container must
+already provide local PostgreSQL authentication for the named synthetic role.
+
+Backup into a new destination:
+
+```powershell
+npm run build
+node scripts/postgres-recovery.mjs backup `
+  --container <disposable-container> `
+  --database <synthetic-source-database> `
+  --user <synthetic-role> `
+  --backup-root <private-new-backup-root> `
+  --max-bytes 10485760 `
+  --schema-version 0007 `
+  --application-version 0.1.0
+```
+
+Verify without contacting PostgreSQL:
+
+```powershell
+node scripts/postgres-recovery.mjs verify `
+  --backup-root <private-backup-root> `
+  --backup-id <backup-uuid> `
+  --max-bytes 10485760
+```
+
+Restore only after separately creating a fresh, empty target database:
+
+```powershell
+node scripts/postgres-recovery.mjs restore `
+  --container <disposable-container> `
+  --database <fresh-empty-target-database> `
+  --user <synthetic-role> `
+  --backup-root <private-backup-root> `
+  --backup-id <backup-uuid> `
+  --max-bytes 10485760
+```
+
+The operator never creates, drops, empties, or overwrites a database. Its guard
+rejects targets containing user relations, functions, composite types, domains,
+enums, ranges, multiranges, or non-public user schemas before dump bytes are
+supplied to `pg_restore`. Restore itself is one transaction, so a command error
+cannot publish a partial PostgreSQL restore.
 
 ## 2026-09-25 disposable PostgreSQL rehearsal
 
@@ -101,6 +154,19 @@ The exercise did not place credentials in the repository, did not contact
 Notion, and did not modify a canonical or production database. It used a fresh
 target and never overwrote a backup destination.
 
+The packaged operator was separately accepted on 2026-09-25. It produced
+backup `bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb` (39,606 bytes, database SHA-256
+`4e3c2329e1ac28fe139b3c6f9eaf3b7d32d25c31e04b855035538361974e6489`,
+manifest SHA-256
+`27480c44ac36dc3f1f6fa9bf8391f6281efe87124ee7cf77a241bfadd8935a49`).
+All fifteen canonical tables had identical row counts and deterministic row
+hashes after clean restore. A duplicate backup failed while leaving the
+original manifest unchanged. A second restore into the populated target failed
+while leaving its page count, audit hash, revision count, and session count
+unchanged. Migrations remained compatible, the database container restarted,
+and the loopback application accepted the restored session and retrieved the
+restored page tree and structured record at property revision 3.
+
 ## Current evidence and operational boundary
 
 The test suite covers deterministic manifest ordering/checksums, malformed and
@@ -117,20 +183,16 @@ storage; no cloud provider is required by this format.
 
 The following remain outside the accepted boundary:
 
-1. A packaged, tested PostgreSQL backup/restore adapter. The verified rehearsal
-   used PostgreSQL tools inside the disposable container because this Windows
-   host has no `pg_dump` or `pg_restore` executable.
-2. Programmatic refusal of a non-empty database restore target. The rehearsal
-   used a fresh target but did not add or validate an automated emptiness guard.
-3. Asset-byte recovery and database/filesystem cross-integrity. The reachable
+1. Asset-byte recovery and database/filesystem cross-integrity. The reachable
    product state currently has asset metadata only; its synthetic metadata row
    was restored, but no corresponding asset byte was claimed or fabricated.
-4. An explicit encrypted/offline backup policy and a production operator
+2. An explicit encrypted/offline backup policy and a production operator
    rehearsal, including a decision about active session/token lifecycle.
-5. Linux deployment/permission acceptance and the later migration/cutover
+3. Native `pg_dump`/`pg_restore` acceptance outside the disposable Docker
+   boundary; this Windows host has no PostgreSQL client executables installed.
+4. Linux deployment/permission acceptance and the later migration/cutover
    gates. Notion remains canonical throughout all of these steps.
 
-No current backup command connects to PostgreSQL, invokes a shell utility, or
-handles production credentials. A backup is never accepted solely because a
-creation operation returned successfully; the relevant verification and clean
-restore gates must also pass.
+The local operator does not handle production credentials or invoke a shell. A
+backup is never accepted solely because creation returned successfully; the
+verification and clean-restore gates must also pass.

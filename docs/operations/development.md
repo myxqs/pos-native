@@ -13,8 +13,8 @@ $env:TEST_DATABASE_URL = "postgresql://pos_native:password@localhost:5432/pos_na
 npm test -- packages/database/test/postgres-page-repository.integration.test.ts packages/database/test/postgres-block-document-repository.integration.test.ts packages/database/test/postgres-asset-metadata-repository.integration.test.ts --no-file-parallelism
 ```
 
-Without `TEST_DATABASE_URL`, thirteen integration tests across those three
-files are skipped. Do not claim restart persistence or transactional PostgreSQL
+Without `TEST_DATABASE_URL`, seventeen integration tests across four files are
+skipped. Do not claim restart persistence or transactional PostgreSQL
 verification from the in-memory repository tests.
 
 ## Block-document schema migration preflight

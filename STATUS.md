@@ -66,6 +66,14 @@ remain later gates.
   loopback application then accepted the preserved synthetic session and read
   the restored workspace. A later PostgreSQL container restart retained the
   same counts, and a second application process again accepted that session.
+- Packaged local PostgreSQL recovery operator: shell-free bounded Docker
+  commands create and manifest-verify custom dumps, reject duplicate backup
+  destinations, verify artifacts offline, refuse non-empty database targets
+  before mutation, and restore only with `pg_restore --exit-on-error
+--single-transaction`. Live
+  acceptance compared counts and deterministic row hashes for all fifteen
+  canonical tables and exercised both refusal paths without changing accepted
+  state.
 - Canonical asset metadata foundation: generated native asset identities and
   opaque keys, bounded provenance, metadata-only creation revision/audit
   envelopes, in-memory rollback-shaped repository coverage, a PostgreSQL
@@ -111,9 +119,9 @@ remain later gates.
 
 ## In progress
 
-- Recovery is operationally rehearsed but not yet packaged as a production
-  PostgreSQL adapter. Asset-byte recovery cannot be accepted until the product
-  exposes a bounded attachment flow that creates real asset bytes and metadata.
+- Database recovery is packaged and locally rehearsed. Asset-byte recovery
+  cannot be accepted until the product exposes a bounded attachment flow that
+  creates real asset bytes and metadata.
 
 ## Canonical and repository boundaries
 
@@ -130,9 +138,9 @@ remain later gates.
 ## Verification state
 
 - npm run verify: PASS on 2026-09-25 — formatting, lint, strict typecheck, and
-  232 tests passed; 17 opt-in PostgreSQL tests were skipped because the standard
+  243 tests passed; 17 opt-in PostgreSQL tests were skipped because the standard
   command does not set TEST_DATABASE_URL.
-- Live PostgreSQL suite: PASS on 2026-09-25 — all 249 tests passed across 31
+- Live PostgreSQL suite: PASS on 2026-09-25 — all 260 tests passed across 34
   files with TEST_DATABASE_URL and `--no-file-parallelism`.
 - npm run db:generate and npm run db:migrate: PASS on 2026-09-25 — fifteen
   tables inspected, no schema drift found, and migrations applied successfully
@@ -149,8 +157,8 @@ remain later gates.
 
 ## Known failures / blockers
 
-- The live recovery proof remains an operator rehearsal, not a packaged backup
-  command. It does not yet enforce refusal of a non-empty database target.
+- The packaged recovery operator is deliberately local and Docker-scoped; it is
+  not an encrypted, scheduled, or production credential-management service.
 - A synthetic hashed session survived the dump/restore and application restart
   and was accepted in a real browser. Production session/token lifecycle policy
   for backups remains undecided; no personal owner credentials were used.
@@ -201,11 +209,9 @@ remain later gates.
 
 ## Exact next action
 
-Package the verified PostgreSQL recovery procedure behind an explicit operator
-boundary with a non-empty-target guard, or first implement the bounded local
-asset attachment flow needed to prove asset-byte recovery. Do not begin Notion
-work. Retain loopback-only deployment and synthetic data until the Usable
-Product Gate.
+Implement the bounded local asset attachment flow needed to prove asset-byte
+integrity and recovery end to end. Do not begin Notion work. Retain
+loopback-only deployment and synthetic data until the Usable Product Gate.
 
 ## Commands to resume
 

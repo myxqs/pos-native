@@ -4,6 +4,8 @@ import rateLimit from "@fastify/rate-limit";
 import Fastify, { type FastifyInstance } from "fastify";
 import type { AuthenticationService } from "../../../packages/auth/src/session.ts";
 import type { AssetService } from "../../../packages/assets/src/asset-service.ts";
+import type { AssetStore } from "../../../packages/assets/src/asset-storage.ts";
+import type { AssetMetadataRepository } from "../../../packages/database/src/asset-metadata-repository.ts";
 import type { BlockDocumentRepository } from "../../../packages/database/src/block-document-repository.ts";
 import type { DataSourceRepository } from "../../../packages/database/src/data-source-repository.ts";
 import type { DataSourceDependencies } from "../../../packages/domain/src/data-source.ts";
@@ -32,6 +34,8 @@ export interface AppOptions {
   readonly dataSourceRepository?: DataSourceRepository;
   readonly dataSourceDependencies?: DataSourceDependencies;
   readonly assetService?: Pick<AssetService, "create">;
+  readonly assetRepository?: AssetMetadataRepository;
+  readonly assetStore?: AssetStore;
   readonly assetRequestId?: () => string;
   readonly maxAssetBytes?: number;
   readonly authorize?: PageAuthorizer;
@@ -109,12 +113,16 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
   }
   if (
     options.assetService &&
+    options.assetRepository &&
+    options.assetStore &&
     options.assetRequestId &&
     options.maxAssetBytes &&
     authorize
   ) {
     registerAssetRoutes(app, {
       assetService: options.assetService,
+      assetRepository: options.assetRepository,
+      assetStore: options.assetStore,
       requestId: options.assetRequestId,
       maxAssetBytes: options.maxAssetBytes,
       authorize,

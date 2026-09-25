@@ -1,6 +1,8 @@
 import { expect, test, vi } from "vitest";
 
 import type { Asset } from "../../../packages/domain/src/asset.ts";
+import type { AssetStore } from "../../../packages/assets/src/asset-storage.ts";
+import type { AssetMetadataRepository } from "../../../packages/database/src/asset-metadata-repository.ts";
 import { asNativeId } from "../../../packages/domain/src/ids.ts";
 import { buildApp } from "../src/app.ts";
 import type { PageAuthorizer } from "../src/page-routes.ts";
@@ -12,7 +14,7 @@ const createdAsset: Asset = {
   originalFilename: "synthetic proof.txt",
   mimeType: "text/plain",
   byteSize: 5,
-  sha256: "a".repeat(64),
+  sha256: "c1cda26362828b69266512052b97cb3729e3b052e4ade47c0a1e3383defe73c7",
   storageKey: `asset-${assetId}` as Asset["storageKey"],
   createdAt: "2026-09-25T10:00:00.000Z",
   provenance: {
@@ -23,17 +25,14 @@ const createdAsset: Asset = {
 };
 
 function allowedAuthorizer(): PageAuthorizer {
-  return async (_request, requireCsrf) => {
-    if (!requireCsrf) throw new Error("asset upload must require CSRF");
-    return {
-      ok: true,
-      actor: {
-        actorType: "user",
-        actorId: "session-user",
-        source: "human-ui",
-      },
-    };
-  };
+  return async () => ({
+    ok: true,
+    actor: {
+      actorType: "user",
+      actorId: "session-user",
+      source: "human-ui",
+    },
+  });
 }
 
 function assetApp(
@@ -41,16 +40,34 @@ function assetApp(
     readonly authorize?: PageAuthorizer;
     readonly maxAssetBytes?: number;
     readonly create?: (input: unknown) => Promise<Asset>;
+    readonly list?: AssetMetadataRepository["list"];
+    readonly getById?: AssetMetadataRepository["getById"];
+    readonly read?: AssetStore["read"];
   } = {},
 ) {
   const create = vi.fn(options.create ?? (async () => createdAsset));
+  const list = vi.fn(options.list ?? (async () => [createdAsset]));
+  const getById = vi.fn(
+    options.getById ??
+      (async () => ({ asset: createdAsset, revisionNumber: 1 })),
+  );
+  const read = vi.fn(
+    options.read ?? (async () => new Uint8Array(Buffer.from("proof"))),
+  );
   const app = buildApp({
     authorize: options.authorize ?? allowedAuthorizer(),
     assetService: { create },
     assetRequestId: () => requestId,
     maxAssetBytes: options.maxAssetBytes ?? 16,
+    assetRepository: { create, list, getById },
+    assetStore: {
+      stage: vi.fn(),
+      read,
+      verify: vi.fn(),
+      discard: vi.fn(),
+    },
   });
-  return { app, create };
+  return { app, create, list, getById, read };
 }
 
 const validHeaders = {
@@ -257,5 +274,152 @@ test("does not expose asset persistence failures", async () => {
   expect(response.statusCode).toBe(500);
   expect(response.json()).toEqual({ error: "asset creation failed" });
   expect(response.body).not.toContain("database path");
+  await app.close();
+});
+
+test("requires authentication before listing assets", async () => {
+  const authorize: PageAuthorizer = async (_request, requireCsrf) => {
+    expect(requireCsrf).toBe(false);
+    return {
+      ok: false,
+      statusCode: 401,
+      error: "authentication required",
+    };
+  };
+  const { app, list } = assetApp({ authorize });
+
+  const response = await app.inject({ method: "GET", url: "/api/v1/assets" });
+
+  expect(response.statusCode).toBe(401);
+  expect(response.json()).toEqual({ error: "authentication required" });
+  expect(list).not.toHaveBeenCalled();
+  await app.close();
+});
+
+test("lists assets in repository order with a default bound of 50", async () => {
+  const laterAsset = { ...createdAsset, id: requestId };
+  const { app, list } = assetApp({
+    list: async () => [laterAsset, createdAsset],
+  });
+
+  const response = await app.inject({ method: "GET", url: "/api/v1/assets" });
+
+  expect(response.statusCode).toBe(200);
+  expect(response.json()).toEqual({ assets: [laterAsset, createdAsset] });
+  expect(list).toHaveBeenCalledWith(50);
+  await app.close();
+});
+
+test.each([1, 100])("accepts asset list limit %i", async (limit) => {
+  const { app, list } = assetApp();
+  const response = await app.inject({
+    method: "GET",
+    url: `/api/v1/assets?limit=${limit}`,
+  });
+
+  expect(response.statusCode).toBe(200);
+  expect(list).toHaveBeenCalledWith(limit);
+  await app.close();
+});
+
+test.each(["0", "101", "1.5", "nope", "1&limit=2"])(
+  "rejects invalid asset list limit %s",
+  async (query) => {
+    const { app, list } = assetApp();
+    const response = await app.inject({
+      method: "GET",
+      url: `/api/v1/assets?limit=${query}`,
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ error: "invalid asset query" });
+    expect(list).not.toHaveBeenCalled();
+    await app.close();
+  },
+);
+
+test("validates the native asset ID before download lookup", async () => {
+  const { app, getById, read } = assetApp();
+  const response = await app.inject({
+    method: "GET",
+    url: "/api/v1/assets/not-an-id/content",
+  });
+
+  expect(response.statusCode).toBe(400);
+  expect(response.json()).toEqual({ error: "invalid asset ID" });
+  expect(getById).not.toHaveBeenCalled();
+  expect(read).not.toHaveBeenCalled();
+  await app.close();
+});
+
+test("returns 404 without reading storage when asset metadata is absent", async () => {
+  const { app, read } = assetApp({ getById: async () => null });
+  const response = await app.inject({
+    method: "GET",
+    url: `/api/v1/assets/${assetId}/content`,
+  });
+
+  expect(response.statusCode).toBe(404);
+  expect(response.json()).toEqual({ error: "asset not found" });
+  expect(read).not.toHaveBeenCalled();
+  await app.close();
+});
+
+test("returns integrity-verified bytes with fixed safe attachment headers", async () => {
+  const { app, getById, read } = assetApp();
+  const response = await app.inject({
+    method: "GET",
+    url: `/api/v1/assets/${assetId}/content`,
+  });
+
+  expect(response.statusCode).toBe(200);
+  expect(response.rawPayload).toEqual(Buffer.from("proof"));
+  expect(response.headers["content-type"]).toBe("application/octet-stream");
+  expect(response.headers["x-content-type-options"]).toBe("nosniff");
+  expect(response.headers["content-length"]).toBe("5");
+  expect(response.headers["content-disposition"]).toBe(
+    `attachment; filename="asset-${assetId}"`,
+  );
+  expect(getById).toHaveBeenCalledWith(assetId);
+  expect(read).toHaveBeenCalledWith(createdAsset.storageKey);
+  await app.close();
+});
+
+test.each([
+  ["missing storage", new Error("ENOENT C:\\secret\\asset")],
+  ["changed storage", new Error("asset changed during read")],
+  ["symlinked storage", new Error("asset is a symlink")],
+] as const)("fails closed for %s", async (_label, failure) => {
+  const { app } = assetApp({
+    read: async () => {
+      throw failure;
+    },
+  });
+  const response = await app.inject({
+    method: "GET",
+    url: `/api/v1/assets/${assetId}/content`,
+  });
+
+  expect(response.statusCode).toBe(409);
+  expect(response.json()).toEqual({ error: "asset integrity check failed" });
+  expect(response.body).not.toContain(failure.message);
+  await app.close();
+});
+
+test.each([
+  ["oversized", new Uint8Array(Buffer.from("proof!"))],
+  ["truncated", new Uint8Array(Buffer.from("proo"))],
+  ["checksum mismatched", new Uint8Array(Buffer.from("other"))],
+] as const)("fails closed for %s bytes", async (_label, bytes) => {
+  const { app } = assetApp({ read: async () => bytes });
+  const response = await app.inject({
+    method: "GET",
+    url: `/api/v1/assets/${assetId}/content`,
+  });
+
+  expect(response.statusCode).toBe(409);
+  expect(response.json()).toEqual({ error: "asset integrity check failed" });
+  expect(response.body).not.toContain(createdAsset.sha256);
+  expect(response.body).not.toContain(createdAsset.originalFilename);
   await app.close();
 });

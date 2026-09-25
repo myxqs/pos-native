@@ -8,6 +8,10 @@ export interface BrowserElement {
   textContent: string;
   type: string;
   value: string;
+  files?: readonly File[];
+  download?: string;
+  href?: string;
+  click(): void;
   addEventListener(
     type: string,
     listener: (event: BrowserEvent) => void | Promise<void>,
@@ -174,6 +178,27 @@ export function removeRecordRelationRequest(
 ): Promise<BrowserRecord>;
 
 export function getSessionRequest(apiFetch: typeof fetch): Promise<boolean>;
+
+export interface BrowserAsset {
+  readonly id: string;
+  readonly originalFilename: string;
+  readonly mimeType: string;
+  readonly byteSize: number;
+  readonly createdAt: string;
+}
+
+export function getAssetsRequest(
+  apiFetch: typeof fetch,
+): Promise<readonly BrowserAsset[]>;
+export function uploadAssetRequest(
+  apiFetch: typeof fetch,
+  file: File,
+  csrfToken: string,
+): Promise<BrowserAsset>;
+export function downloadAssetRequest(
+  apiFetch: typeof fetch,
+  id: string,
+): Promise<Blob>;
 
 export function loginRequest(
   apiFetch: typeof fetch,

@@ -12,11 +12,13 @@ import {
   createPageRequest,
   createRecordRequest,
   getDataSourcesRequest,
+  getAssetsRequest,
   getBlockDocumentRequest,
   getPageListRequest,
   getSessionRequest,
   loginRequest,
   logoutRequest,
+  downloadAssetRequest,
   movePageRequest,
   pageTreeFromPages,
   restorePageRequest,
@@ -25,6 +27,7 @@ import {
   startBrowserApp,
   updateBlockDocumentRequest,
   updatePageRequest,
+  uploadAssetRequest,
 } from "../../web/app.js";
 import { buildApp } from "../src/app.ts";
 
@@ -36,6 +39,10 @@ class FakeElement implements BrowserElement {
   textContent = "";
   type = "";
   value = "";
+  files: File[] = [];
+  download = "";
+  href = "";
+  clickCount = 0;
   #listeners = new Map<
     string,
     (event: { preventDefault(): void }) => void | Promise<void>
@@ -54,6 +61,10 @@ class FakeElement implements BrowserElement {
 
   append(child: FakeElement): void {
     this.children.push(child);
+  }
+
+  click(): void {
+    this.clickCount += 1;
   }
 
   async emit(type: string): Promise<void> {
@@ -76,9 +87,10 @@ function element(
   return result;
 }
 
-function createBrowserDocument(): {
+function createBrowserDocument(includeAssets = false): {
   documentObject: BrowserDocument;
   elements: Record<string, FakeElement>;
+  createdElements: FakeElement[];
 } {
   const selectors = [
     "#login-panel",
@@ -111,16 +123,30 @@ function createBrowserDocument(): {
     "#empty-state",
     "#status",
   ];
+  if (includeAssets) {
+    selectors.push(
+      "#asset-file",
+      "#upload-asset",
+      "#asset-list",
+      "#asset-status",
+    );
+  }
   const elements: Record<string, FakeElement> = Object.fromEntries(
     selectors.map((selector) => [selector, new FakeElement()]),
   );
+  const createdElements: FakeElement[] = [];
   return {
     documentObject: {
       cookie: "pos_csrf=csrf-token",
-      createElement: (tagName: string) => new FakeElement(tagName),
+      createElement: (tagName: string) => {
+        const created = new FakeElement(tagName);
+        createdElements.push(created);
+        return created;
+      },
       querySelector: (selector: string) => elements[selector] ?? null,
     },
     elements,
+    createdElements,
   };
 }
 
@@ -162,6 +188,192 @@ function archivedPage(
     title,
   };
 }
+
+const browserAsset = {
+  id: "11111111-1111-4111-8111-111111111111",
+  originalFilename: "<unsafe>.txt",
+  mimeType: "text/plain",
+  byteSize: 5,
+  createdAt: "2026-09-25T12:00:00.000Z",
+};
+
+test("browser asset helpers use bounded authenticated raw-byte requests", async () => {
+  const file = new File(["proof"], "proof notes.txt", { type: "text/plain" });
+  const apiFetch = vi
+    .fn()
+    .mockResolvedValueOnce(jsonResponse({ assets: [browserAsset] }))
+    .mockResolvedValueOnce(jsonResponse({ asset: browserAsset }, 201))
+    .mockResolvedValueOnce(
+      new Response("proof", {
+        headers: { "content-type": "application/octet-stream" },
+      }),
+    );
+
+  await expect(getAssetsRequest(apiFetch)).resolves.toEqual([browserAsset]);
+  await expect(
+    uploadAssetRequest(apiFetch, file, "csrf-token"),
+  ).resolves.toEqual(browserAsset);
+  const blob = await downloadAssetRequest(apiFetch, browserAsset.id);
+  expect(await blob.text()).toBe("proof");
+  expect(apiFetch).toHaveBeenNthCalledWith(1, "/api/v1/assets?limit=50", {
+    credentials: "same-origin",
+    method: "GET",
+  });
+  expect(apiFetch).toHaveBeenNthCalledWith(
+    2,
+    "/api/v1/assets",
+    expect.objectContaining({
+      body: expect.any(ArrayBuffer),
+      credentials: "same-origin",
+      headers: {
+        "content-type": "application/octet-stream",
+        "x-nativepos-filename": encodeURIComponent(file.name),
+        "x-nativepos-media-type": "text/plain",
+        "x-pos-csrf": "csrf-token",
+      },
+      method: "POST",
+    }),
+  );
+  expect(apiFetch).toHaveBeenNthCalledWith(
+    3,
+    `/api/v1/assets/${browserAsset.id}/content`,
+    { credentials: "same-origin", method: "GET" },
+  );
+});
+
+test("browser loads assets only after session confirmation and renders metadata as text", async () => {
+  const { documentObject, elements } = createBrowserDocument(true);
+  const calls: string[] = [];
+  const apiFetch = vi.fn((url: string) => {
+    calls.push(url);
+    if (url === "/api/v1/auth/session")
+      return Promise.resolve(jsonResponse({ authenticated: true }));
+    if (url === "/api/v1/pages")
+      return Promise.resolve(jsonResponse({ pages: [] }));
+    if (url === "/api/v1/assets?limit=50")
+      return Promise.resolve(jsonResponse({ assets: [browserAsset] }));
+    throw new Error(`Unexpected browser request: ${url}`);
+  });
+
+  await startBrowserApp(documentObject, apiFetch as typeof fetch);
+
+  expect(calls.indexOf("/api/v1/auth/session")).toBeLessThan(
+    calls.indexOf("/api/v1/assets?limit=50"),
+  );
+  const assetItem = element(elements, "#asset-list").children[0];
+  expect(assetItem?.children[0]?.textContent).toContain("<unsafe>.txt");
+  expect(element(elements, "#workspace").hidden).toBe(false);
+});
+
+test("browser disables asset upload while pending and refreshes the bounded list", async () => {
+  const { documentObject, elements } = createBrowserDocument(true);
+  const uploadResponse = createDeferred<Response>();
+  let assetReads = 0;
+  const apiFetch = vi.fn((url: string, options?: { method?: string }) => {
+    if (url === "/api/v1/auth/session")
+      return Promise.resolve(jsonResponse({ authenticated: true }));
+    if (url === "/api/v1/pages")
+      return Promise.resolve(jsonResponse({ pages: [] }));
+    if (url === "/api/v1/assets?limit=50") {
+      assetReads += 1;
+      return Promise.resolve(
+        jsonResponse({ assets: assetReads === 1 ? [] : [browserAsset] }),
+      );
+    }
+    if (url === "/api/v1/assets" && options?.method === "POST")
+      return uploadResponse.promise;
+    throw new Error(`Unexpected browser request: ${url}`);
+  });
+
+  await startBrowserApp(documentObject, apiFetch as typeof fetch);
+  element(elements, "#asset-file").files = [
+    new File(["proof"], "proof.txt", { type: "text/plain" }),
+  ];
+  const uploading = element(elements, "#upload-asset").emit("click");
+  await Promise.resolve();
+  expect(element(elements, "#asset-file").disabled).toBe(true);
+  expect(element(elements, "#upload-asset").disabled).toBe(true);
+
+  uploadResponse.resolve(jsonResponse({ asset: browserAsset }, 201));
+  await uploading;
+
+  expect(element(elements, "#asset-file").disabled).toBe(false);
+  expect(element(elements, "#upload-asset").disabled).toBe(false);
+  expect(element(elements, "#asset-list").children).toHaveLength(1);
+});
+
+test("browser downloads through an authenticated object URL and always revokes it", async () => {
+  const { documentObject, elements, createdElements } =
+    createBrowserDocument(true);
+  const createObjectURL = vi
+    .spyOn(URL, "createObjectURL")
+    .mockReturnValue("blob:nativepos-test");
+  const revokeObjectURL = vi
+    .spyOn(URL, "revokeObjectURL")
+    .mockImplementation(() => undefined);
+  const apiFetch = vi.fn((url: string) => {
+    if (url === "/api/v1/auth/session")
+      return Promise.resolve(jsonResponse({ authenticated: true }));
+    if (url === "/api/v1/pages")
+      return Promise.resolve(jsonResponse({ pages: [] }));
+    if (url === "/api/v1/assets?limit=50")
+      return Promise.resolve(jsonResponse({ assets: [browserAsset] }));
+    if (url === `/api/v1/assets/${browserAsset.id}/content`)
+      return Promise.resolve(new Response("proof"));
+    throw new Error(`Unexpected browser request: ${url}`);
+  });
+
+  try {
+    await startBrowserApp(documentObject, apiFetch as typeof fetch);
+    const downloadButton = element(elements, "#asset-list").children[0]
+      ?.children[1];
+    await downloadButton?.emit("click");
+    const anchor = createdElements.find(
+      (candidate) => candidate.tagName === "a",
+    );
+    expect(anchor).toMatchObject({
+      clickCount: 1,
+      download: browserAsset.originalFilename,
+      href: "blob:nativepos-test",
+    });
+    expect(createObjectURL).toHaveBeenCalledOnce();
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:nativepos-test");
+  } finally {
+    createObjectURL.mockRestore();
+    revokeObjectURL.mockRestore();
+  }
+});
+
+test("browser discards a late asset upload after logout", async () => {
+  const { documentObject, elements } = createBrowserDocument(true);
+  const uploadResponse = createDeferred<Response>();
+  const apiFetch = vi.fn((url: string, options?: { method?: string }) => {
+    if (url === "/api/v1/auth/session")
+      return Promise.resolve(jsonResponse({ authenticated: true }));
+    if (url === "/api/v1/pages")
+      return Promise.resolve(jsonResponse({ pages: [] }));
+    if (url === "/api/v1/assets?limit=50")
+      return Promise.resolve(jsonResponse({ assets: [] }));
+    if (url === "/api/v1/assets" && options?.method === "POST")
+      return uploadResponse.promise;
+    if (url === "/api/v1/auth/logout")
+      return Promise.resolve(new Response(null, { status: 204 }));
+    throw new Error(`Unexpected browser request: ${url}`);
+  });
+
+  await startBrowserApp(documentObject, apiFetch as typeof fetch);
+  element(elements, "#asset-file").files = [
+    new File(["proof"], "proof.txt", { type: "text/plain" }),
+  ];
+  const uploading = element(elements, "#upload-asset").emit("click");
+  await Promise.resolve();
+  await element(elements, "#logout").emit("click");
+  uploadResponse.resolve(jsonResponse({ asset: browserAsset }, 201));
+  await uploading;
+
+  expect(element(elements, "#workspace").hidden).toBe(true);
+  expect(element(elements, "#asset-list").children).toEqual([]);
+});
 
 function navigationButtons(container: FakeElement): FakeElement[] {
   const result: FakeElement[] = [];

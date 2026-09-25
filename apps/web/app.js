@@ -1,4 +1,4 @@
-/* global document, fetch */
+/* global Blob, document, fetch, URL */
 
 const MAX_PAGE_HIERARCHY_EDGES = 32;
 
@@ -151,6 +151,47 @@ export async function getDataSourcesRequest(apiFetch) {
   if (!isPlainRecord(body) || !Array.isArray(body.sources))
     throw new Error("NativePOS is unavailable");
   return body.sources;
+}
+
+export async function getAssetsRequest(apiFetch) {
+  const body = await requestJson(apiFetch, "/api/v1/assets?limit=50", {
+    credentials: "same-origin",
+    method: "GET",
+  });
+  if (!isPlainRecord(body) || !Array.isArray(body.assets)) {
+    throw new Error("NativePOS is unavailable");
+  }
+  return body.assets.map(assetFromResponse);
+}
+
+export async function uploadAssetRequest(apiFetch, file, csrfToken) {
+  if (!(file instanceof Blob) || typeof file.name !== "string") {
+    throw new Error("NativePOS is unavailable");
+  }
+  const body = await requestJson(apiFetch, "/api/v1/assets", {
+    body: await file.arrayBuffer(),
+    credentials: "same-origin",
+    headers: {
+      "content-type": "application/octet-stream",
+      "x-nativepos-filename": encodeURIComponent(file.name),
+      "x-nativepos-media-type": file.type || "application/octet-stream",
+      ...csrfHeaders(csrfToken),
+    },
+    method: "POST",
+  });
+  if (!isPlainRecord(body) || !isPlainRecord(body.asset)) {
+    throw new Error("NativePOS is unavailable");
+  }
+  return assetFromResponse(body.asset);
+}
+
+export async function downloadAssetRequest(apiFetch, id) {
+  const response = await apiFetch(`/api/v1/assets/${id}/content`, {
+    credentials: "same-origin",
+    method: "GET",
+  });
+  if (!response.ok) throw createRequestError(response.status);
+  return response.blob();
 }
 
 export async function createDataSourceRequest(apiFetch, name, csrfToken) {
@@ -530,6 +571,133 @@ function recordFromResponse(value) {
     ...value.record,
     outgoing: Array.isArray(value.outgoing) ? value.outgoing : [],
   };
+}
+
+function assetFromResponse(value) {
+  if (
+    !isPlainRecord(value) ||
+    typeof value.id !== "string" ||
+    value.id.length === 0 ||
+    typeof value.originalFilename !== "string" ||
+    value.originalFilename.length === 0 ||
+    typeof value.mimeType !== "string" ||
+    value.mimeType.length === 0 ||
+    !Number.isSafeInteger(value.byteSize) ||
+    value.byteSize < 0 ||
+    typeof value.createdAt !== "string" ||
+    value.createdAt.length === 0
+  ) {
+    throw new Error("NativePOS is unavailable");
+  }
+  return {
+    id: value.id,
+    originalFilename: value.originalFilename,
+    mimeType: value.mimeType,
+    byteSize: value.byteSize,
+    createdAt: value.createdAt,
+  };
+}
+
+function initializeAssetBrowser(documentObject, apiFetch, callbacks) {
+  const list = documentObject.querySelector("#asset-list");
+  if (!list) return { refresh: async () => {}, reset: () => {} };
+  const fileInput = requiredElement(documentObject, "#asset-file");
+  const upload = requiredElement(documentObject, "#upload-asset");
+  const status = requiredElement(documentObject, "#asset-status");
+  let generation = 0;
+  let pending = false;
+  let pendingToken = null;
+
+  function applyPending() {
+    fileInput.disabled = pending;
+    upload.disabled = pending;
+  }
+
+  function handleError(error, fallback) {
+    if (isAuthenticationError(error)) callbacks.onAuthenticationError();
+    else status.textContent = fallback;
+  }
+
+  function render(assets) {
+    list.replaceChildren(
+      ...assets.map((asset) => {
+        const item = documentObject.createElement("li");
+        const metadata = documentObject.createElement("span");
+        metadata.textContent = `${asset.originalFilename} — ${asset.mimeType} — ${asset.byteSize} bytes`;
+        const button = documentObject.createElement("button");
+        button.type = "button";
+        button.textContent = "Download";
+        button.addEventListener("click", async () => {
+          try {
+            const blob = await downloadAssetRequest(apiFetch, asset.id);
+            const objectUrl = URL.createObjectURL(blob);
+            try {
+              const anchor = documentObject.createElement("a");
+              anchor.href = objectUrl;
+              anchor.download = asset.originalFilename;
+              anchor.click();
+            } finally {
+              URL.revokeObjectURL(objectUrl);
+            }
+          } catch (error) {
+            handleError(error, "Could not download asset.");
+          }
+        });
+        item.append(metadata);
+        item.append(button);
+        return item;
+      }),
+    );
+  }
+
+  async function refresh() {
+    const requestGeneration = ++generation;
+    try {
+      const assets = await getAssetsRequest(apiFetch);
+      if (requestGeneration !== generation) return;
+      render(assets);
+      status.textContent = "";
+    } catch (error) {
+      if (requestGeneration !== generation) return;
+      handleError(error, "Could not load assets.");
+    }
+  }
+
+  function reset() {
+    generation += 1;
+    pending = false;
+    pendingToken = null;
+    applyPending();
+    list.replaceChildren();
+    status.textContent = "";
+  }
+
+  upload.addEventListener("click", async () => {
+    const file = fileInput.files?.[0];
+    if (!file || pending) return;
+    const requestGeneration = generation;
+    const token = {};
+    pendingToken = token;
+    pending = true;
+    applyPending();
+    try {
+      await uploadAssetRequest(apiFetch, file, callbacks.csrfToken());
+      if (requestGeneration !== generation) return;
+      status.textContent = "Asset uploaded.";
+      await refresh();
+    } catch (error) {
+      if (requestGeneration !== generation) return;
+      handleError(error, "Could not upload asset.");
+    } finally {
+      if (pendingToken === token) {
+        pending = false;
+        pendingToken = null;
+        applyPending();
+      }
+    }
+  });
+
+  return { refresh, reset };
 }
 
 function editableParagraph(document) {
@@ -948,6 +1116,8 @@ export async function startBrowserApp(
   let archivedPendingGeneration = null;
   let refreshCollections = async () => {};
   let resetCollections = () => {};
+  let refreshAssets = async () => {};
+  let resetAssets = () => {};
 
   function isArchivedSelection() {
     return selectedPage?.archivedAt !== null && selectedPage !== null;
@@ -1142,6 +1312,7 @@ export async function startBrowserApp(
     resetBodyEditor();
     clearNavigation();
     resetCollections();
+    resetAssets();
     editor.hidden = true;
     empty.hidden = false;
     applySelectionControls();
@@ -1262,8 +1433,22 @@ export async function startBrowserApp(
       },
     }));
 
+  ({ refresh: refreshAssets, reset: resetAssets } = initializeAssetBrowser(
+    documentObject,
+    apiFetch,
+    {
+      csrfToken: () => csrfTokenFromDocument(documentObject),
+      onAuthenticationError: () =>
+        showLogin("Your session has ended. Please sign in again."),
+    },
+  ));
+
   async function revealWorkspace(generation) {
-    await Promise.all([refreshActivePages(), refreshCollections()]);
+    await Promise.all([
+      refreshActivePages(),
+      refreshCollections(),
+      refreshAssets(),
+    ]);
     if (generation !== authenticationGeneration) return false;
     showWorkspace();
     return true;

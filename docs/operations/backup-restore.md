@@ -75,6 +75,7 @@ node scripts/postgres-recovery.mjs backup `
   --container <disposable-container> `
   --database <synthetic-source-database> `
   --user <synthetic-role> `
+  --asset-root <source-asset-root> `
   --backup-root <private-new-backup-root> `
   --max-bytes 10485760 `
   --schema-version 0007 `
@@ -97,6 +98,7 @@ node scripts/postgres-recovery.mjs restore `
   --container <disposable-container> `
   --database <fresh-empty-target-database> `
   --user <synthetic-role> `
+  --asset-root <fresh-empty-asset-root> `
   --backup-root <private-backup-root> `
   --backup-id <backup-uuid> `
   --max-bytes 10485760
@@ -107,6 +109,17 @@ rejects targets containing user relations, functions, composite types, domains,
 enums, ranges, multiranges, or non-public user schemas before dump bytes are
 supplied to `pg_restore`. Restore itself is one transaction, so a command error
 cannot publish a partial PostgreSQL restore.
+
+Application restore is deliberately not described as atomic across PostgreSQL
+and the filesystem. It verifies the complete backup before target inspection,
+requires both targets to be empty, stages only manifest-declared asset keys,
+and compensates those staged keys if staging or PostgreSQL restore fails. After
+PostgreSQL commits, it requires exact database receipt agreement and verifies
+every restored file again. If either post-restore check fails, the command
+reports failure and preserves both targets for investigation; it does not claim
+rollback or delete files referenced by the restored database. Retry only with
+new empty targets after the failed targets have been inspected and retained as
+recovery evidence.
 
 ## 2026-09-25 disposable PostgreSQL rehearsal
 
@@ -166,6 +179,26 @@ while leaving its page count, audit hash, revision count, and session count
 unchanged. Migrations remained compatible, the database container restarted,
 and the loopback application accepted the restored session and retrieved the
 restored page tree and structured record at property revision 3.
+
+## 2026-09-27 full-state restore rehearsal
+
+A PostgreSQL 18.6 container using disposable storage at
+`/var/lib/postgresql` held separate synthetic source and destination
+databases. The source included one asset receipt and byte artifact, two pages,
+one data source, two data-source items and property values, revisions, and
+audit events. The real operator created and verified backup
+`346a6ebf-251e-4c75-9a9e-c7ff52e692f8` with manifest SHA-256
+`1670c15538ba9f8cb49c3b986f205e1eeaaebd549738f53678d64eb39b061950`.
+
+Restore into a fresh database and fresh asset root preserved exact row counts
+and deterministic row hashes across all 15 canonical tables. The only restored
+file was the manifest-declared 32-byte asset, whose source, manifest, database,
+and restored-file SHA-256 all matched
+`0f57dc9bbc7ed2a87a49e5a663cb1cb070465b92213453340975238d50d88025`.
+Real CLI probes also refused a non-empty database, a non-empty asset root, and a
+restore invocation missing `--asset-root`; the inspected targets and sentinel
+file remained unchanged. All rehearsal data was synthetic and the disposable
+resources were removed after validation.
 
 ## Current evidence and operational boundary
 

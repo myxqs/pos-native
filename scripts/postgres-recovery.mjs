@@ -4,9 +4,10 @@ import { asNativeId } from "../dist/packages/domain/src/ids.js";
 import { DockerPostgresBackupDriver } from "../dist/packages/backup/src/docker-postgres-driver.js";
 import {
   createPostgresApplicationBackup,
-  restorePostgresDatabaseBackup,
+  restorePostgresApplicationBackup,
 } from "../dist/packages/backup/src/postgres-recovery.js";
 import { FilesystemAssetStore } from "../dist/packages/assets/src/filesystem-asset-store.js";
+import { FilesystemAssetRestoreTarget } from "../dist/packages/backup/src/asset-restore-target.js";
 import { runRecoveryCommand } from "../dist/packages/backup/src/recovery-command-runner.js";
 import { verifyFilesystemBackup } from "../dist/packages/backup/src/filesystem-backup.js";
 
@@ -144,6 +145,7 @@ async function main() {
   requireAllowedFlags(
     values,
     new Set([
+      "--asset-root",
       "--backup-id",
       "--backup-root",
       "--container",
@@ -153,10 +155,15 @@ async function main() {
     ]),
   );
   const backupId = asNativeId(requireValue(values, "--backup-id"));
-  const manifest = await restorePostgresDatabaseBackup(
+  const assetTarget = await FilesystemAssetRestoreTarget.create(
+    requireValue(values, "--asset-root"),
+    maxArtifactBytes,
+  );
+  const manifest = await restorePostgresApplicationBackup(
     backupRoot,
     backupId,
     driver,
+    assetTarget,
     { maxArtifactBytes },
   );
   process.stdout.write(

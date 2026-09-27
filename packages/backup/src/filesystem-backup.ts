@@ -51,6 +51,13 @@ export interface VerifiedDatabaseDump {
   readonly bytes: Uint8Array;
 }
 
+export interface VerifiedApplicationBackup extends VerifiedDatabaseDump {
+  readonly assets: readonly {
+    readonly descriptor: BackupManifest["assets"][number];
+    readonly bytes: Uint8Array;
+  }[];
+}
+
 function isMissingFile(error: unknown): boolean {
   return (error as NodeJS.ErrnoException).code === "ENOENT";
 }
@@ -560,6 +567,34 @@ export async function readVerifiedDatabaseDump(
   );
 
   return { manifest, bytes };
+}
+
+export async function readVerifiedApplicationBackup(
+  configuredRoot: string,
+  requestedBackupId: NativeId,
+  options: BackupOperationOptions,
+): Promise<VerifiedApplicationBackup> {
+  const maxArtifactBytes = requireMaxArtifactBytes(options);
+  const backupId = asNativeId(requestedBackupId);
+  const backupRoot = await canonicalBackupRoot(configuredRoot, false);
+  const directory = await requireBackupDirectory(backupRoot, backupId);
+  const manifest = await verifyFilesystemBackup(backupRoot, backupId, options);
+  const bytes = await readVerifiedArtifact(
+    directory,
+    manifest.database,
+    maxArtifactBytes,
+  );
+  const assets = await Promise.all(
+    manifest.assets.map(async (descriptor) => ({
+      descriptor,
+      bytes: await readVerifiedArtifact(
+        directory,
+        descriptor,
+        maxArtifactBytes,
+      ),
+    })),
+  );
+  return { manifest, bytes, assets };
 }
 
 export async function restoreFilesystemBackup(

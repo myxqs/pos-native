@@ -71,6 +71,13 @@
       "when": 1790613086786,
       "tag": "0009_secret_glorian",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1790619573654,
+      "tag": "0010_serious_maximus",
+      "breakpoints": true
     }
   ]
 }

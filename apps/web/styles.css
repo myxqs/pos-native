@@ -9,6 +9,23 @@
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
 }
 
+.workspace-search {
+  margin-block: 1rem;
+}
+
+.search-results button {
+  display: grid;
+  gap: 0.2rem;
+  text-align: left;
+  width: 100%;
+}
+
+.search-results span {
+  color: var(--muted);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #171716;

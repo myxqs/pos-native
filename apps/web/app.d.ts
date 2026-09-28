@@ -68,6 +68,20 @@ export function getPageListRequest(
   scope?: "active" | "archived",
 ): Promise<readonly BrowserPage[]>;
 
+export interface BrowserSearchResult {
+  readonly pageId: string;
+  readonly pageTitle: string;
+  readonly snippet: string;
+  readonly matchSource: "title" | "paragraph";
+  readonly rank: number;
+}
+
+export function searchPagesRequest(
+  apiFetch: typeof fetch,
+  query: string,
+  limit?: number,
+): Promise<readonly BrowserSearchResult[]>;
+
 export function movePageRequest(
   apiFetch: typeof fetch,
   id: string,

@@ -19,12 +19,14 @@ import { PostgresAssetMetadataRepository } from "../../../packages/database/src/
 import { PostgresDataSourceRepository } from "../../../packages/database/src/postgres-data-source-repository.ts";
 import { PostgresPageRepository } from "../../../packages/database/src/postgres-page-repository.ts";
 import { PostgresPageAssetLinkRepository } from "../../../packages/database/src/postgres-page-asset-link-repository.ts";
+import { PostgresSearchRepository } from "../../../packages/database/src/postgres-search-repository.ts";
 import { createPostgresAuthenticationStore } from "../../../packages/database/src/postgres-authentication-store.ts";
 import type { BlockDocumentRepository } from "../../../packages/database/src/block-document-repository.ts";
 import type { PageRepository } from "../../../packages/database/src/page-repository.ts";
 import type { DataSourceRepository } from "../../../packages/database/src/data-source-repository.ts";
 import type { AssetMetadataRepository } from "../../../packages/database/src/asset-metadata-repository.ts";
 import type { PageAssetLinkRepository } from "../../../packages/database/src/page-asset-link-repository.ts";
+import type { SearchRepository } from "../../../packages/database/src/search-repository.ts";
 import * as schema from "../../../packages/database/src/schema.ts";
 import type { BlockDocumentDependencies } from "../../../packages/domain/src/block-document.ts";
 import type { CreatePageDependencies } from "../../../packages/domain/src/page.ts";
@@ -69,6 +71,7 @@ export interface RuntimePersistence {
   readonly dataSourceRepository?: DataSourceRepository;
   readonly assetMetadataRepository?: AssetMetadataRepository;
   readonly pageAssetLinkRepository?: PageAssetLinkRepository;
+  readonly searchRepository?: SearchRepository;
   close(): Promise<void>;
 }
 
@@ -136,6 +139,9 @@ export async function createProductionRuntime(
         },
       ),
       pageRepository: persistence.pageRepository,
+      ...(persistence.searchRepository
+        ? { searchRepository: persistence.searchRepository }
+        : {}),
       pageDependencies: { newId, now } satisfies CreatePageDependencies,
       blockDocumentRepository: persistence.blockDocumentRepository,
       blockDocumentDependencies: {
@@ -220,6 +226,7 @@ function createPostgresPersistence(
     dataSourceRepository: new PostgresDataSourceRepository(database),
     assetMetadataRepository: new PostgresAssetMetadataRepository(database),
     pageAssetLinkRepository: new PostgresPageAssetLinkRepository(database),
+    searchRepository: new PostgresSearchRepository(database),
     async close(): Promise<void> {
       await pool.end();
     },

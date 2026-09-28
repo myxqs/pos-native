@@ -93,7 +93,15 @@ export const pages = pgTable(
       .default(0),
     provenance: jsonb("provenance").$type<Record<string, string>>().notNull(),
   },
-  (table) => [index("pages_parent_id_idx").on(table.parentId)],
+  (table) => [
+    index("pages_parent_id_idx").on(table.parentId),
+    index("pages_search_title_trgm_idx")
+      .using("gin", sql`lower(${table.title}) gin_trgm_ops`)
+      .where(sql`${table.archivedAt} is null`),
+    index("pages_search_title_fts_idx")
+      .using("gin", sql`to_tsvector('simple', ${table.title})`)
+      .where(sql`${table.archivedAt} is null`),
+  ],
 );
 
 export const pageAssetLinks = pgTable(
@@ -259,6 +267,19 @@ export const blocks = pgTable(
         table.position,
       )
       .where(sql.raw('"archived_at" is null')),
+    index("blocks_search_text_trgm_idx")
+      .using("gin", sql`lower((${table.content}->>'text')) gin_trgm_ops`)
+      .where(
+        sql`${table.archivedAt} is null and ${table.blockType} = 'paragraph'`,
+      ),
+    index("blocks_search_text_fts_idx")
+      .using(
+        "gin",
+        sql`to_tsvector('simple', coalesce(${table.content}->>'text', ''))`,
+      )
+      .where(
+        sql`${table.archivedAt} is null and ${table.blockType} = 'paragraph'`,
+      ),
   ],
 );
 

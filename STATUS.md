@@ -15,6 +15,11 @@ named-volume restart and clean full-state recovery acceptance now pass with
 synthetic state; direct browser file-chooser automation remains externally
 blocked without broader Chrome extension permission.
 
+Navigation search now has a complete first vertical slice: active page titles
+and paragraphs are queried directly from canonical PostgreSQL state through
+bounded full-text/trigram indexes, an authenticated API, and a minimal safe
+workspace search surface. Links/backlinks remain the next Navigation area.
+
 ## Completed
 
 - Authoritative v2 product-first brief reconciled: Notion is untouched and
@@ -133,6 +138,9 @@ blocked without broader Chrome extension permission.
   files in `358b854..dec2634`. One confirmed backup snapshot-consistency finding
   was repaired test-first by bracketing `pg_dump` with matching PostgreSQL asset
   receipt projections.
+- Authenticated page/paragraph search is implemented with deterministic ranking,
+  active-only semantics, mutation/restart visibility, migration 0010, bounded
+  plain-text results, and stale-response-safe browser navigation.
 
 ## Canonical and repository boundaries
 
@@ -149,11 +157,12 @@ blocked without broader Chrome extension permission.
 ## Verification state
 
 - npm run verify: PASS on 2026-09-28 — formatting, lint, strict typecheck, and
-  335 tests passed; 20 opt-in PostgreSQL tests were skipped because the standard
+  348 tests passed; 25 opt-in PostgreSQL tests were skipped because the standard
   command does not set TEST_DATABASE_URL.
-- Live PostgreSQL suite: PASS on 2026-09-28 — all 355 tests passed across 41
+- Live PostgreSQL suite: PASS on 2026-09-28 — all 373 tests passed across 44
   files with a disposable `TEST_DATABASE_URL` and `--no-file-parallelism`,
-  including page-asset unlink, history, relink, and restart persistence.
+  including search ranking/index use, archive/restore mutation visibility,
+  page-asset unlink, history, relink, and restart persistence.
 - npm run db:generate and npm run db:migrate: PASS on 2026-09-28 — sixteen
   tables inspected, no schema drift found, and migrations applied successfully
   to the disposable restored database.

@@ -51,6 +51,19 @@
             <button type="submit">Create</button>
           </div>
         </form>
+        <form
+          id="search-form"
+          class="workspace-search"
+          aria-label="Search pages"
+        >
+          <label for="search-query">Search</label>
+          <div class="form-row">
+            <input id="search-query" minlength="2" maxlength="100" required />
+            <button id="search-submit" type="submit">Search</button>
+          </div>
+          <p id="search-status" role="status" aria-live="polite"></p>
+          <ul id="search-results" class="search-results"></ul>
+        </form>
         <nav aria-label="Active pages">
           <ul id="page-list"></ul>
         </nav>

@@ -2,6 +2,53 @@
 
 const MAX_PAGE_HIERARCHY_EDGES = 32;
 
+export async function searchPagesRequest(apiFetch, query, limit = 20) {
+  const trimmed = query.trim();
+  if (
+    [...trimmed].length < 2 ||
+    [...trimmed].length > 100 ||
+    !Number.isSafeInteger(limit) ||
+    limit < 1 ||
+    limit > 50
+  ) {
+    throw new Error("Search query is invalid");
+  }
+  const body = await requestJson(
+    apiFetch,
+    `/api/v1/search?q=${encodeURIComponent(trimmed)}&limit=${limit}`,
+    { credentials: "same-origin", method: "GET" },
+  );
+  if (
+    !isPlainRecord(body) ||
+    !Array.isArray(body.results) ||
+    body.results.length > limit
+  ) {
+    throw new Error("NativePOS is unavailable");
+  }
+  return body.results.map(searchResultFromResponse);
+}
+
+function searchResultFromResponse(value) {
+  if (
+    !isPlainRecord(value) ||
+    typeof value.pageId !== "string" ||
+    typeof value.pageTitle !== "string" ||
+    typeof value.snippet !== "string" ||
+    [...value.snippet].length > 240 ||
+    (value.matchSource !== "title" && value.matchSource !== "paragraph") ||
+    !Number.isSafeInteger(value.rank)
+  ) {
+    throw new Error("NativePOS is unavailable");
+  }
+  return {
+    pageId: value.pageId,
+    pageTitle: value.pageTitle,
+    snippet: value.snippet,
+    matchSource: value.matchSource,
+    rank: value.rank,
+  };
+}
+
 export async function createPageRequest(
   apiFetch,
   title,
@@ -1197,6 +1244,11 @@ export async function startBrowserApp(
   const logout = requiredElement(documentObject, "#logout");
   const form = requiredElement(documentObject, "#create-page");
   const newTitle = requiredElement(documentObject, "#new-page-title");
+  const searchForm = requiredElement(documentObject, "#search-form");
+  const searchQuery = requiredElement(documentObject, "#search-query");
+  const searchSubmit = requiredElement(documentObject, "#search-submit");
+  const searchStatus = requiredElement(documentObject, "#search-status");
+  const searchResults = requiredElement(documentObject, "#search-results");
   const childForm = requiredElement(documentObject, "#create-child-page");
   const childTitle = requiredElement(documentObject, "#new-child-page-title");
   const pageTitle = requiredElement(documentObject, "#page-title");
@@ -1229,6 +1281,7 @@ export async function startBrowserApp(
   let pageSelectionGeneration = 0;
   let activeListGeneration = 0;
   let archivedListGeneration = 0;
+  let searchGeneration = 0;
   let bodySaveSequence = 0;
   let bodySavePending = false;
   let pageSavePendingId = null;
@@ -1422,6 +1475,7 @@ export async function startBrowserApp(
     pageSelectionGeneration += 1;
     activeListGeneration += 1;
     archivedListGeneration += 1;
+    searchGeneration += 1;
     loginPanel.hidden = false;
     workspace.hidden = true;
     loginStatus.textContent = message;
@@ -1436,6 +1490,10 @@ export async function startBrowserApp(
     pageParent.replaceChildren();
     resetBodyEditor();
     clearNavigation();
+    searchQuery.value = "";
+    searchStatus.textContent = "";
+    searchResults.replaceChildren();
+    searchSubmit.disabled = false;
     resetCollections();
     resetAssets();
     editor.hidden = true;
@@ -1541,6 +1599,46 @@ export async function startBrowserApp(
   async function refreshArchivedIfVisible() {
     if (!archivedPagesPanel.hidden) await loadArchivedPages();
   }
+
+  searchForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const generation = ++searchGeneration;
+    searchSubmit.disabled = true;
+    searchStatus.textContent = "Searching…";
+    try {
+      const results = await searchPagesRequest(apiFetch, searchQuery.value);
+      if (generation !== searchGeneration) return;
+      const items = results.map((result) => {
+        const item = documentObject.createElement("li");
+        const button = documentObject.createElement("button");
+        const title = documentObject.createElement("strong");
+        const detail = documentObject.createElement("span");
+        button.type = "button";
+        title.textContent = result.pageTitle;
+        detail.textContent = `${result.matchSource}: ${result.snippet}`;
+        button.append(title);
+        button.append(detail);
+        button.addEventListener("click", async () => selectPage(result.pageId));
+        item.append(button);
+        return item;
+      });
+      searchResults.replaceChildren(...items);
+      searchStatus.textContent =
+        results.length === 0
+          ? "No results."
+          : `${results.length} result${results.length === 1 ? "" : "s"}.`;
+    } catch (error) {
+      if (generation !== searchGeneration) return;
+      searchResults.replaceChildren();
+      if (isAuthenticationError(error)) {
+        showLogin("Your session has ended. Please sign in again.");
+      } else {
+        searchStatus.textContent = "Could not search pages.";
+      }
+    } finally {
+      if (generation === searchGeneration) searchSubmit.disabled = false;
+    }
+  });
 
   ({ refresh: refreshCollections, reset: resetCollections } =
     initializeCollectionBrowser(documentObject, apiFetch, {

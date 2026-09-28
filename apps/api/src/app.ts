@@ -14,12 +14,14 @@ import type { CreatePageDependencies } from "../../../packages/domain/src/page.t
 import type { PageAssetLinkDependencies } from "../../../packages/domain/src/page-asset-link.ts";
 import type { BlockDocumentDependencies } from "../../../packages/domain/src/block-document.ts";
 import type { PageRepository } from "../../../packages/database/src/page-repository.ts";
+import type { SearchRepository } from "../../../packages/database/src/search-repository.ts";
 import { registerAuthenticationRoutes } from "./auth-routes.ts";
 import { registerAssetRoutes } from "./asset-routes.ts";
 import { registerBlockDocumentRoutes } from "./block-document-routes.ts";
 import { registerDataSourceRoutes } from "./data-source-routes.ts";
 import { registerPageRoutes, type PageAuthorizer } from "./page-routes.ts";
 import { registerPageAssetRoutes } from "./page-asset-routes.ts";
+import { registerSearchRoutes } from "./search-routes.ts";
 import {
   readWebAsset,
   resolveWebAssetRoot,
@@ -43,6 +45,7 @@ export interface AppOptions {
   readonly pageAssetLinkRepository?: PageAssetLinkRepository;
   readonly pageAssetLinkDependencies?: PageAssetLinkDependencies;
   readonly maxAssetBytes?: number;
+  readonly searchRepository?: SearchRepository;
   readonly authorize?: PageAuthorizer;
 }
 
@@ -89,6 +92,12 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
     registerPageRoutes(app, {
       pageRepository: options.pageRepository,
       pageDependencies: options.pageDependencies,
+      authorize,
+    });
+  }
+  if (options.searchRepository && authorize) {
+    registerSearchRoutes(app, {
+      repository: options.searchRepository,
       authorize,
     });
   }

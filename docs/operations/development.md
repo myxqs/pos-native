@@ -13,9 +13,24 @@ $env:TEST_DATABASE_URL = "postgresql://pos_native:password@localhost:5432/pos_na
 npm test -- packages/database/test/postgres-page-repository.integration.test.ts packages/database/test/postgres-block-document-repository.integration.test.ts packages/database/test/postgres-asset-metadata-repository.integration.test.ts --no-file-parallelism
 ```
 
-Without `TEST_DATABASE_URL`, seventeen integration tests across four files are
-skipped. Do not claim restart persistence or transactional PostgreSQL
+Without `TEST_DATABASE_URL`, PostgreSQL integration tests are skipped. Do not
+claim restart persistence or transactional PostgreSQL
 verification from the in-memory repository tests.
+
+## Navigation search indexes
+
+Migration 0010 enables the locally hosted `pg_trgm` extension and creates
+partial GIN indexes over active page titles and active paragraph text. The
+indexes are derived state: canonical `pages` and `blocks` rows remain sufficient
+to rebuild them by applying the migration chain to a clean PostgreSQL 18.6
+database. The runtime account therefore needs extension-creation permission
+during migration, but no external search service or background indexer.
+
+Search queries accept 2-100 Unicode code points and a 1-50 result limit
+(default 20). To validate the repository against a disposable database, include
+`packages/database/test/postgres-search-repository.integration.test.ts` in the
+opt-in command or run the full suite with `TEST_DATABASE_URL` and
+`--no-file-parallelism`.
 
 ## Block-document schema migration preflight
 

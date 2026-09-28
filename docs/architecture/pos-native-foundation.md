@@ -74,6 +74,18 @@ replacing a newer selection or draft. A successful late metadata mutation still
 reconciles the navigation lists, but it does not replace the newer editor state
 or its unsaved title/parent draft.
 
+## Navigation search policy (current source)
+
+Authenticated search reads active `pages.title` and active paragraph text
+directly from canonical PostgreSQL rows. Migration 0010 installs `pg_trgm` and
+partial GIN full-text/trigram expression indexes as rebuildable accelerators;
+there is no separate canonical index or asynchronous synchronization path.
+Ranking uses fixed tiers: exact title (500), title prefix (450), title full-text
+(400), title trigram (350), paragraph full-text (250), and paragraph trigram
+(200), followed by stable score/title/identity tie-breakers. Results collapse
+to one best match per page, return plain-text snippets bounded to 240 code
+points, and exclude archived pages and blocks.
+
 ## Initial domain boundary
 
 The first vertical slice introduced a pure `createPage` command. It validates

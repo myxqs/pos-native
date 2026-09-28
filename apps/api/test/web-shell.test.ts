@@ -23,6 +23,7 @@ import {
   movePageRequest,
   pageTreeFromPages,
   restorePageRequest,
+  searchPagesRequest,
   removeRecordRelationRequest,
   setRecordPropertyRequest,
   startBrowserApp,
@@ -191,6 +192,11 @@ function createBrowserDocument(includeAssets = false): {
     "#logout",
     "#create-page",
     "#new-page-title",
+    "#search-form",
+    "#search-query",
+    "#search-submit",
+    "#search-status",
+    "#search-results",
     "#create-child-page",
     "#new-child-page-title",
     "#page-title",
@@ -276,6 +282,124 @@ function archivedPage(
     title,
   };
 }
+
+test("search helper requests bounded results and rejects malformed payloads", async () => {
+  const result = {
+    pageId: "11111111-1111-4111-8111-111111111111",
+    pageTitle: "<unsafe>",
+    snippet: "plain <script> text",
+    matchSource: "paragraph",
+    rank: 250,
+  };
+  const apiFetch = vi
+    .fn()
+    .mockResolvedValueOnce(jsonResponse({ results: [result] }))
+    .mockResolvedValueOnce(
+      jsonResponse({ results: [{ ...result, snippet: "x".repeat(241) }] }),
+    );
+  await expect(searchPagesRequest(apiFetch, " alpha ")).resolves.toEqual([
+    result,
+  ]);
+  expect(apiFetch).toHaveBeenNthCalledWith(
+    1,
+    "/api/v1/search?q=alpha&limit=20",
+    {
+      credentials: "same-origin",
+      method: "GET",
+    },
+  );
+  await expect(searchPagesRequest(apiFetch, "alpha")).rejects.toThrow(
+    "NativePOS is unavailable",
+  );
+  await expect(searchPagesRequest(apiFetch, "a")).rejects.toThrow(
+    "Search query is invalid",
+  );
+});
+
+test("browser renders search text safely and selecting a result opens its page", async () => {
+  const { documentObject, elements } = createBrowserDocument();
+  const id = "11111111-1111-4111-8111-111111111111";
+  const apiFetch = vi.fn((url: string) => {
+    if (url === "/api/v1/auth/session")
+      return Promise.resolve(jsonResponse({ authenticated: true }));
+    if (url === "/api/v1/pages")
+      return Promise.resolve(jsonResponse({ pages: [] }));
+    if (url === "/api/v1/search?q=alpha&limit=20")
+      return Promise.resolve(
+        jsonResponse({
+          results: [
+            {
+              pageId: id,
+              pageTitle: "<Alpha>",
+              snippet: "body <script>",
+              matchSource: "paragraph",
+              rank: 250,
+            },
+          ],
+        }),
+      );
+    if (url === `/api/v1/pages/${id}`)
+      return Promise.resolve(
+        jsonResponse({ page: livePage(id, "<Alpha>"), revisionNumber: 1 }),
+      );
+    if (url === `/api/v1/pages/${id}/blocks`)
+      return Promise.resolve(
+        jsonResponse({ pageId: id, revisionNumber: 0, blocks: [] }),
+      );
+    throw new Error(`Unexpected browser request: ${url}`);
+  });
+  await startBrowserApp(documentObject, apiFetch as typeof fetch);
+  element(elements, "#search-query").value = "alpha";
+  await element(elements, "#search-form").emit("submit");
+  const button = element(elements, "#search-results").children[0]?.children[0];
+  expect(button?.children[0]?.textContent).toBe("<Alpha>");
+  expect(button?.children[1]?.textContent).toBe("paragraph: body <script>");
+  await button?.emit("click");
+  expect(element(elements, "#page-title").value).toBe("<Alpha>");
+});
+
+test("browser keeps only the newest search response and shows empty and error states", async () => {
+  const { documentObject, elements } = createBrowserDocument();
+  const first = createDeferred<Response>();
+  const apiFetch = vi.fn((url: string) => {
+    if (url === "/api/v1/auth/session")
+      return Promise.resolve(jsonResponse({ authenticated: true }));
+    if (url === "/api/v1/pages")
+      return Promise.resolve(jsonResponse({ pages: [] }));
+    if (url.includes("q=first")) return first.promise;
+    if (url.includes("q=second"))
+      return Promise.resolve(jsonResponse({ results: [] }));
+    if (url.includes("q=broken"))
+      return Promise.resolve(jsonResponse({ error: "no" }, 500));
+    throw new Error(`Unexpected browser request: ${url}`);
+  });
+  await startBrowserApp(documentObject, apiFetch as typeof fetch);
+  element(elements, "#search-query").value = "first";
+  const stale = element(elements, "#search-form").emit("submit");
+  element(elements, "#search-query").value = "second";
+  await element(elements, "#search-form").emit("submit");
+  first.resolve(
+    jsonResponse({
+      results: [
+        {
+          pageId: randomUUID(),
+          pageTitle: "Stale",
+          snippet: "first",
+          matchSource: "title",
+          rank: 500,
+        },
+      ],
+    }),
+  );
+  await stale;
+  expect(element(elements, "#search-status").textContent).toBe("No results.");
+  expect(element(elements, "#search-results").children).toEqual([]);
+  element(elements, "#search-query").value = "broken";
+  await element(elements, "#search-form").emit("submit");
+  expect(element(elements, "#search-status").textContent).toBe(
+    "Could not search pages.",
+  );
+});
 
 const browserAsset = {
   id: "11111111-1111-4111-8111-111111111111",

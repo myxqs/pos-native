@@ -114,6 +114,16 @@ and are explicitly ordered; neighbour nodes are deduplicated and sorted.
 Archived roots are rejected, archived relationships/endpoints are excluded by
 the repository, and malformed or corrupt relationship evidence fails closed.
 
+## Page-link provenance presentation (current source)
+
+The existing selected-page links surface presents canonical relationship UUID,
+creation timestamp, and recorded source/actor evidence from the bounded page-
+link responses. Forward history is an explicit authenticated `history=all`
+read capped at fifty entries and labels active and archived evidence distinctly.
+Historical items are not normal navigation targets. Browser response validation
+and DOM `textContent` rendering fail closed without creating a second
+provenance, audit, or history store.
+
 ## Initial domain boundary
 
 The first vertical slice introduced a pure `createPage` command. It validates

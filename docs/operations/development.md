@@ -114,6 +114,10 @@ POS_LISTEN_HOST defaults to 127.0.0.1. Only set it to 0.0.0.0 or :: as an
 explicit private-network deployment choice; this does not authorise public
 internet exposure. POS_PORT defaults to 3000.
 
+`POS_ASSET_ROOT` is also required and must name a dedicated local directory for
+synthetic review assets. The example environment includes this variable. Do not
+point it at personal files or an existing asset collection.
+
 ## One-time local owner bootstrap
 
 After PostgreSQL migrations have been verified live, create the first and only

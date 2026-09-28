@@ -28,12 +28,20 @@ export async function searchPagesRequest(apiFetch, query, limit = 20) {
   return body.results.map(searchResultFromResponse);
 }
 
-export async function getPageLinksRequest(apiFetch, pageId, direction) {
+export async function getPageLinksRequest(
+  apiFetch,
+  pageId,
+  direction,
+  scope = "active",
+) {
   if (direction !== "links" && direction !== "backlinks")
     throw new Error("NativePOS is unavailable");
+  if (scope !== "active" && scope !== "all")
+    throw new Error("NativePOS is unavailable");
+  const history = scope === "all" ? "history=all&" : "";
   const body = await requestJson(
     apiFetch,
-    `/api/v1/pages/${pageId}/${direction}?limit=50`,
+    `/api/v1/pages/${pageId}/${direction}?${history}limit=50`,
     { credentials: "same-origin", method: "GET" },
   );
   if (
@@ -42,7 +50,7 @@ export async function getPageLinksRequest(apiFetch, pageId, direction) {
     body.items.length > 50
   )
     throw new Error("NativePOS is unavailable");
-  return body.items;
+  return body.items.map(pageLinkItemFromResponse);
 }
 
 export async function createPageLinkRequest(
@@ -97,6 +105,7 @@ export function initializePageLinkBrowser(documentObject, apiFetch, callbacks) {
   );
   const forward = requiredElement(documentObject, "#page-forward-links");
   const backlinks = requiredElement(documentObject, "#page-backlinks");
+  const history = requiredElement(documentObject, "#page-link-history");
   const status = requiredElement(documentObject, "#page-links-status");
   let generation = 0;
   const render = (target, items, canUnlink) => {
@@ -110,6 +119,9 @@ export function initializePageLinkBrowser(documentObject, apiFetch, callbacks) {
           callbacks.onOpenPage(entry.page.id),
         );
         item.append(open);
+        const provenance = documentObject.createElement("small");
+        provenance.textContent = `Link ${entry.link.id} · created ${entry.link.createdAt} · source ${entry.link.provenance.source} · actor ${entry.link.provenance.actorId}`;
+        item.append(provenance);
         if (canUnlink) {
           const remove = documentObject.createElement("button");
           remove.type = "button";
@@ -135,6 +147,16 @@ export function initializePageLinkBrowser(documentObject, apiFetch, callbacks) {
       }),
     );
   };
+  const renderHistory = (items) => {
+    history.replaceChildren(
+      ...items.map((entry) => {
+        const item = documentObject.createElement("li");
+        const state = entry.link.archivedAt === null ? "Active" : "Archived";
+        item.textContent = `${state} · ${entry.page.title} · Link ${entry.link.id} · created ${entry.link.createdAt} · source ${entry.link.provenance.source} · actor ${entry.link.provenance.actorId}`;
+        return item;
+      }),
+    );
+  };
   async function refresh() {
     const pageId = callbacks.selectedPageId();
     const request = ++generation;
@@ -144,13 +166,15 @@ export function initializePageLinkBrowser(documentObject, apiFetch, callbacks) {
     }
     status.textContent = "Loading links…";
     try {
-      const [outgoing, incoming] = await Promise.all([
+      const [outgoing, incoming, linkHistory] = await Promise.all([
         getPageLinksRequest(apiFetch, pageId, "links"),
         getPageLinksRequest(apiFetch, pageId, "backlinks"),
+        getPageLinksRequest(apiFetch, pageId, "links", "all"),
       ]);
       if (request !== generation) return;
       render(forward, outgoing, true);
       render(backlinks, incoming, false);
+      renderHistory(linkHistory);
       status.textContent =
         outgoing.length + incoming.length === 0 ? "No page links." : "";
     } catch (error) {
@@ -162,6 +186,7 @@ export function initializePageLinkBrowser(documentObject, apiFetch, callbacks) {
     generation += 1;
     forward.replaceChildren();
     backlinks.replaceChildren();
+    history.replaceChildren();
     candidates.replaceChildren();
     status.textContent = "";
   }
@@ -792,6 +817,32 @@ function isPlainRecord(value) {
     !Array.isArray(value) &&
     Object.getPrototypeOf(value) === Object.prototype
   );
+}
+
+function pageLinkItemFromResponse(value) {
+  if (
+    !isPlainRecord(value) ||
+    !isPlainRecord(value.link) ||
+    !isPlainRecord(value.page) ||
+    !isPlainRecord(value.link.provenance) ||
+    typeof value.link.id !== "string" ||
+    typeof value.link.sourcePageId !== "string" ||
+    typeof value.link.targetPageId !== "string" ||
+    typeof value.link.createdAt !== "string" ||
+    (value.link.archivedAt !== null &&
+      typeof value.link.archivedAt !== "string") ||
+    typeof value.link.provenance.source !== "string" ||
+    value.link.provenance.source.length < 1 ||
+    value.link.provenance.source.length > 200 ||
+    typeof value.link.provenance.actorId !== "string" ||
+    value.link.provenance.actorId.length < 1 ||
+    value.link.provenance.actorId.length > 200 ||
+    typeof value.page.id !== "string" ||
+    typeof value.page.title !== "string" ||
+    value.page.title.length > 500
+  )
+    throw new Error("NativePOS is unavailable");
+  return value;
 }
 
 function pageFromResponse(value) {

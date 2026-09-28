@@ -2,14 +2,10 @@
 
 ## Current milestone
 
-M2 — Pages and block editing. Hierarchy, archive/restore, a narrow
-paragraph-body adapter, and first-class page links/backlinks are implemented in
-source, but the mature editor foundation, major block types, and real-browser
-acceptance remain incomplete.
-
-M3 — Structured data sources, records, typed properties, and relations now
-have domain, in-memory, PostgreSQL persistence, authenticated API, and minimal
-browser product flows (the repository's earlier local plans called this M4).
+M4 — COMPLETE for the repository-local synthetic structured-data and
+Navigation boundary. Structured data sources, records, typed properties,
+relations, assets and recoverable relationships now have domain, in-memory,
+PostgreSQL persistence, authenticated API, and minimal browser product flows.
 Safe full-state PostgreSQL plus asset recovery is implemented. Persistent
 named-volume restart and clean full-state recovery acceptance now pass with
 synthetic state; direct browser file-chooser automation remains externally
@@ -18,8 +14,8 @@ blocked without broader Chrome extension permission.
 Navigation search now has a complete first vertical slice: active page titles
 and paragraphs are queried directly from canonical PostgreSQL state through
 bounded full-text/trigram indexes, an authenticated API, and a minimal safe
-workspace search surface. Bounded graph/context bundles remain the next
-Navigation area.
+workspace search surface. The bounded depth-one context contract and page-link
+provenance presentation are also complete.
 
 First-class page links and derived backlinks now span domain, transactional
 PostgreSQL persistence, authenticated API, and the selected-page workspace.
@@ -161,6 +157,12 @@ and normal navigation suppresses archived endpoints.
   deterministic hashes plus active forward/backlink results, archived link
   history, distinct relink identity, page-link revisions/audits, restored
   authenticated paragraph search, and PostgreSQL restart readback.
+- Page-link provenance presentation uses the existing bounded authenticated
+  routes and links panel to show canonical link IDs, creation timestamps,
+  source/actor evidence, and clearly labelled active/archived forward history.
+  It adds no canonical state, endpoint, or migration.
+- The formal M4 criterion classification is recorded in
+  `docs/architecture/m4-closure.md`; no blocking M4 gaps remain.
 
 ## Canonical and repository boundaries
 
@@ -177,13 +179,16 @@ and normal navigation suppresses archived endpoints.
 ## Verification state
 
 - npm run verify: PASS on 2026-09-28 — formatting, lint, strict typecheck, and
-  371 tests passed; 29 opt-in integration tests were skipped because the standard
+  372 tests passed; 29 opt-in integration tests were skipped because the standard
   command does not set TEST_DATABASE_URL.
-- Live PostgreSQL suite: PASS on 2026-09-28 — all 399 tests passed across 49
+- Live PostgreSQL suite: PASS on 2026-09-28 — all 400 tests passed across 49
   files with a disposable `TEST_DATABASE_URL` and `--no-file-parallelism`,
   including search ranking/index use, archive/restore mutation visibility,
   page-asset unlink, page links/backlinks, history, relink, corrupt-revision
   rejection, deterministic page-link/archive races, and restart persistence.
+- The remaining live-suite skip is the separately gated destructive recovery
+  acceptance. It requires source/target URLs plus a named disposable container
+  and passes separately, including clean restore and container restart.
 - npm run db:generate and npm run db:migrate: PASS on 2026-09-28 — seventeen
   tables inspected, no schema drift found, and migrations applied successfully
   to the disposable restored database.
@@ -253,10 +258,10 @@ and normal navigation suppresses archived endpoints.
 
 ## Exact next action
 
-Retain the deferred human-operated browser file-chooser/download check without
-broadening Chrome permissions. Select the next product slice from the local
-roadmap; do not begin Notion work, previews, covers, or rich-editor integration
-without their own bounded design gate.
+Stop product development at the clean M4 checkpoint. Perform a human-operated
+synthetic workspace review next; retain the browser file-chooser/download gap
+without broadening Chrome permissions. Do not begin another milestone or
+Notion work without a fresh explicit continuation.
 
 ## Commands to resume
 

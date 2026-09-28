@@ -85,7 +85,19 @@ export function getPageLinksRequest(
   apiFetch: typeof fetch,
   pageId: string,
   direction: "links" | "backlinks",
-): Promise<readonly unknown[]>;
+  scope?: "active" | "all",
+): Promise<readonly BrowserPageLinkItem[]>;
+export interface BrowserPageLinkItem {
+  readonly link: {
+    readonly id: string;
+    readonly sourcePageId: string;
+    readonly targetPageId: string;
+    readonly createdAt: string;
+    readonly archivedAt: string | null;
+    readonly provenance: { readonly source: string; readonly actorId: string };
+  };
+  readonly page: { readonly id: string; readonly title: string };
+}
 export function createPageLinkRequest(
   apiFetch: typeof fetch,
   sourceId: string,

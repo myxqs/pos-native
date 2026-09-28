@@ -330,6 +330,7 @@ test("page link browser renders forward/backlinks, creates, unlinks, and navigat
     "#page-link-search-results",
     "#page-forward-links",
     "#page-backlinks",
+    "#page-link-history",
     "#page-links-status",
   ])
     elements[selector] = new FakeElement();
@@ -338,6 +339,30 @@ test("page link browser renders forward/backlinks, creates, unlinks, and navigat
   let reads = 0;
   const opened: string[] = [];
   const apiFetch = vi.fn((url: string, options?: { method?: string }) => {
+    const link = {
+      id: "44444444-4444-4444-8444-444444444444",
+      sourcePageId: source,
+      targetPageId: target,
+      createdAt: "2026-09-28T12:00:00.000Z",
+      archivedAt: null,
+      provenance: { source: "nativepos.browser", actorId: "owner" },
+    };
+    if (url.includes("/links?history=all"))
+      return Promise.resolve(
+        jsonResponse({
+          items: [
+            {
+              link: {
+                ...link,
+                id: "33333333-3333-4333-8333-333333333333",
+                archivedAt: "2026-09-28T13:00:00.000Z",
+              },
+              page: { id: target, title: "<Target>" },
+            },
+            { link, page: { id: target, title: "<Target>" } },
+          ],
+        }),
+      );
     if (url.includes("/links?")) {
       reads += 1;
       return Promise.resolve(
@@ -345,14 +370,14 @@ test("page link browser renders forward/backlinks, creates, unlinks, and navigat
           items:
             reads > 2
               ? []
-              : [{ link: {}, page: { id: target, title: "<Target>" } }],
+              : [{ link, page: { id: target, title: "<Target>" } }],
         }),
       );
     }
     if (url.includes("/backlinks?"))
       return Promise.resolve(
         jsonResponse({
-          items: [{ link: {}, page: { id: target, title: "Back <script>" } }],
+          items: [{ link, page: { id: target, title: "Back <script>" } }],
         }),
       );
     if (url.includes("/search?"))
@@ -392,11 +417,25 @@ test("page link browser renders forward/backlinks, creates, unlinks, and navigat
     element(elements, "#page-forward-links").children[0]?.children[0]
       ?.textContent,
   ).toBe("<Target>");
+  expect(
+    element(elements, "#page-forward-links").children[0]?.children[1]
+      ?.textContent,
+  ).toContain(
+    "Link 44444444-4444-4444-8444-444444444444 · created 2026-09-28T12:00:00.000Z · source nativepos.browser · actor owner",
+  );
+  expect(
+    element(elements, "#page-link-history").children.map(
+      (child) => child.textContent,
+    ),
+  ).toEqual([
+    "Archived · <Target> · Link 33333333-3333-4333-8333-333333333333 · created 2026-09-28T12:00:00.000Z · source nativepos.browser · actor owner",
+    "Active · <Target> · Link 44444444-4444-4444-8444-444444444444 · created 2026-09-28T12:00:00.000Z · source nativepos.browser · actor owner",
+  ]);
   await element(elements, "#page-forward-links").children[0]?.children[0]?.emit(
     "click",
   );
   expect(opened).toEqual([target]);
-  await element(elements, "#page-forward-links").children[0]?.children[1]?.emit(
+  await element(elements, "#page-forward-links").children[0]?.children[2]?.emit(
     "click",
   );
   element(elements, "#page-link-search-query").value = "target";
@@ -437,6 +476,41 @@ test("page link request helpers use bounded authenticated endpoints", async () =
   );
 });
 
+test("page link history request validates provenance before presentation", async () => {
+  const apiFetch = vi.fn().mockResolvedValue(
+    jsonResponse({
+      items: [
+        {
+          link: {
+            id: "44444444-4444-4444-8444-444444444444",
+            sourcePageId: "11111111-1111-4111-8111-111111111111",
+            targetPageId: "22222222-2222-4222-8222-222222222222",
+            createdAt: "2026-09-28T12:00:00.000Z",
+            archivedAt: null,
+            provenance: { source: "", actorId: "owner" },
+          },
+          page: {
+            id: "22222222-2222-4222-8222-222222222222",
+            title: "Target",
+          },
+        },
+      ],
+    }),
+  );
+  await expect(
+    getPageLinksRequest(
+      apiFetch,
+      "11111111-1111-4111-8111-111111111111",
+      "links",
+      "all",
+    ),
+  ).rejects.toThrow("NativePOS is unavailable");
+  expect(apiFetch).toHaveBeenCalledWith(
+    "/api/v1/pages/11111111-1111-4111-8111-111111111111/links?history=all&limit=50",
+    { credentials: "same-origin", method: "GET" },
+  );
+});
+
 test("page link browser ignores a stale target after page selection changes", async () => {
   const { documentObject, elements } = createBrowserDocument();
   for (const selector of [
@@ -447,6 +521,7 @@ test("page link browser ignores a stale target after page selection changes", as
     "#page-link-search-results",
     "#page-forward-links",
     "#page-backlinks",
+    "#page-link-history",
     "#page-links-status",
   ])
     elements[selector] = new FakeElement();

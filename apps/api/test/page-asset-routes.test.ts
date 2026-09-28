@@ -7,6 +7,7 @@ import {
 } from "../../../packages/domain/src/asset.ts";
 import type { Page } from "../../../packages/domain/src/page.ts";
 import type {
+  ArchivePageAssetLinkMutation,
   CreatePageAssetLinkMutation,
   PageAssetLink,
 } from "../../../packages/domain/src/page-asset-link.ts";
@@ -41,7 +42,17 @@ function app(
     asset?: typeof asset | null;
     create?: (mutation: CreatePageAssetLinkMutation) => Promise<PageAssetLink>;
     authorize?: (request: unknown, csrf: boolean) => Promise<unknown>;
-    list?: () => Promise<readonly PageAssetLink[]>;
+    list?: (
+      pageId: ReturnType<typeof asNativeId>,
+      scope?: "active" | "all",
+    ) => Promise<readonly PageAssetLink[]>;
+    active?: {
+      readonly link: PageAssetLink;
+      readonly revisionNumber: number;
+    } | null;
+    archive?: (
+      mutation: ArchivePageAssetLinkMutation,
+    ) => Promise<PageAssetLink>;
   } = {},
 ) {
   return buildApp({
@@ -70,6 +81,8 @@ function app(
           (async (mutation: CreatePageAssetLinkMutation) => mutation.link),
       ),
       listForPage: vi.fn(overrides.list ?? (async () => [])),
+      getActive: vi.fn(async () => overrides.active ?? null),
+      archive: vi.fn(overrides.archive ?? (async (mutation) => mutation.link)),
     },
     pageAssetLinkDependencies: {
       newId: () => crypto.randomUUID(),
@@ -141,6 +154,7 @@ test("returns a fixed error when persisted linkage is inconsistent", async () =>
     pageId,
     assetId,
     createdAt: "2026-09-28T12:00:00.000Z",
+    archivedAt: null,
     provenance: { source: "test", actorId: "owner" },
   };
   const api = app({ asset: null, list: async () => [link] });
@@ -150,5 +164,126 @@ test("returns a fixed error when persisted linkage is inconsistent", async () =>
   });
   expect(response.statusCode).toBe(500);
   expect(response.json()).toEqual({ error: "linked asset listing failed" });
+  await api.close();
+});
+
+test("soft-unlinks an active relationship through the CSRF boundary", async () => {
+  const link: PageAssetLink = {
+    id: asNativeId("77777777-7777-4777-8777-777777777777"),
+    pageId,
+    assetId,
+    createdAt: "2026-09-28T12:00:00.000Z",
+    archivedAt: null,
+    provenance: { source: "test", actorId: "owner" },
+  };
+  const api = app({ active: { link, revisionNumber: 1 } });
+  const response = await api.inject({
+    method: "DELETE",
+    url: `/api/v1/pages/${pageId}/assets/${assetId}`,
+  });
+  expect(response.statusCode).toBe(200);
+  expect(response.json().link).toMatchObject({
+    id: link.id,
+    archivedAt: "2026-09-28T12:00:00.000Z",
+  });
+  await api.close();
+});
+
+test("returns not found when no active relationship can be unlinked", async () => {
+  const api = app();
+  const response = await api.inject({
+    method: "DELETE",
+    url: `/api/v1/pages/${pageId}/assets/${assetId}`,
+  });
+  expect(response.statusCode).toBe(404);
+  expect(response.json()).toEqual({ error: "page asset link not found" });
+  await api.close();
+});
+
+test("rejects unlinking from an archived page without mutation", async () => {
+  const archive = vi.fn();
+  const api = app({
+    page: { ...page, archivedAt: "2026-09-28T13:00:00.000Z" },
+    archive,
+  });
+  const response = await api.inject({
+    method: "DELETE",
+    url: `/api/v1/pages/${pageId}/assets/${assetId}`,
+  });
+  expect(response.statusCode).toBe(409);
+  expect(response.json()).toEqual({ error: "page is archived" });
+  expect(archive).not.toHaveBeenCalled();
+  await api.close();
+});
+
+test("rejects unlinking a missing asset without mutation", async () => {
+  const archive = vi.fn();
+  const api = app({ asset: null, archive });
+  const response = await api.inject({
+    method: "DELETE",
+    url: `/api/v1/pages/${pageId}/assets/${assetId}`,
+  });
+  expect(response.statusCode).toBe(404);
+  expect(response.json()).toEqual({ error: "asset not found" });
+  expect(archive).not.toHaveBeenCalled();
+  await api.close();
+});
+
+test("requires CSRF authorization before unlinking", async () => {
+  const authorize = vi.fn(async () => ({
+    ok: false,
+    statusCode: 403,
+    error: "invalid CSRF token",
+  }));
+  const archive = vi.fn();
+  const api = app({ authorize, archive });
+  const response = await api.inject({
+    method: "DELETE",
+    url: `/api/v1/pages/${pageId}/assets/${assetId}`,
+  });
+  expect(response.statusCode).toBe(403);
+  expect(authorize).toHaveBeenCalledWith(expect.anything(), true);
+  expect(archive).not.toHaveBeenCalled();
+  await api.close();
+});
+
+test("lists archived relationship history only when explicitly requested", async () => {
+  const archivedLink: PageAssetLink = {
+    id: asNativeId("77777777-7777-4777-8777-777777777777"),
+    pageId,
+    assetId,
+    createdAt: "2026-09-28T12:00:00.000Z",
+    archivedAt: "2026-09-28T13:00:00.000Z",
+    provenance: { source: "test", actorId: "owner" },
+  };
+  const list = vi.fn(async (_pageId, scope?: "active" | "all") =>
+    scope === "all" ? [archivedLink] : [],
+  );
+  const api = app({ list });
+
+  const activeResponse = await api.inject({
+    method: "GET",
+    url: `/api/v1/pages/${pageId}/assets`,
+  });
+  expect(activeResponse.json().items).toEqual([]);
+
+  const historyResponse = await api.inject({
+    method: "GET",
+    url: `/api/v1/pages/${pageId}/assets?history=all`,
+  });
+  expect(historyResponse.statusCode).toBe(200);
+  expect(historyResponse.json().items[0].link).toEqual(archivedLink);
+  expect(list).toHaveBeenLastCalledWith(pageId, "all");
+  await api.close();
+});
+
+test("rejects an unsupported linked-asset history scope", async () => {
+  const api = app();
+  const response = await api.inject({
+    method: "GET",
+    url: `/api/v1/pages/${pageId}/assets?history=archived`,
+  });
+  expect(response.statusCode).toBe(400);
+  expect(response.json()).toEqual({ error: "invalid page asset query" });
   await api.close();
 });

@@ -228,6 +228,26 @@ export async function attachPageAssetRequest(
   return body.link;
 }
 
+export async function unlinkPageAssetRequest(
+  apiFetch,
+  pageId,
+  assetId,
+  csrfToken,
+) {
+  const body = await requestJson(
+    apiFetch,
+    `/api/v1/pages/${pageId}/assets/${assetId}`,
+    {
+      credentials: "same-origin",
+      headers: csrfHeaders(csrfToken),
+      method: "DELETE",
+    },
+  );
+  if (!isPlainRecord(body) || !isPlainRecord(body.link))
+    throw new Error("NativePOS is unavailable");
+  return body.link;
+}
+
 export async function createDataSourceRequest(apiFetch, name, csrfToken) {
   const body = await requestJson(apiFetch, "/api/v1/data-sources", {
     body: JSON.stringify({ name }),
@@ -724,7 +744,27 @@ function initializeAssetBrowser(documentObject, apiFetch, callbacks) {
       linkedList.replaceChildren(
         ...items.map(({ asset }) => {
           const item = documentObject.createElement("li");
-          item.textContent = `${asset.originalFilename} — ${asset.mimeType} — ${asset.byteSize} bytes`;
+          const metadata = documentObject.createElement("span");
+          metadata.textContent = `${asset.originalFilename} — ${asset.mimeType} — ${asset.byteSize} bytes`;
+          const unlink = documentObject.createElement("button");
+          unlink.type = "button";
+          unlink.textContent = "Unlink";
+          unlink.addEventListener("click", async () => {
+            try {
+              await unlinkPageAssetRequest(
+                apiFetch,
+                pageId,
+                asset.id,
+                callbacks.csrfToken(),
+              );
+              status.textContent = "Asset unlinked from page.";
+              await refreshLinked();
+            } catch (error) {
+              handleError(error, "Could not unlink asset.");
+            }
+          });
+          item.append(metadata);
+          item.append(unlink);
           return item;
         }),
       );

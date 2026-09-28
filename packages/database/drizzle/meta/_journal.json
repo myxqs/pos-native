@@ -64,6 +64,13 @@
       "when": 1790596225065,
       "tag": "0008_stiff_giant_man",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1790613086786,
+      "tag": "0009_secret_glorian",
+      "breakpoints": true
     }
   ]
 }

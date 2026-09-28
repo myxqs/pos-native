@@ -124,11 +124,11 @@ blocked without broader Chrome extension permission.
   retrieval, restart persistence, and full-state recovery. Human-operated
   browser file-chooser/download acceptance, Linux deployment, malware/content
   policy, and personal-data migration remain outside this boundary.
-- Bounded page-to-asset linkage is implemented with stable link UUIDs,
+- Bounded page-to-asset linkage and recoverable unlink are implemented with stable link UUIDs,
   provenance, revision/audit evidence, transactional PostgreSQL persistence,
-  authenticated list/attach routes, and a selected-page browser surface. Links
-  are append-only in this slice; unlink, deletion, covers, previews, and editor
-  embeds remain deliberately deferred.
+  authenticated list/attach/unlink routes, and a selected-page browser surface.
+  Unlink soft-archives relationship evidence and permits a later new link;
+  asset deletion, covers, previews, and editor embeds remain deferred.
 - Task 9 independent review is complete for all 16 OCR-selected implementation
   files in `358b854..dec2634`. One confirmed backup snapshot-consistency finding
   was repaired test-first by bracketing `pg_dump` with matching PostgreSQL asset
@@ -149,11 +149,11 @@ blocked without broader Chrome extension permission.
 ## Verification state
 
 - npm run verify: PASS on 2026-09-28 — formatting, lint, strict typecheck, and
-  323 tests passed; 20 opt-in PostgreSQL tests were skipped because the standard
+  335 tests passed; 20 opt-in PostgreSQL tests were skipped because the standard
   command does not set TEST_DATABASE_URL.
-- Live PostgreSQL suite: PASS on 2026-09-28 — all 341 tests passed across 41
+- Live PostgreSQL suite: PASS on 2026-09-28 — all 355 tests passed across 41
   files with a disposable `TEST_DATABASE_URL` and `--no-file-parallelism`,
-  including page-asset persistence after a PostgreSQL 18 restart.
+  including page-asset unlink, history, relink, and restart persistence.
 - npm run db:generate and npm run db:migrate: PASS on 2026-09-28 — sixteen
   tables inspected, no schema drift found, and migrations applied successfully
   to the disposable restored database.
@@ -220,11 +220,10 @@ blocked without broader Chrome extension permission.
 
 ## Exact next action
 
-Perform the human-operated browser file-chooser and download check when Will is
-available, without broadening Chrome extension permissions. Then select the
-next product slice from the local NativePOS roadmap. Do not begin Notion work;
-retain loopback-only deployment and synthetic data until the Usable Product
-Gate.
+Retain the deferred human-operated browser file-chooser/download check without
+broadening Chrome permissions. Select the next product slice from the local
+roadmap; do not begin Notion work, previews, covers, or rich-editor integration
+without their own bounded design gate.
 
 ## Commands to resume
 

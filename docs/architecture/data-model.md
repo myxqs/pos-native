@@ -56,11 +56,17 @@ root paragraph and does not overwrite richer or nested documents.
 
 ## Page asset links
 
-`page_asset_links` is the explicit append-only relationship between a page and
+`page_asset_links` is the explicit recoverable relationship between a page and
 an uploaded asset. Each relationship has its own native UUID, creation time,
-and provenance; `(page_id, asset_id)` is unique. Creation persists the link,
-revision 1, and a `page.asset-linked` audit event in one transaction. The
-current boundary intentionally has no unlink or delete operation.
+nullable archive time, and creation provenance. Only one live relationship may
+exist for a page/asset pair. Creation persists revision 1 and a
+`page.asset-linked` audit event in one transaction.
+
+Unlinking soft-archives the stable relationship ID, appends revision 2 and a
+`page.asset-unlinked` audit event, and never deletes the asset. Normal reads
+return live relationships; history reads include archived relationships. A
+later relink creates a new stable relationship ID while retaining the archived
+relationship and its evidence.
 
 Because the relationship is canonical PostgreSQL state and asset bytes remain
 in the bounded asset root, the existing full-state database-plus-asset backup

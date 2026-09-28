@@ -30,6 +30,7 @@ import {
   updatePageRequest,
   uploadAssetRequest,
   attachPageAssetRequest,
+  unlinkPageAssetRequest,
 } from "../../web/app.js";
 
 test("requests linked assets for a page and validates the response", async () => {
@@ -89,6 +90,31 @@ test("attaches an uploaded asset to a page using CSRF", async () => {
     credentials: "same-origin",
     headers: { "x-pos-csrf": "csrf-token" },
     method: "POST",
+  });
+});
+
+test("soft-unlinks an asset from a page using CSRF", async () => {
+  const apiFetch = vi.fn(
+    async () =>
+      new Response(
+        JSON.stringify({
+          link: {
+            id: "link-1",
+            pageId: "page-1",
+            assetId: "asset-1",
+            createdAt: "2026-09-28T12:00:00.000Z",
+            archivedAt: "2026-09-28T13:00:00.000Z",
+            provenance: { source: "nativepos.browser", actorId: "owner" },
+          },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+  );
+  await unlinkPageAssetRequest(apiFetch, "page-1", "asset-1", "csrf-token");
+  expect(apiFetch).toHaveBeenCalledWith("/api/v1/pages/page-1/assets/asset-1", {
+    credentials: "same-origin",
+    headers: { "x-pos-csrf": "csrf-token" },
+    method: "DELETE",
   });
 });
 import { buildApp } from "../src/app.ts";

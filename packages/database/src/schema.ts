@@ -107,13 +107,13 @@ export const pageAssetLinks = pgTable(
       .notNull()
       .references(() => assets.id),
     createdAt: createdAt(),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
     provenance: jsonb("provenance").$type<Record<string, string>>().notNull(),
   },
   (table) => [
-    uniqueIndex("page_asset_links_page_asset_unique").on(
-      table.pageId,
-      table.assetId,
-    ),
+    uniqueIndex("page_asset_links_live_unique")
+      .on(table.pageId, table.assetId)
+      .where(sql`"archived_at" is null`),
     index("page_asset_links_page_created_idx").on(
       table.pageId,
       table.createdAt,

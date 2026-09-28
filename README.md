@@ -14,7 +14,7 @@ a compiled Fastify API runtime, and a restrained responsive browser shell. The
 authenticated API covers sessions, pages, page hierarchy/archive operations,
 canonical block documents, structured data, and bounded local asset
 upload/list/download. Pages can retain audited links to uploaded assets through
-an append-only PostgreSQL relationship, and the browser shell exercises these
+an audited, recoverably archived PostgreSQL relationship, and the browser shell exercises these
 product boundaries.
 
 Disposable PostgreSQL integration, synthetic owner bootstrap, restart

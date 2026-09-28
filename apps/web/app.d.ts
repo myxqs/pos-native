@@ -213,6 +213,12 @@ export function attachPageAssetRequest(
   assetId: string,
   csrfToken: string,
 ): Promise<Readonly<Record<string, unknown>>>;
+export function unlinkPageAssetRequest(
+  apiFetch: typeof fetch,
+  pageId: string,
+  assetId: string,
+  csrfToken: string,
+): Promise<Readonly<Record<string, unknown>>>;
 
 export function loginRequest(
   apiFetch: typeof fetch,

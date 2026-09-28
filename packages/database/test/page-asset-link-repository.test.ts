@@ -1,6 +1,9 @@
 import { expect, test } from "vitest";
 
-import { createPageAssetLink } from "../../domain/src/page-asset-link.ts";
+import {
+  archivePageAssetLink,
+  createPageAssetLink,
+} from "../../domain/src/page-asset-link.ts";
 import { asNativeId } from "../../domain/src/ids.ts";
 import {
   InMemoryPageAssetLinkRepository,
@@ -76,4 +79,58 @@ test("a failed later link preserves earlier committed history", async () => {
   expect(await repository.listForPage(pageId)).toEqual([first.link]);
   expect(repository.revisionsFor(first.link.id)).toEqual([first.revision]);
   expect(repository.auditFor(first.link.id)).toEqual([first.audit]);
+});
+
+test("archives active links, retains history, and permits a new active link", async () => {
+  const repository = new InMemoryPageAssetLinkRepository();
+  const first = mutation();
+  await repository.create(first);
+  const archived = archivePageAssetLink(
+    first.link,
+    1,
+    { actorType: "user", actorId: "owner", source: "test" },
+    {
+      newId: () => crypto.randomUUID(),
+      now: () => new Date("2026-09-28T13:00:00Z"),
+    },
+  );
+  await repository.archive(archived);
+  expect(await repository.listForPage(pageId)).toEqual([]);
+  expect(await repository.listForPage(pageId, "all")).toEqual([archived.link]);
+  expect(await repository.getActive(pageId, assetId)).toBeNull();
+  const relink = mutation();
+  await repository.create(relink);
+  expect(await repository.listForPage(pageId)).toEqual([relink.link]);
+  expect(await repository.listForPage(pageId, "all")).toEqual(
+    expect.arrayContaining([archived.link, relink.link]),
+  );
+});
+
+test("rolls back an archive when audit persistence fails", async () => {
+  const repository = new InMemoryPageAssetLinkRepository({
+    failAt: "before-audit",
+    failOnAttempt: 2,
+  });
+  const created = mutation();
+  await repository.create(created);
+  const archived = archivePageAssetLink(
+    created.link,
+    1,
+    { actorType: "user", actorId: "owner", source: "test" },
+    {
+      newId: () => crypto.randomUUID(),
+      now: () => new Date("2026-09-28T13:00:00Z"),
+    },
+  );
+
+  await expect(repository.archive(archived)).rejects.toThrow(
+    "injected failure before-audit",
+  );
+  expect(await repository.listForPage(pageId)).toEqual([created.link]);
+  expect(await repository.getActive(pageId, assetId)).toEqual({
+    link: created.link,
+    revisionNumber: 1,
+  });
+  expect(repository.revisionsFor(created.link.id)).toEqual([created.revision]);
+  expect(repository.auditFor(created.link.id)).toEqual([created.audit]);
 });

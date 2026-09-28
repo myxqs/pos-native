@@ -24,7 +24,8 @@ export type AuditAction =
   | "record-property.updated"
   | "relation-edge.created"
   | "relation-edge.archived"
-  | "page.asset-linked";
+  | "page.asset-linked"
+  | "page.asset-unlinked";
 
 export interface Revision<
   TSnapshot,

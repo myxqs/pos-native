@@ -13,6 +13,7 @@ import {
   createRecordRequest,
   getDataSourcesRequest,
   getAssetsRequest,
+  getPageAssetsRequest,
   getBlockDocumentRequest,
   getPageListRequest,
   getSessionRequest,
@@ -28,7 +29,68 @@ import {
   updateBlockDocumentRequest,
   updatePageRequest,
   uploadAssetRequest,
+  attachPageAssetRequest,
 } from "../../web/app.js";
+
+test("requests linked assets for a page and validates the response", async () => {
+  const apiFetch = vi.fn(
+    async () =>
+      new Response(
+        JSON.stringify({
+          items: [
+            {
+              link: {
+                id: "link-1",
+                pageId: "page-1",
+                assetId: "asset-1",
+                createdAt: "2026-09-28T12:00:00.000Z",
+                provenance: { source: "nativepos.browser", actorId: "owner" },
+              },
+              asset: {
+                id: "asset-1",
+                originalFilename: "proof.txt",
+                mimeType: "text/plain",
+                byteSize: 5,
+                createdAt: "2026-09-28T12:00:00.000Z",
+              },
+            },
+          ],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+  );
+  await expect(getPageAssetsRequest(apiFetch, "page-1")).resolves.toHaveLength(
+    1,
+  );
+  expect(apiFetch).toHaveBeenCalledWith("/api/v1/pages/page-1/assets", {
+    credentials: "same-origin",
+    method: "GET",
+  });
+});
+
+test("attaches an uploaded asset to a page using CSRF", async () => {
+  const apiFetch = vi.fn(
+    async () =>
+      new Response(
+        JSON.stringify({
+          link: {
+            id: "link-1",
+            pageId: "page-1",
+            assetId: "asset-1",
+            createdAt: "2026-09-28T12:00:00.000Z",
+            provenance: { source: "nativepos.browser", actorId: "owner" },
+          },
+        }),
+        { status: 201, headers: { "content-type": "application/json" } },
+      ),
+  );
+  await attachPageAssetRequest(apiFetch, "page-1", "asset-1", "csrf-token");
+  expect(apiFetch).toHaveBeenCalledWith("/api/v1/pages/page-1/assets/asset-1", {
+    credentials: "same-origin",
+    headers: { "x-pos-csrf": "csrf-token" },
+    method: "POST",
+  });
+});
 import { buildApp } from "../src/app.ts";
 
 class FakeElement implements BrowserElement {

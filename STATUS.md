@@ -124,6 +124,11 @@ blocked without broader Chrome extension permission.
   retrieval, restart persistence, and full-state recovery. Human-operated
   browser file-chooser/download acceptance, Linux deployment, malware/content
   policy, and personal-data migration remain outside this boundary.
+- Bounded page-to-asset linkage is implemented with stable link UUIDs,
+  provenance, revision/audit evidence, transactional PostgreSQL persistence,
+  authenticated list/attach routes, and a selected-page browser surface. Links
+  are append-only in this slice; unlink, deletion, covers, previews, and editor
+  embeds remain deliberately deferred.
 - Task 9 independent review is complete for all 16 OCR-selected implementation
   files in `358b854..dec2634`. One confirmed backup snapshot-consistency finding
   was repaired test-first by bracketing `pg_dump` with matching PostgreSQL asset
@@ -144,11 +149,12 @@ blocked without broader Chrome extension permission.
 ## Verification state
 
 - npm run verify: PASS on 2026-09-28 — formatting, lint, strict typecheck, and
-  311 tests passed; 19 opt-in PostgreSQL tests were skipped because the standard
+  323 tests passed; 20 opt-in PostgreSQL tests were skipped because the standard
   command does not set TEST_DATABASE_URL.
-- Live PostgreSQL suite: PASS on 2026-09-28 — all 330 tests passed across 37
-  files with a disposable `TEST_DATABASE_URL` and `--no-file-parallelism`.
-- npm run db:generate and npm run db:migrate: PASS on 2026-09-28 — fifteen
+- Live PostgreSQL suite: PASS on 2026-09-28 — all 341 tests passed across 41
+  files with a disposable `TEST_DATABASE_URL` and `--no-file-parallelism`,
+  including page-asset persistence after a PostgreSQL 18 restart.
+- npm run db:generate and npm run db:migrate: PASS on 2026-09-28 — sixteen
   tables inspected, no schema drift found, and migrations applied successfully
   to the disposable restored database.
 - npm run build: PASS on 2026-09-28 — production TypeScript build completed.

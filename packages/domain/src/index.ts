@@ -5,3 +5,4 @@ export * from "./data-source.ts";
 export * from "./ids.ts";
 export * from "./idempotency.ts";
 export * from "./page.ts";
+export * from "./page-asset-link.ts";

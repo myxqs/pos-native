@@ -194,6 +194,40 @@ export async function downloadAssetRequest(apiFetch, id) {
   return response.blob();
 }
 
+export async function getPageAssetsRequest(apiFetch, pageId) {
+  const body = await requestJson(apiFetch, `/api/v1/pages/${pageId}/assets`, {
+    credentials: "same-origin",
+    method: "GET",
+  });
+  if (!isPlainRecord(body) || !Array.isArray(body.items))
+    throw new Error("NativePOS is unavailable");
+  return body.items.map((item) => {
+    if (!isPlainRecord(item) || !isPlainRecord(item.link))
+      throw new Error("NativePOS is unavailable");
+    return { link: item.link, asset: assetFromResponse(item.asset) };
+  });
+}
+
+export async function attachPageAssetRequest(
+  apiFetch,
+  pageId,
+  assetId,
+  csrfToken,
+) {
+  const body = await requestJson(
+    apiFetch,
+    `/api/v1/pages/${pageId}/assets/${assetId}`,
+    {
+      credentials: "same-origin",
+      headers: csrfHeaders(csrfToken),
+      method: "POST",
+    },
+  );
+  if (!isPlainRecord(body) || !isPlainRecord(body.link))
+    throw new Error("NativePOS is unavailable");
+  return body.link;
+}
+
 export async function createDataSourceRequest(apiFetch, name, csrfToken) {
   const body = await requestJson(apiFetch, "/api/v1/data-sources", {
     body: JSON.stringify({ name }),
@@ -604,6 +638,10 @@ function initializeAssetBrowser(documentObject, apiFetch, callbacks) {
   const fileInput = requiredElement(documentObject, "#asset-file");
   const upload = requiredElement(documentObject, "#upload-asset");
   const status = requiredElement(documentObject, "#asset-status");
+  const linkedList = documentObject.querySelector("#page-asset-list");
+  const refreshLinkedButton = documentObject.querySelector(
+    "#refresh-page-assets",
+  );
   let generation = 0;
   let pending = false;
   let pendingToken = null;
@@ -645,9 +683,54 @@ function initializeAssetBrowser(documentObject, apiFetch, callbacks) {
         });
         item.append(metadata);
         item.append(button);
+        const attach = documentObject.createElement("button");
+        attach.type = "button";
+        attach.textContent = "Attach to selected page";
+        attach.addEventListener("click", async () => {
+          const pageId = callbacks.selectedPageId();
+          if (!pageId) {
+            status.textContent = "Select a page first.";
+            return;
+          }
+          try {
+            await attachPageAssetRequest(
+              apiFetch,
+              pageId,
+              asset.id,
+              callbacks.csrfToken(),
+            );
+            status.textContent = "Asset attached to page.";
+            await refreshLinked();
+          } catch (error) {
+            handleError(error, "Could not attach asset.");
+          }
+        });
+        item.append(attach);
         return item;
       }),
     );
+  }
+
+  async function refreshLinked() {
+    if (!linkedList) return;
+    const pageId = callbacks.selectedPageId();
+    if (!pageId) {
+      linkedList.replaceChildren();
+      return;
+    }
+    try {
+      const items = await getPageAssetsRequest(apiFetch, pageId);
+      if (callbacks.selectedPageId() !== pageId) return;
+      linkedList.replaceChildren(
+        ...items.map(({ asset }) => {
+          const item = documentObject.createElement("li");
+          item.textContent = `${asset.originalFilename} — ${asset.mimeType} — ${asset.byteSize} bytes`;
+          return item;
+        }),
+      );
+    } catch (error) {
+      handleError(error, "Could not load linked assets.");
+    }
   }
 
   async function refresh() {
@@ -669,6 +752,7 @@ function initializeAssetBrowser(documentObject, apiFetch, callbacks) {
     pendingToken = null;
     applyPending();
     list.replaceChildren();
+    linkedList?.replaceChildren();
     status.textContent = "";
   }
 
@@ -696,8 +780,9 @@ function initializeAssetBrowser(documentObject, apiFetch, callbacks) {
       }
     }
   });
+  refreshLinkedButton?.addEventListener("click", refreshLinked);
 
-  return { refresh, reset };
+  return { refresh, refreshLinked, reset };
 }
 
 function editableParagraph(document) {
@@ -1438,6 +1523,7 @@ export async function startBrowserApp(
     apiFetch,
     {
       csrfToken: () => csrfTokenFromDocument(documentObject),
+      selectedPageId: () => selectedPage?.id ?? null,
       onAuthenticationError: () =>
         showLogin("Your session has ended. Please sign in again."),
     },

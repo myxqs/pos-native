@@ -96,6 +96,32 @@ export const pages = pgTable(
   (table) => [index("pages_parent_id_idx").on(table.parentId)],
 );
 
+export const pageAssetLinks = pgTable(
+  "page_asset_links",
+  {
+    id: uuid("id").primaryKey(),
+    pageId: uuid("page_id")
+      .notNull()
+      .references(() => pages.id),
+    assetId: uuid("asset_id")
+      .notNull()
+      .references(() => assets.id),
+    createdAt: createdAt(),
+    provenance: jsonb("provenance").$type<Record<string, string>>().notNull(),
+  },
+  (table) => [
+    uniqueIndex("page_asset_links_page_asset_unique").on(
+      table.pageId,
+      table.assetId,
+    ),
+    index("page_asset_links_page_created_idx").on(
+      table.pageId,
+      table.createdAt,
+      table.id,
+    ),
+  ],
+);
+
 export const dataSources = pgTable("data_sources", {
   id: uuid("id").primaryKey(),
   name: text("name").notNull(),

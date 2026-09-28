@@ -54,6 +54,18 @@ native API and this relational contract remain the persistence boundary. The
 current browser representation safely edits only an empty document or one
 root paragraph and does not overwrite richer or nested documents.
 
+## Page asset links
+
+`page_asset_links` is the explicit append-only relationship between a page and
+an uploaded asset. Each relationship has its own native UUID, creation time,
+and provenance; `(page_id, asset_id)` is unique. Creation persists the link,
+revision 1, and a `page.asset-linked` audit event in one transaction. The
+current boundary intentionally has no unlink or delete operation.
+
+Because the relationship is canonical PostgreSQL state and asset bytes remain
+in the bounded asset root, the existing full-state database-plus-asset backup
+and restore path preserves both sides without a separate linkage artifact.
+
 `ExternalIdentity(native_entity_id, provider, external_id, metadata)` maps a
 source provider's identifier to a native entity without replacing native
 identity. Relations are relational edges, never strings containing links.

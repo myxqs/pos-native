@@ -199,6 +199,20 @@ export function downloadAssetRequest(
   apiFetch: typeof fetch,
   id: string,
 ): Promise<Blob>;
+export interface BrowserPageAsset {
+  readonly link: Readonly<Record<string, unknown>>;
+  readonly asset: BrowserAsset;
+}
+export function getPageAssetsRequest(
+  apiFetch: typeof fetch,
+  pageId: string,
+): Promise<readonly BrowserPageAsset[]>;
+export function attachPageAssetRequest(
+  apiFetch: typeof fetch,
+  pageId: string,
+  assetId: string,
+  csrfToken: string,
+): Promise<Readonly<Record<string, unknown>>>;
 
 export function loginRequest(
   apiFetch: typeof fetch,

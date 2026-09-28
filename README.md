@@ -13,7 +13,9 @@ repository. It includes PostgreSQL schema migrations and persistence adapters,
 a compiled Fastify API runtime, and a restrained responsive browser shell. The
 authenticated API covers sessions, pages, page hierarchy/archive operations,
 canonical block documents, structured data, and bounded local asset
-upload/list/download. The browser shell exercises these product boundaries.
+upload/list/download. Pages can retain audited links to uploaded assets through
+an append-only PostgreSQL relationship, and the browser shell exercises these
+product boundaries.
 
 Disposable PostgreSQL integration, synthetic owner bootstrap, restart
 persistence, and full-state PostgreSQL plus asset backup/restore have passed.

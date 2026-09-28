@@ -32,6 +32,15 @@ Search queries accept 2-100 Unicode code points and a 1-50 result limit
 opt-in command or run the full suite with `TEST_DATABASE_URL` and
 `--no-file-parallelism`.
 
+## Page-link persistence
+
+Migration 0011 adds canonical forward page links, partial active-pair
+uniqueness, and bounded source/target indexes. Backlinks are derived and require
+no second table. Full PostgreSQL dumps already include this table; recovery
+acceptance should compare `page_links` alongside the other canonical tables.
+Normal list queries exclude archived endpoints, while `history=all` is an
+explicit recovery view.
+
 ## Block-document schema migration preflight
 
 Migration 0005 adds page body-document revisions, archived block state,

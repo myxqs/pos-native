@@ -146,6 +146,30 @@
             </div>
             <p id="body-status" role="status" aria-live="polite"></p>
           </div>
+          <section
+            id="page-links-panel"
+            class="page-links-panel"
+            aria-labelledby="page-links-title"
+          >
+            <h2 id="page-links-title">Page links</h2>
+            <form id="page-link-search-form" aria-label="Find page to link">
+              <div class="form-row">
+                <input
+                  id="page-link-search-query"
+                  minlength="2"
+                  maxlength="100"
+                  placeholder="Find a page"
+                />
+                <button id="page-link-search-submit" type="submit">Find</button>
+              </div>
+            </form>
+            <ul id="page-link-search-results"></ul>
+            <h3>Forward links</h3>
+            <ul id="page-forward-links"></ul>
+            <h3>Backlinks</h3>
+            <ul id="page-backlinks"></ul>
+            <p id="page-links-status" role="status" aria-live="polite"></p>
+          </section>
         </section>
         <section id="collection-panel" hidden>
           <h2 id="collection-name"></h2>

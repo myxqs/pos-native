@@ -28,6 +28,194 @@ export async function searchPagesRequest(apiFetch, query, limit = 20) {
   return body.results.map(searchResultFromResponse);
 }
 
+export async function getPageLinksRequest(apiFetch, pageId, direction) {
+  if (direction !== "links" && direction !== "backlinks")
+    throw new Error("NativePOS is unavailable");
+  const body = await requestJson(
+    apiFetch,
+    `/api/v1/pages/${pageId}/${direction}?limit=50`,
+    { credentials: "same-origin", method: "GET" },
+  );
+  if (
+    !isPlainRecord(body) ||
+    !Array.isArray(body.items) ||
+    body.items.length > 50
+  )
+    throw new Error("NativePOS is unavailable");
+  return body.items;
+}
+
+export async function createPageLinkRequest(
+  apiFetch,
+  sourceId,
+  targetId,
+  csrfToken,
+) {
+  const body = await requestJson(
+    apiFetch,
+    `/api/v1/pages/${sourceId}/links/${targetId}`,
+    {
+      credentials: "same-origin",
+      headers: csrfHeaders(csrfToken),
+      method: "POST",
+    },
+  );
+  if (!isPlainRecord(body) || !isPlainRecord(body.link))
+    throw new Error("NativePOS is unavailable");
+  return body.link;
+}
+
+export async function unlinkPageRequest(
+  apiFetch,
+  sourceId,
+  targetId,
+  csrfToken,
+) {
+  const body = await requestJson(
+    apiFetch,
+    `/api/v1/pages/${sourceId}/links/${targetId}`,
+    {
+      credentials: "same-origin",
+      headers: csrfHeaders(csrfToken),
+      method: "DELETE",
+    },
+  );
+  if (!isPlainRecord(body) || !isPlainRecord(body.link))
+    throw new Error("NativePOS is unavailable");
+  return body.link;
+}
+
+export function initializePageLinkBrowser(documentObject, apiFetch, callbacks) {
+  const panel = documentObject.querySelector("#page-links-panel");
+  if (!panel) return { refresh: async () => {}, reset: () => {} };
+  const form = requiredElement(documentObject, "#page-link-search-form");
+  const query = requiredElement(documentObject, "#page-link-search-query");
+  const submit = requiredElement(documentObject, "#page-link-search-submit");
+  const candidates = requiredElement(
+    documentObject,
+    "#page-link-search-results",
+  );
+  const forward = requiredElement(documentObject, "#page-forward-links");
+  const backlinks = requiredElement(documentObject, "#page-backlinks");
+  const status = requiredElement(documentObject, "#page-links-status");
+  let generation = 0;
+  const render = (target, items, canUnlink) => {
+    target.replaceChildren(
+      ...items.map((entry) => {
+        const item = documentObject.createElement("li");
+        const open = documentObject.createElement("button");
+        open.type = "button";
+        open.textContent = entry.page.title;
+        open.addEventListener("click", async () =>
+          callbacks.onOpenPage(entry.page.id),
+        );
+        item.append(open);
+        if (canUnlink) {
+          const remove = documentObject.createElement("button");
+          remove.type = "button";
+          remove.textContent = "Unlink";
+          remove.addEventListener("click", async () => {
+            const sourceId = callbacks.selectedPageId();
+            if (!sourceId) return;
+            try {
+              await unlinkPageRequest(
+                apiFetch,
+                sourceId,
+                entry.page.id,
+                callbacks.csrfToken(),
+              );
+              await refresh();
+            } catch (error) {
+              callbacks.onError(error, "Could not unlink page.");
+            }
+          });
+          item.append(remove);
+        }
+        return item;
+      }),
+    );
+  };
+  async function refresh() {
+    const pageId = callbacks.selectedPageId();
+    const request = ++generation;
+    if (!pageId) {
+      reset();
+      return;
+    }
+    status.textContent = "Loading links…";
+    try {
+      const [outgoing, incoming] = await Promise.all([
+        getPageLinksRequest(apiFetch, pageId, "links"),
+        getPageLinksRequest(apiFetch, pageId, "backlinks"),
+      ]);
+      if (request !== generation) return;
+      render(forward, outgoing, true);
+      render(backlinks, incoming, false);
+      status.textContent =
+        outgoing.length + incoming.length === 0 ? "No page links." : "";
+    } catch (error) {
+      if (request !== generation) return;
+      callbacks.onError(error, "Could not load page links.");
+    }
+  }
+  function reset() {
+    generation += 1;
+    forward.replaceChildren();
+    backlinks.replaceChildren();
+    candidates.replaceChildren();
+    status.textContent = "";
+  }
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const sourceId = callbacks.selectedPageId();
+    if (!sourceId) return;
+    const request = ++generation;
+    submit.disabled = true;
+    try {
+      const results = (
+        await searchPagesRequest(apiFetch, query.value, 20)
+      ).filter((result) => result.pageId !== sourceId);
+      if (request !== generation) return;
+      candidates.replaceChildren(
+        ...results.map((result) => {
+          const item = documentObject.createElement("li");
+          const button = documentObject.createElement("button");
+          button.type = "button";
+          button.textContent = `Link to ${result.pageTitle}`;
+          button.addEventListener("click", async () => {
+            if (
+              callbacks.selectedPageId() !== sourceId ||
+              request !== generation
+            )
+              return;
+            try {
+              await createPageLinkRequest(
+                apiFetch,
+                sourceId,
+                result.pageId,
+                callbacks.csrfToken(),
+              );
+              candidates.replaceChildren();
+              await refresh();
+            } catch (error) {
+              callbacks.onError(error, "Could not link page.");
+            }
+          });
+          item.append(button);
+          return item;
+        }),
+      );
+      status.textContent = results.length === 0 ? "No link targets found." : "";
+    } catch (error) {
+      if (request === generation)
+        callbacks.onError(error, "Could not find pages.");
+    } finally {
+      if (request === generation) submit.disabled = false;
+    }
+  });
+  return { refresh, reset };
+}
+
 function searchResultFromResponse(value) {
   if (
     !isPlainRecord(value) ||
@@ -1296,6 +1484,8 @@ export async function startBrowserApp(
   let resetCollections = () => {};
   let refreshAssets = async () => {};
   let resetAssets = () => {};
+  let refreshPageLinks = async () => {};
+  let resetPageLinks = () => {};
 
   function isArchivedSelection() {
     return selectedPage?.archivedAt !== null && selectedPage !== null;
@@ -1496,6 +1686,7 @@ export async function startBrowserApp(
     searchSubmit.disabled = false;
     resetCollections();
     resetAssets();
+    resetPageLinks();
     editor.hidden = true;
     empty.hidden = false;
     applySelectionControls();
@@ -1551,6 +1742,7 @@ export async function startBrowserApp(
   }
 
   async function selectPage(id) {
+    resetPageLinks();
     const collectionPanel = documentObject.querySelector("#collection-panel");
     if (collectionPanel) collectionPanel.hidden = true;
     const selectionGeneration = ++pageSelectionGeneration;
@@ -1573,6 +1765,7 @@ export async function startBrowserApp(
       if (selectionGeneration !== pageSelectionGeneration) return;
       metadataLoaded = true;
       showSelectedPage(result.page, result.revisionNumber);
+      await refreshPageLinks();
 
       const blockDocument = await getBlockDocumentRequest(
         apiFetch,
@@ -1666,6 +1859,14 @@ export async function startBrowserApp(
         showLogin("Your session has ended. Please sign in again."),
     },
   ));
+
+  ({ refresh: refreshPageLinks, reset: resetPageLinks } =
+    initializePageLinkBrowser(documentObject, apiFetch, {
+      csrfToken: () => csrfTokenFromDocument(documentObject),
+      selectedPageId: () => selectedPage?.id ?? null,
+      onOpenPage: selectPage,
+      onError: (error, fallback) => handleWorkspaceFailure(error, fallback),
+    }));
 
   async function revealWorkspace(generation) {
     await Promise.all([

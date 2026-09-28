@@ -86,6 +86,16 @@ Ranking uses fixed tiers: exact title (500), title prefix (450), title full-text
 to one best match per page, return plain-text snippets bounded to 240 code
 points, and exclude archived pages and blocks.
 
+## Page links and backlinks (current source)
+
+Page links are explicit canonical `page_links` rows with stable UUIDs,
+provenance, revisions, and audit events. They do not reuse structured-data
+`relation_edges` or infer relationships from paragraph text. Unlinking archives
+the forward relationship; relinking creates a new identity. Backlinks are
+bounded derived queries over forward rows. Normal navigation requires both
+endpoints to be live, while explicit history retains archived relationship and
+page evidence.
+
 ## Initial domain boundary
 
 The first vertical slice introduced a pure `createPage` command. It validates

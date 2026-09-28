@@ -15,6 +15,8 @@ import type { PageAssetLinkDependencies } from "../../../packages/domain/src/pag
 import type { BlockDocumentDependencies } from "../../../packages/domain/src/block-document.ts";
 import type { PageRepository } from "../../../packages/database/src/page-repository.ts";
 import type { SearchRepository } from "../../../packages/database/src/search-repository.ts";
+import type { PageLinkRepository } from "../../../packages/database/src/page-link-repository.ts";
+import type { PageLinkDependencies } from "../../../packages/domain/src/page-link.ts";
 import { registerAuthenticationRoutes } from "./auth-routes.ts";
 import { registerAssetRoutes } from "./asset-routes.ts";
 import { registerBlockDocumentRoutes } from "./block-document-routes.ts";
@@ -22,6 +24,7 @@ import { registerDataSourceRoutes } from "./data-source-routes.ts";
 import { registerPageRoutes, type PageAuthorizer } from "./page-routes.ts";
 import { registerPageAssetRoutes } from "./page-asset-routes.ts";
 import { registerSearchRoutes } from "./search-routes.ts";
+import { registerPageLinkRoutes } from "./page-link-routes.ts";
 import {
   readWebAsset,
   resolveWebAssetRoot,
@@ -46,6 +49,8 @@ export interface AppOptions {
   readonly pageAssetLinkDependencies?: PageAssetLinkDependencies;
   readonly maxAssetBytes?: number;
   readonly searchRepository?: SearchRepository;
+  readonly pageLinkRepository?: PageLinkRepository;
+  readonly pageLinkDependencies?: PageLinkDependencies;
   readonly authorize?: PageAuthorizer;
 }
 
@@ -101,6 +106,18 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
       authorize,
     });
   }
+  if (
+    options.pageRepository &&
+    options.pageLinkRepository &&
+    options.pageLinkDependencies &&
+    authorize
+  )
+    registerPageLinkRoutes(app, {
+      pageRepository: options.pageRepository,
+      repository: options.pageLinkRepository,
+      dependencies: options.pageLinkDependencies,
+      authorize,
+    });
   if (
     options.pageRepository &&
     options.blockDocumentRepository &&

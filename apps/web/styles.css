@@ -26,6 +26,17 @@
   overflow-wrap: anywhere;
 }
 
+.page-links-panel {
+  margin-top: 1.5rem;
+}
+
+.page-links-panel ul {
+  display: grid;
+  gap: 0.4rem;
+  list-style: none;
+  padding: 0;
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #171716;

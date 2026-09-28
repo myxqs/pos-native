@@ -24,6 +24,10 @@ import {
   pageTreeFromPages,
   restorePageRequest,
   searchPagesRequest,
+  getPageLinksRequest,
+  createPageLinkRequest,
+  unlinkPageRequest,
+  initializePageLinkBrowser,
   removeRecordRelationRequest,
   setRecordPropertyRequest,
   startBrowserApp,
@@ -314,6 +318,181 @@ test("search helper requests bounded results and rejects malformed payloads", as
   await expect(searchPagesRequest(apiFetch, "a")).rejects.toThrow(
     "Search query is invalid",
   );
+});
+
+test("page link browser renders forward/backlinks, creates, unlinks, and navigates safely", async () => {
+  const { documentObject, elements } = createBrowserDocument();
+  for (const selector of [
+    "#page-links-panel",
+    "#page-link-search-form",
+    "#page-link-search-query",
+    "#page-link-search-submit",
+    "#page-link-search-results",
+    "#page-forward-links",
+    "#page-backlinks",
+    "#page-links-status",
+  ])
+    elements[selector] = new FakeElement();
+  const source = "11111111-1111-4111-8111-111111111111",
+    target = "22222222-2222-4222-8222-222222222222";
+  let reads = 0;
+  const opened: string[] = [];
+  const apiFetch = vi.fn((url: string, options?: { method?: string }) => {
+    if (url.includes("/links?")) {
+      reads += 1;
+      return Promise.resolve(
+        jsonResponse({
+          items:
+            reads > 2
+              ? []
+              : [{ link: {}, page: { id: target, title: "<Target>" } }],
+        }),
+      );
+    }
+    if (url.includes("/backlinks?"))
+      return Promise.resolve(
+        jsonResponse({
+          items: [{ link: {}, page: { id: target, title: "Back <script>" } }],
+        }),
+      );
+    if (url.includes("/search?"))
+      return Promise.resolve(
+        jsonResponse({
+          results: [
+            {
+              pageId: target,
+              pageTitle: "<Target>",
+              snippet: "plain",
+              matchSource: "title",
+              rank: 500,
+            },
+          ],
+        }),
+      );
+    if (options?.method === "POST" || options?.method === "DELETE")
+      return Promise.resolve(jsonResponse({ link: { id: "link" } }));
+    throw new Error(url);
+  });
+  const browser = initializePageLinkBrowser(
+    documentObject,
+    apiFetch as typeof fetch,
+    {
+      selectedPageId: () => source,
+      csrfToken: () => "csrf",
+      onOpenPage: async (id: string) => {
+        opened.push(id);
+      },
+      onError: (_error: unknown, message: string) => {
+        throw new Error(message);
+      },
+    },
+  );
+  await browser.refresh();
+  expect(
+    element(elements, "#page-forward-links").children[0]?.children[0]
+      ?.textContent,
+  ).toBe("<Target>");
+  await element(elements, "#page-forward-links").children[0]?.children[0]?.emit(
+    "click",
+  );
+  expect(opened).toEqual([target]);
+  await element(elements, "#page-forward-links").children[0]?.children[1]?.emit(
+    "click",
+  );
+  element(elements, "#page-link-search-query").value = "target";
+  await element(elements, "#page-link-search-form").emit("submit");
+  await element(
+    elements,
+    "#page-link-search-results",
+  ).children[0]?.children[0]?.emit("click");
+  expect(apiFetch).toHaveBeenCalledWith(
+    `/api/v1/pages/${source}/links/${target}`,
+    expect.objectContaining({
+      method: "POST",
+      headers: { "x-pos-csrf": "csrf" },
+    }),
+  );
+});
+
+test("page link request helpers use bounded authenticated endpoints", async () => {
+  const apiFetch = vi
+    .fn()
+    .mockResolvedValueOnce(jsonResponse({ items: [] }))
+    .mockResolvedValueOnce(jsonResponse({ link: { id: "one" } }))
+    .mockResolvedValueOnce(
+      jsonResponse({ link: { id: "one", archivedAt: "now" } }),
+    );
+  await getPageLinksRequest(apiFetch, "source", "links");
+  await createPageLinkRequest(apiFetch, "source", "target", "csrf");
+  await unlinkPageRequest(apiFetch, "source", "target", "csrf");
+  expect(apiFetch).toHaveBeenNthCalledWith(
+    1,
+    "/api/v1/pages/source/links?limit=50",
+    { credentials: "same-origin", method: "GET" },
+  );
+  expect(apiFetch).toHaveBeenNthCalledWith(
+    3,
+    "/api/v1/pages/source/links/target",
+    expect.objectContaining({ method: "DELETE" }),
+  );
+});
+
+test("page link browser ignores a stale target after page selection changes", async () => {
+  const { documentObject, elements } = createBrowserDocument();
+  for (const selector of [
+    "#page-links-panel",
+    "#page-link-search-form",
+    "#page-link-search-query",
+    "#page-link-search-submit",
+    "#page-link-search-results",
+    "#page-forward-links",
+    "#page-backlinks",
+    "#page-links-status",
+  ])
+    elements[selector] = new FakeElement();
+  let selected = "11111111-1111-4111-8111-111111111111";
+  const target = "22222222-2222-4222-8222-222222222222";
+  const apiFetch = vi.fn((url: string, options?: { method?: string }) => {
+    if (options?.method === "POST")
+      throw new Error("stale link mutation was attempted");
+    if (url.includes("/search?"))
+      return Promise.resolve(
+        jsonResponse({
+          results: [
+            {
+              pageId: target,
+              pageTitle: "Target",
+              snippet: "plain",
+              matchSource: "title",
+              rank: 500,
+            },
+          ],
+        }),
+      );
+    throw new Error(url);
+  });
+  const browser = initializePageLinkBrowser(
+    documentObject,
+    apiFetch as typeof fetch,
+    {
+      selectedPageId: () => selected,
+      csrfToken: () => "csrf",
+      onOpenPage: async () => {},
+      onError: (_error: unknown, message: string) => {
+        throw new Error(message);
+      },
+    },
+  );
+  element(elements, "#page-link-search-query").value = "target";
+  await element(elements, "#page-link-search-form").emit("submit");
+  const staleButton = element(elements, "#page-link-search-results").children[0]
+    ?.children[0];
+  selected = "33333333-3333-4333-8333-333333333333";
+  browser.reset();
+  await staleButton?.emit("click");
+  expect(
+    apiFetch.mock.calls.some(([, options]) => options?.method === "POST"),
+  ).toBe(false);
 });
 
 test("browser renders search text safely and selecting a result opens its page", async () => {

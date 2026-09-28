@@ -9,7 +9,8 @@ export type NativeEntityType =
   | "property-definition"
   | "record-property"
   | "relation-edge"
-  | "page-asset-link";
+  | "page-asset-link"
+  | "page-link";
 export type AuditAction =
   | "page.created"
   | "page.updated"
@@ -25,7 +26,9 @@ export type AuditAction =
   | "relation-edge.created"
   | "relation-edge.archived"
   | "page.asset-linked"
-  | "page.asset-unlinked";
+  | "page.asset-unlinked"
+  | "page.linked"
+  | "page.unlinked";
 
 export interface Revision<
   TSnapshot,

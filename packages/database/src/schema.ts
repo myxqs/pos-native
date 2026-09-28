@@ -130,6 +130,41 @@ export const pageAssetLinks = pgTable(
   ],
 );
 
+export const pageLinks = pgTable(
+  "page_links",
+  {
+    id: uuid("id").primaryKey(),
+    sourcePageId: uuid("source_page_id")
+      .notNull()
+      .references(() => pages.id),
+    targetPageId: uuid("target_page_id")
+      .notNull()
+      .references(() => pages.id),
+    createdAt: createdAt(),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    provenance: jsonb("provenance").$type<Record<string, string>>().notNull(),
+  },
+  (table) => [
+    uniqueIndex("page_links_live_unique")
+      .on(table.sourcePageId, table.targetPageId)
+      .where(sql`"archived_at" is null`),
+    index("page_links_source_created_idx").on(
+      table.sourcePageId,
+      table.createdAt,
+      table.id,
+    ),
+    index("page_links_target_created_idx").on(
+      table.targetPageId,
+      table.createdAt,
+      table.id,
+    ),
+    check(
+      "page_links_not_self",
+      sql`${table.sourcePageId} <> ${table.targetPageId}`,
+    ),
+  ],
+);
+
 export const dataSources = pgTable("data_sources", {
   id: uuid("id").primaryKey(),
   name: text("name").notNull(),

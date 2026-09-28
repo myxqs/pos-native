@@ -6,3 +6,4 @@ export * from "./ids.ts";
 export * from "./idempotency.ts";
 export * from "./page.ts";
 export * from "./page-asset-link.ts";
+export * from "./page-link.ts";

@@ -78,6 +78,13 @@
       "when": 1790619573654,
       "tag": "0010_serious_maximus",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1790621300817,
+      "tag": "0011_stale_shiver_man",
+      "breakpoints": true
     }
   ]
 }

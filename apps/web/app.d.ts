@@ -81,6 +81,33 @@ export function searchPagesRequest(
   query: string,
   limit?: number,
 ): Promise<readonly BrowserSearchResult[]>;
+export function getPageLinksRequest(
+  apiFetch: typeof fetch,
+  pageId: string,
+  direction: "links" | "backlinks",
+): Promise<readonly unknown[]>;
+export function createPageLinkRequest(
+  apiFetch: typeof fetch,
+  sourceId: string,
+  targetId: string,
+  csrfToken: string,
+): Promise<Readonly<Record<string, unknown>>>;
+export function unlinkPageRequest(
+  apiFetch: typeof fetch,
+  sourceId: string,
+  targetId: string,
+  csrfToken: string,
+): Promise<Readonly<Record<string, unknown>>>;
+export function initializePageLinkBrowser(
+  documentObject: BrowserDocument,
+  apiFetch: typeof fetch,
+  callbacks: {
+    selectedPageId(): string | null;
+    csrfToken(): string;
+    onOpenPage(id: string): void | Promise<void>;
+    onError(error: unknown, message: string): void;
+  },
+): { refresh(): Promise<void>; reset(): void };
 
 export function movePageRequest(
   apiFetch: typeof fetch,

@@ -20,6 +20,11 @@ and paragraphs are queried directly from canonical PostgreSQL state through
 bounded full-text/trigram indexes, an authenticated API, and a minimal safe
 workspace search surface. Links/backlinks remain the next Navigation area.
 
+First-class page links and derived backlinks now span domain, transactional
+PostgreSQL persistence, authenticated API, and the selected-page workspace.
+Unlink is recoverable archive, relinking preserves old history with a new UUID,
+and normal navigation suppresses archived endpoints.
+
 ## Completed
 
 - Authoritative v2 product-first brief reconciled: Notion is untouched and
@@ -141,6 +146,9 @@ workspace search surface. Links/backlinks remain the next Navigation area.
 - Authenticated page/paragraph search is implemented with deterministic ranking,
   active-only semantics, mutation/restart visibility, migration 0010, bounded
   plain-text results, and stale-response-safe browser navigation.
+- Page links/backlinks are implemented as a separate canonical relationship
+  model with migration 0011, active-pair uniqueness, revision/audit evidence,
+  bounded derived backlinks, target search, navigation, and recoverable unlink.
 
 ## Canonical and repository boundaries
 

@@ -11,14 +11,16 @@ have been met.
 The active implementation is the TypeScript/PostgreSQL architecture in this
 repository. It includes PostgreSQL schema migrations and persistence adapters,
 a compiled Fastify API runtime, and a restrained responsive browser shell. The
-current authenticated API covers sessions, pages, page hierarchy/archive
-operations, and canonical block documents; the browser shell exercises the
-same page and block boundary.
+authenticated API covers sessions, pages, page hierarchy/archive operations,
+canonical block documents, structured data, and bounded local asset
+upload/list/download. The browser shell exercises these product boundaries.
 
-This is not yet a proven live deployment: PostgreSQL integration is opt-in,
-and real owner bootstrap, browser/mobile end-to-end, backup/restore, rich
-editor, PWA/offline, and external-provider acceptance remain separate gates.
-No personal data or Notion content has been imported.
+Disposable PostgreSQL integration, synthetic owner bootstrap, restart
+persistence, and full-state PostgreSQL plus asset backup/restore have passed.
+This is not yet a proven live deployment: human browser file-chooser/download,
+Linux/home-server operations, mobile, rich editor, PWA/offline, and
+external-provider acceptance remain separate gates. No personal data or Notion
+content has been imported.
 
 The existing Notion workspace remains canonical until the approved migration,
 integrity, retrieval, backup, and restore gates pass. The public Python/SQLite

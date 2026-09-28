@@ -216,16 +216,38 @@ storage; no cloud provider is required by this format.
 
 The following remain outside the accepted boundary:
 
-1. Asset-byte recovery and database/filesystem cross-integrity. The reachable
-   product state currently has asset metadata only; its synthetic metadata row
-   was restored, but no corresponding asset byte was claimed or fabricated.
-2. An explicit encrypted/offline backup policy and a production operator
+1. An explicit encrypted/offline backup policy and a production operator
    rehearsal, including a decision about active session/token lifecycle.
-3. Native `pg_dump`/`pg_restore` acceptance outside the disposable Docker
+2. Native `pg_dump`/`pg_restore` acceptance outside the disposable Docker
    boundary; this Windows host has no PostgreSQL client executables installed.
-4. Linux deployment/permission acceptance and the later migration/cutover
+3. Linux deployment/permission acceptance and the later migration/cutover
    gates. Notion remains canonical throughout all of these steps.
 
 The local operator does not handle production credentials or invoke a shell. A
 backup is never accepted solely because creation returned successfully; the
 verification and clean-restore gates must also pass.
+
+## 2026-09-28 persistent full-state acceptance
+
+PostgreSQL 18.6 was run with a disposable Docker named volume mounted at
+`/var/lib/postgresql` (not the legacy `/var/lib/postgresql/data`). The real
+production API created a synthetic 75-byte asset whose database receipt and
+filesystem SHA-256 were
+`41eb675cc9a9a9273b7d0bc36c510018c96723ea19a9b187d60615c4be06ccb6`.
+Application-process restart and PostgreSQL-container restart independently
+preserved authenticated list/download readback.
+
+The real operator created and verified backup
+`88888888-8888-4888-8888-888888888888`, with canonical manifest SHA-256
+`6a16dfe8260462176cf9297d0190d52d4e5837af4e0fcce7392a8a93a8e1e780`.
+Clean restore into a fresh PostgreSQL database and fresh asset root produced
+matching counts and deterministic row hashes for all 15 canonical tables. The
+manifest, restored database receipt, restored filesystem file, and authenticated
+API download agreed on asset identity, 75-byte size, and SHA-256. Restored API
+readback and browser-visible listing remained correct after separate application
+and PostgreSQL restarts.
+
+The rehearsal also proved that duplicate backup, non-empty database, non-empty
+asset-root, and tampered-backup attempts fail without changing the inspected
+accepted state. All inputs were synthetic. The containers, named volumes, and
+workspace were removed after validation.

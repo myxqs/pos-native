@@ -10,9 +10,10 @@ acceptance remain incomplete.
 M3 — Structured data sources, records, typed properties, and relations now
 have domain, in-memory, PostgreSQL persistence, authenticated API, and minimal
 browser product flows (the repository's earlier local plans called this M4).
-The smallest database backup/restore and restart-persistence rehearsal has also
-passed with synthetic state. Packaged recovery tooling and asset-byte recovery
-remain later gates.
+Safe full-state PostgreSQL plus asset recovery is implemented. Persistent
+named-volume restart and clean full-state recovery acceptance now pass with
+synthetic state; direct browser file-chooser automation remains externally
+blocked without broader Chrome extension permission.
 
 ## Completed
 
@@ -119,9 +120,10 @@ remain later gates.
 
 ## In progress
 
-- Database recovery is packaged and locally rehearsed. Asset-byte recovery
-  cannot be accepted until the product exposes a bounded attachment flow that
-  creates real asset bytes and metadata.
+- M4 product behaviour is accepted for synthetic authenticated asset upload,
+  retrieval, restart persistence, and full-state recovery. Human-operated
+  browser file-chooser/download acceptance, Linux deployment, malware/content
+  policy, and personal-data migration remain outside this boundary.
 
 ## Canonical and repository boundaries
 
@@ -137,26 +139,29 @@ remain later gates.
 
 ## Verification state
 
-- npm run verify: PASS on 2026-09-25 — formatting, lint, strict typecheck, and
-  243 tests passed; 17 opt-in PostgreSQL tests were skipped because the standard
+- npm run verify: PASS on 2026-09-28 — formatting, lint, strict typecheck, and
+  310 tests passed; 19 opt-in PostgreSQL tests were skipped because the standard
   command does not set TEST_DATABASE_URL.
-- Live PostgreSQL suite: PASS on 2026-09-25 — all 260 tests passed across 34
-  files with TEST_DATABASE_URL and `--no-file-parallelism`.
-- npm run db:generate and npm run db:migrate: PASS on 2026-09-25 — fifteen
+- Live PostgreSQL suite: PASS on 2026-09-28 — all 329 tests passed across 37
+  files with a disposable `TEST_DATABASE_URL` and `--no-file-parallelism`.
+- npm run db:generate and npm run db:migrate: PASS on 2026-09-28 — fifteen
   tables inspected, no schema drift found, and migrations applied successfully
   to the disposable restored database.
-- npm run build: PASS on 2026-09-25 — production TypeScript build completed.
-- npm audit --omit=dev --json: PASS on 2026-09-25 — zero production
+- npm run build: PASS on 2026-09-28 — production TypeScript build completed.
+- npm audit --omit=dev --json: PASS on 2026-09-28 — zero production
   vulnerabilities.
-- git diff --check: PASS on 2026-09-25 — no whitespace errors in the recovery
-  rehearsal checkpoint.
+- git diff --check: PASS on 2026-09-28 — no whitespace errors in the acceptance
+  documentation checkpoint.
 - Docker client/server 29.8.0 and the Docker Desktop Linux/WSL2 engine are
-  healthy. The isolated `pos-native-m4-test` PostgreSQL container is healthy;
-  its test-only connection values were process-local and were not written to
-  the repository.
+  healthy. The PostgreSQL 18.6 acceptance containers and named volumes were
+  disposable; their test-only connection values were process-local and were
+  not written to the repository, and the resources were removed after use.
 
 ## Known failures / blockers
 
+- Open Code Review preview and per-file rule resolution completed for the
+  authenticated asset range, but delegated review is blocked because no OCR LLM
+  endpoint/token is configured. No credential or provider setting was changed.
 - The packaged recovery operator is deliberately local and Docker-scoped; it is
   not an encrypted, scheduled, or production credential-management service.
 - A synthetic hashed session survived the dump/restore and application restart
@@ -167,14 +172,12 @@ remain later gates.
   implement the full rich block-editor requirement.
 - Page hierarchy PostgreSQL persistence/serialization and restored real-browser
   readback are live-tested with synthetic state; mobile acceptance remains open.
-- No owner account has been created. The local interactive bootstrap command is
-  implemented but must wait for a live database plus the owner's chosen email
-  and password.
-- The filesystem asset store, asset metadata service, and backup directory
-  format are internal foundations only. PostgreSQL asset metadata now has live
-  restore readback, but no upload/download API or browser attachment flow
-  exists. No asset bytes were included in the live rehearsal, so byte recovery
-  and database/filesystem cross-integrity remain unverified.
+- No personal owner account has been created. Synthetic owner bootstrap is
+  accepted only in disposable PostgreSQL environments.
+- Browser file-chooser automation is blocked because the ChatGPT Chrome
+  extension lacks file-URL access. Security permissions were not broadened.
+  Authenticated API byte equality and browser-visible listing pass, but direct
+  browser upload/download automation remains explicitly unclaimed.
 - Filesystem behavior is verified on this Windows host. Linux execution,
   deployment ACLs, crash recovery, and startup orphan reconciliation remain
   future deployment/operations acceptance work.
@@ -209,9 +212,10 @@ remain later gates.
 
 ## Exact next action
 
-Implement the bounded local asset attachment flow needed to prove asset-byte
-integrity and recovery end to end. Do not begin Notion work. Retain
-loopback-only deployment and synthetic data until the Usable Product Gate.
+Complete Task 9 review and preservation for the authenticated asset vertical,
+then select the next product slice from the local NativePOS roadmap. Do not
+begin Notion work; retain loopback-only deployment and synthetic data until the
+Usable Product Gate.
 
 ## Commands to resume
 

@@ -188,8 +188,9 @@ restored page tree and structured record at property revision 3.
 The schema now contains seventeen tables after search indexes and canonical
 `page_links` were added. Whole-database `pg_dump`/`pg_restore` naturally covers
 the new relationship, revision, and audit rows, but the fifteen-table rehearsal
-above is historical evidence and must not be represented as current
-seventeen-table acceptance. A refreshed synthetic rehearsal remains required.
+above is historical evidence and is not the current-schema proof. The refreshed
+seventeen-table rehearsal below supersedes it only for current-schema coverage;
+the historical artifact remains useful evidence of the earlier boundary.
 
 ## 2026-09-27 full-state restore rehearsal
 
@@ -274,3 +275,28 @@ had committed PostgreSQL. Backup creation now compares receipt projections on
 both sides of `pg_dump` and refuses publication if they differ. A regression
 test failed before the repair and passes afterward; the live PostgreSQL suite
 passes 330/330 and a real stable-projection backup verifies successfully.
+
+## 2026-09-28 current 17-table Navigation recovery acceptance
+
+The reproducible opt-in current-schema rehearsal uses PostgreSQL 18.6 with a
+disposable named volume mounted at `/var/lib/postgresql`. It applies migrations
+through 0011, seeds two synthetic pages and searchable paragraph content, creates
+and unlinks one page link, then relinks the same source/target pair with a new
+UUID. The unchanged packaged recovery operator creates a custom-format
+whole-database dump, publishes and reads the validated manifest, checks an empty
+target, and restores with `pg_restore --exit-on-error --single-transaction`.
+
+Before backup and after clean restore, the rehearsal compares row counts and
+deterministic content hashes for all seventeen public canonical tables. It also
+compares active forward links, active backlinks, full link history, all three
+page-link revision snapshots, the `page.linked`, `page.unlinked`, and relink
+`page.linked` audit events, and authenticated API search output. The archived
+link retained UUID `44444444-4444-4444-8444-444444444444`; the active relink
+retained distinct UUID `99999999-9999-4999-8999-999999999999`. Restored search
+returned paragraph `recovery searchable paragraph` for page `Alpha Workspace`.
+
+After a PostgreSQL-container restart, the target still reported seventeen
+tables, the same active and archived link UUIDs, three page-link revisions,
+three page-link audit events, and the searchable paragraph. All state was
+synthetic. This acceptance does not prove production credentials, personal-data
+recovery, Linux permissions, encrypted/offline policy, or Notion cutover.

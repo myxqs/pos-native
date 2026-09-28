@@ -84,7 +84,8 @@ and PostgreSQL-container restart.
 
 The real recovery operator then created and verified a full-state backup,
 restored it into a completely fresh database and empty asset root, and matched
-all 15 canonical table counts and deterministic row hashes. The restored
+all 15 canonical table counts and deterministic row hashes present at that
+historical asset-acceptance checkpoint. The restored
 asset's database receipt, manifest, filesystem bytes, API download, byte size,
 and SHA-256 agreed before and after separate application and PostgreSQL
 restarts. The authenticated browser displayed the asset from both source and
@@ -96,6 +97,12 @@ of the browser blob download therefore remain automation acceptance limits;
 no browser permissions were weakened. Authenticated API upload/download byte
 equality and browser-visible authenticated listing are verified product
 evidence, but are not represented as a passed browser file-chooser test.
+
+A later current-schema Navigation rehearsal separately matched counts and
+deterministic hashes across all seventeen tables, including page links,
+revisions, and audit events. It used an empty asset set and therefore extends
+database recovery evidence without replacing the 75-byte asset round-trip
+evidence above.
 
 ## Remaining live acceptance gates
 

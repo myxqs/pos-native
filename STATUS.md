@@ -83,9 +83,10 @@ and normal navigation suppresses archived endpoints.
   destinations, verify artifacts offline, refuse non-empty database targets
   before mutation, and restore only with `pg_restore --exit-on-error
 --single-transaction`. Live
-  acceptance compared counts and deterministic row hashes for all fifteen
-  canonical tables and exercised both refusal paths without changing accepted
-  state.
+  historical acceptance compared counts and deterministic row hashes for the
+  then-current fifteen canonical tables and exercised both refusal paths without
+  changing accepted state. A later current-schema rehearsal compares all
+  seventeen tables.
 - Canonical asset metadata foundation: generated native asset identities and
   opaque keys, bounded provenance, metadata-only creation revision/audit
   envelopes, in-memory rollback-shaped repository coverage, a PostgreSQL
@@ -156,6 +157,10 @@ and normal navigation suppresses archived endpoints.
   forward/backlink bundles with explicit provenance, per-direction truncation,
   node deduplication, fixed limits, and fail-closed repository validation. It
   adds no canonical graph state or migration.
+- Current-schema recovery acceptance now covers all seventeen table counts and
+  deterministic hashes plus active forward/backlink results, archived link
+  history, distinct relink identity, page-link revisions/audits, restored
+  authenticated paragraph search, and PostgreSQL restart readback.
 
 ## Canonical and repository boundaries
 
@@ -172,7 +177,7 @@ and normal navigation suppresses archived endpoints.
 ## Verification state
 
 - npm run verify: PASS on 2026-09-28 — formatting, lint, strict typecheck, and
-  371 tests passed; 28 opt-in PostgreSQL tests were skipped because the standard
+  371 tests passed; 29 opt-in integration tests were skipped because the standard
   command does not set TEST_DATABASE_URL.
 - Live PostgreSQL suite: PASS on 2026-09-28 — all 399 tests passed across 49
   files with a disposable `TEST_DATABASE_URL` and `--no-file-parallelism`,

@@ -8,6 +8,10 @@ export interface BrowserElement {
   textContent: string;
   type: string;
   value: string;
+  files?: readonly File[];
+  download?: string;
+  href?: string;
+  click(): void;
   addEventListener(
     type: string,
     listener: (event: BrowserEvent) => void | Promise<void>,
@@ -120,7 +124,95 @@ export function updateBlockDocumentRequest(
   csrfToken: string,
 ): Promise<BrowserBlockDocument>;
 
+export interface BrowserDataSource {
+  readonly id: string;
+  readonly name: string;
+}
+
+export interface BrowserRecord {
+  readonly item: { readonly id: string; readonly sourceId: string };
+  readonly page: { readonly id: string; readonly title: string };
+  readonly propertyRevisionNumber: number;
+  readonly values: Readonly<Record<string, unknown>>;
+  readonly outgoing: readonly {
+    readonly id: string;
+    readonly targetRecordId: string;
+  }[];
+}
+
+export function getDataSourcesRequest(
+  apiFetch: typeof fetch,
+): Promise<readonly BrowserDataSource[]>;
+export function createDataSourceRequest(
+  apiFetch: typeof fetch,
+  name: string,
+  csrfToken: string,
+): Promise<BrowserDataSource>;
+export function createRecordRequest(
+  apiFetch: typeof fetch,
+  sourceId: string,
+  title: string,
+  csrfToken: string,
+): Promise<BrowserRecord>;
+export function setRecordPropertyRequest(
+  apiFetch: typeof fetch,
+  recordId: string,
+  definitionId: string,
+  value: unknown,
+  revisionNumber: number,
+  csrfToken: string,
+): Promise<BrowserRecord>;
+export function addRecordRelationRequest(
+  apiFetch: typeof fetch,
+  recordId: string,
+  definitionId: string,
+  targetRecordId: string,
+  revisionNumber: number,
+  csrfToken: string,
+): Promise<BrowserRecord>;
+export function removeRecordRelationRequest(
+  apiFetch: typeof fetch,
+  edgeId: string,
+  revisionNumber: number,
+  csrfToken: string,
+): Promise<BrowserRecord>;
+
 export function getSessionRequest(apiFetch: typeof fetch): Promise<boolean>;
+
+export interface BrowserAsset {
+  readonly id: string;
+  readonly originalFilename: string;
+  readonly mimeType: string;
+  readonly byteSize: number;
+  readonly createdAt: string;
+}
+
+export function getAssetsRequest(
+  apiFetch: typeof fetch,
+): Promise<readonly BrowserAsset[]>;
+export function uploadAssetRequest(
+  apiFetch: typeof fetch,
+  file: File,
+  csrfToken: string,
+): Promise<BrowserAsset>;
+export function downloadAssetRequest(
+  apiFetch: typeof fetch,
+  id: string,
+): Promise<Blob>;
+export interface BrowserPageAsset {
+  readonly link: Readonly<Record<string, unknown>>;
+  readonly asset: BrowserAsset;
+}
+export function getPageAssetsRequest(
+  apiFetch: typeof fetch,
+  pageId: string,
+): Promise<readonly BrowserPageAsset[]>;
+export function attachPageAssetRequest(
+  apiFetch: typeof fetch,
+  pageId: string,
+  assetId: string,
+  csrfToken: string,
+): Promise<Readonly<Record<string, unknown>>>;
 
 export function loginRequest(
   apiFetch: typeof fetch,

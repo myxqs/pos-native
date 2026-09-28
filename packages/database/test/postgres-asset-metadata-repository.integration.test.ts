@@ -76,8 +76,29 @@ liveTest("persists an asset metadata mutation in PostgreSQL", async () => {
     asset: mutation.asset,
     revisionNumber: 1,
   });
-  await expect(repository.list()).resolves.toEqual([mutation.asset]);
+  await expect(repository.list(100)).resolves.toEqual([mutation.asset]);
 });
+
+liveTest(
+  "bounds PostgreSQL asset metadata in creation-time and native-ID order",
+  async () => {
+    if (!repository) throw new Error("live repository was not initialised");
+    const first = assetCreation([
+      "11111111-1111-4111-8111-111111111111",
+      randomUUID(),
+      randomUUID(),
+    ]);
+    const second = assetCreation([
+      "22222222-2222-4222-8222-222222222222",
+      randomUUID(),
+      randomUUID(),
+    ]);
+    await repository.create(second);
+    await repository.create(first);
+
+    await expect(repository.list(1)).resolves.toEqual([first.asset]);
+  },
+);
 
 liveTest(
   "rolls back a new asset row when its later revision insert conflicts",

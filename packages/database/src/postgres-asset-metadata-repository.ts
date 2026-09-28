@@ -12,9 +12,10 @@ import {
   type CreateAssetMutation,
 } from "../../domain/src/asset.ts";
 import { asNativeId, type NativeId } from "../../domain/src/ids.ts";
-import type {
-  AssetMetadataRepository,
-  PersistedAssetMetadata,
+import {
+  validateAssetListLimit,
+  type AssetMetadataRepository,
+  type PersistedAssetMetadata,
 } from "./asset-metadata-repository.ts";
 import { assets, auditEvents, revisions } from "./schema.ts";
 import type * as schema from "./schema.ts";
@@ -71,11 +72,12 @@ export class PostgresAssetMetadataRepository implements AssetMetadataRepository 
     return { asset, revisionNumber: revision.revisionNumber };
   }
 
-  async list(): Promise<readonly Asset[]> {
+  async list(limit: number): Promise<readonly Asset[]> {
     const rows = await this.database
       .select()
       .from(assets)
-      .orderBy(asc(assets.createdAt), asc(assets.id));
+      .orderBy(asc(assets.createdAt), asc(assets.id))
+      .limit(validateAssetListLimit(limit));
     return rows.map(fromAssetRow);
   }
 }

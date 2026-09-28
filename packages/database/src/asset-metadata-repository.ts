@@ -1,6 +1,6 @@
 import type { AuditEvent, Revision } from "../../domain/src/audit.ts";
 import type { Asset, CreateAssetMutation } from "../../domain/src/asset.ts";
-import type { NativeId } from "../../domain/src/ids.ts";
+import { type NativeId, ValidationError } from "../../domain/src/ids.ts";
 
 export interface PersistedAssetMetadata {
   readonly asset: Asset;
@@ -17,7 +17,7 @@ export interface AssetMetadataRepository {
    */
   create(mutation: CreateAssetMutation): Promise<Asset>;
   getById(id: NativeId): Promise<PersistedAssetMetadata | null>;
-  list(): Promise<readonly Asset[]>;
+  list(limit: number): Promise<readonly Asset[]>;
 }
 
 type FailurePoint = "before-revision" | "before-audit";
@@ -47,10 +47,12 @@ export class InMemoryAssetMetadataRepository implements AssetMetadataRepository 
     return this.#assets.get(id) ?? null;
   }
 
-  async list(): Promise<readonly Asset[]> {
+  async list(limit: number): Promise<readonly Asset[]> {
+    validateAssetListLimit(limit);
     return [...this.#assets.values()]
       .map(({ asset }) => asset)
-      .sort(compareAssets);
+      .sort(compareAssets)
+      .slice(0, limit);
   }
 
   revisionsFor(id: NativeId): readonly Revision<Asset, "asset">[] {
@@ -107,6 +109,15 @@ export class InMemoryAssetMetadataRepository implements AssetMetadataRepository 
       throw new Error(`injected failure ${point.replace("-", " ")}`);
     }
   }
+}
+
+export function validateAssetListLimit(limit: number): number {
+  if (!Number.isSafeInteger(limit) || limit <= 0) {
+    throw new ValidationError(
+      "asset list limit must be a positive safe integer",
+    );
+  }
+  return limit;
 }
 
 function compareAssets(left: Asset, right: Asset): number {

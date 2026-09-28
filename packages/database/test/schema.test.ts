@@ -75,3 +75,47 @@ test("revokes legacy sessions before requiring a CSRF token hash", () => {
   expect(migration).toContain('"revoked_at"');
   expect(migration).toContain("SET NOT NULL");
 });
+
+test("constrains structured-data definitions and positive record revisions", () => {
+  const definitionConfig = getTableConfig(schemaModule.propertyDefinitions);
+  const nameKey = definitionConfig.columns.find(
+    (column) => column.name === "name_key",
+  );
+  expect(nameKey?.notNull).toBe(true);
+  expect(
+    definitionConfig.indexes.some(
+      (index) =>
+        index.config.name === "property_definitions_source_name_key_unique",
+    ),
+  ).toBe(true);
+  expect(definitionConfig.checks.map((constraint) => constraint.name)).toEqual(
+    expect.arrayContaining([
+      "property_definitions_kind_supported",
+      "property_definitions_shape_valid",
+    ]),
+  );
+  expect(
+    getTableConfig(schemaModule.dataSourceItems).checks.map(
+      (constraint) => constraint.name,
+    ),
+  ).toContain("data_source_items_property_revision_positive");
+});
+
+test("backfills canonical property-name keys before enforcing the new constraint", () => {
+  const migration = readFileSync(
+    fileURLToPath(
+      new URL("../drizzle/0007_pale_micromacro.sql", import.meta.url),
+    ),
+    "utf8",
+  );
+  const addNullable = migration.indexOf('ADD COLUMN "name_key" text;');
+  const backfill = migration.indexOf(
+    `SET "name_key" = translate(normalize("name", NFKC), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')`,
+  );
+  const makeRequired = migration.indexOf(
+    'ALTER COLUMN "name_key" SET NOT NULL',
+  );
+  expect(addNullable).toBeGreaterThanOrEqual(0);
+  expect(backfill).toBeGreaterThan(addNullable);
+  expect(makeRequired).toBeGreaterThan(backfill);
+});

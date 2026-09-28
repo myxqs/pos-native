@@ -1,10 +1,11 @@
-# Asset Metadata Operations
+# Asset Operations
 
 ## Current verified boundary
 
-NativePOS has an internal, metadata-only asset creation service in
-`packages/assets`. It is a tested foundation for a later authenticated upload
-adapter, not a user-facing upload/download feature.
+NativePOS has an authenticated, CSRF-protected asset vertical built on the
+asset creation service in `packages/assets`. The browser and API accept bounded
+`application/octet-stream` uploads, list canonical metadata, and download
+verified bytes from the configured local filesystem asset root.
 
 The service receives a `Uint8Array`, a filename, MIME type, actor, and bounded
 provenance context. It owns a byte snapshot before asynchronous work begins,
@@ -18,7 +19,7 @@ SHA-256, timestamp, and bounded provenance. Creation adds immutable revision
 1 and an `asset.created` audit event. These snapshots contain metadata only;
 they do not contain file bytes, connection strings, passwords, or tokens.
 
-## Internal creation flow
+## Creation flow
 
 ```text
 caller input
@@ -60,36 +61,52 @@ service-owned bytes or the storage adapter reported failed verification. It
 also prevents metadata persistence and enters the same expected-key cleanup
 path after staging.
 
-## What is not an operation yet
+## Current limitations
 
-Do not treat this service as permission to handle live personal files through a
-browser or API. There is currently no public multipart route, download route,
-content sniffing/quarantine policy, attachment browser UI, page-cover
-assignment, metadata update/delete route, idempotency replay store, or startup
-orphan reconciler. `discard` is compensation-only and is not a user deletion
-feature.
+The current upload route accepts raw bounded bytes rather than multipart form
+data. There is no content sniffing or malware quarantine, inline rendering,
+page attachment/cover assignment, metadata update/delete route, idempotency
+replay store, or startup orphan reconciler. `discard` is compensation-only and
+is not a user deletion feature. These limits mean that synthetic acceptance is
+not permission to import personal files or cut over from Notion.
 
 Do not put asset roots, asset bytes, database dumps, `.env` files, or secrets
-under source control. The current filesystem store is tested using isolated
-temporary roots only.
+under source control. Acceptance uses only isolated disposable roots and
+synthetic bytes.
 
-## Required live acceptance gates
+## 2026-09-28 disposable acceptance
 
-Before this boundary supports personal-file operations or is called durable,
-complete and record all of the following:
+Using PostgreSQL 18.6 with its disposable named volume mounted at
+`/var/lib/postgresql`, the production loopback runtime accepted a synthetic
+75-byte asset. Its PostgreSQL receipt, revision, audit event, filesystem byte
+count, and SHA-256 agreed. API readback survived a separate application restart
+and PostgreSQL-container restart.
 
-1. Start an approved PostgreSQL environment; run migrations and the opt-in
-   transaction/rollback tests, including restart readback.
-2. Cross-check database metadata, revision/audit rows, and filesystem bytes in
-   a real configured asset root.
-3. Add an authenticated, CSRF-protected, bounded multipart upload and safe
-   download/content policy through the service boundary.
-4. Design and test reconciliation for retained compensation failures without
+The real recovery operator then created and verified a full-state backup,
+restored it into a completely fresh database and empty asset root, and matched
+all 15 canonical table counts and deterministic row hashes. The restored
+asset's database receipt, manifest, filesystem bytes, API download, byte size,
+and SHA-256 agreed before and after separate application and PostgreSQL
+restarts. The authenticated browser displayed the asset from both source and
+restored state.
+
+The ChatGPT Chrome extension could not automate the native file chooser because
+file-URL access is unavailable. Browser-driven upload and programmatic capture
+of the browser blob download therefore remain automation acceptance limits;
+no browser permissions were weakened. Authenticated API upload/download byte
+equality and browser-visible authenticated listing are verified product
+evidence, but are not represented as a passed browser file-chooser test.
+
+## Remaining live acceptance gates
+
+Before this boundary supports personal-file operations, complete and record:
+
+1. Design and test reconciliation for retained compensation failures without
    broad or automatic deletion.
-5. Include canonical asset metadata and bytes in a live backup/restore
-   rehearsal, then prove retrieval after a clean restore.
-6. Verify Linux ownership, permissions, crash recovery, and deployment
+2. Verify Linux ownership, permissions, crash recovery, and deployment
    operations on the intended home-server environment.
+3. Complete a human-operated browser file-chooser and download acceptance check
+   without changing browser security permissions.
 
 Notion remains canonical until the separate product, migration, retrieval, and
 backup/restore gates have been passed and the user explicitly authorises

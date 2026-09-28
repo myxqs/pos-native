@@ -46,6 +46,18 @@ export interface FilesystemBackupLocation {
   readonly manifest: BackupManifest;
 }
 
+export interface VerifiedDatabaseDump {
+  readonly manifest: BackupManifest;
+  readonly bytes: Uint8Array;
+}
+
+export interface VerifiedApplicationBackup extends VerifiedDatabaseDump {
+  readonly assets: readonly {
+    readonly descriptor: BackupManifest["assets"][number];
+    readonly bytes: Uint8Array;
+  }[];
+}
+
 function isMissingFile(error: unknown): boolean {
   return (error as NodeJS.ErrnoException).code === "ENOENT";
 }
@@ -532,6 +544,57 @@ export async function verifyFilesystemBackup(
   }
 
   return manifest;
+}
+
+export async function readVerifiedDatabaseDump(
+  configuredRoot: string,
+  requestedBackupId: NativeId,
+  options: BackupOperationOptions,
+): Promise<VerifiedDatabaseDump> {
+  const maxArtifactBytes = requireMaxArtifactBytes(options);
+  const backupId = asNativeId(requestedBackupId);
+  const manifest = await verifyFilesystemBackup(
+    configuredRoot,
+    backupId,
+    options,
+  );
+  const backupRoot = await canonicalBackupRoot(configuredRoot, false);
+  const directory = await requireBackupDirectory(backupRoot, backupId);
+  const bytes = await readVerifiedArtifact(
+    directory,
+    manifest.database,
+    maxArtifactBytes,
+  );
+
+  return { manifest, bytes };
+}
+
+export async function readVerifiedApplicationBackup(
+  configuredRoot: string,
+  requestedBackupId: NativeId,
+  options: BackupOperationOptions,
+): Promise<VerifiedApplicationBackup> {
+  const maxArtifactBytes = requireMaxArtifactBytes(options);
+  const backupId = asNativeId(requestedBackupId);
+  const backupRoot = await canonicalBackupRoot(configuredRoot, false);
+  const directory = await requireBackupDirectory(backupRoot, backupId);
+  const manifest = await verifyFilesystemBackup(backupRoot, backupId, options);
+  const bytes = await readVerifiedArtifact(
+    directory,
+    manifest.database,
+    maxArtifactBytes,
+  );
+  const assets = await Promise.all(
+    manifest.assets.map(async (descriptor) => ({
+      descriptor,
+      bytes: await readVerifiedArtifact(
+        directory,
+        descriptor,
+        maxArtifactBytes,
+      ),
+    })),
+  );
+  return { manifest, bytes, assets };
 }
 
 export async function restoreFilesystemBackup(

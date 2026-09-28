@@ -1,4 +1,4 @@
-/* global document, fetch */
+/* global Blob, document, fetch, URL */
 
 const MAX_PAGE_HIERARCHY_EDGES = 32;
 
@@ -140,6 +140,237 @@ export async function updateBlockDocumentRequest(
     method: "PUT",
   });
   return blockDocumentFromResponse(body, id);
+}
+
+export async function getDataSourcesRequest(apiFetch) {
+  const body = await requestJson(
+    apiFetch,
+    "/api/v1/data-sources?limit=100&offset=0",
+    { credentials: "same-origin", method: "GET" },
+  );
+  if (!isPlainRecord(body) || !Array.isArray(body.sources))
+    throw new Error("NativePOS is unavailable");
+  return body.sources;
+}
+
+export async function getAssetsRequest(apiFetch) {
+  const body = await requestJson(apiFetch, "/api/v1/assets?limit=50", {
+    credentials: "same-origin",
+    method: "GET",
+  });
+  if (!isPlainRecord(body) || !Array.isArray(body.assets)) {
+    throw new Error("NativePOS is unavailable");
+  }
+  return body.assets.map(assetFromResponse);
+}
+
+export async function uploadAssetRequest(apiFetch, file, csrfToken) {
+  if (!(file instanceof Blob) || typeof file.name !== "string") {
+    throw new Error("NativePOS is unavailable");
+  }
+  const body = await requestJson(apiFetch, "/api/v1/assets", {
+    body: await file.arrayBuffer(),
+    credentials: "same-origin",
+    headers: {
+      "content-type": "application/octet-stream",
+      "x-nativepos-filename": encodeURIComponent(file.name),
+      "x-nativepos-media-type": file.type || "application/octet-stream",
+      ...csrfHeaders(csrfToken),
+    },
+    method: "POST",
+  });
+  if (!isPlainRecord(body) || !isPlainRecord(body.asset)) {
+    throw new Error("NativePOS is unavailable");
+  }
+  return assetFromResponse(body.asset);
+}
+
+export async function downloadAssetRequest(apiFetch, id) {
+  const response = await apiFetch(`/api/v1/assets/${id}/content`, {
+    credentials: "same-origin",
+    method: "GET",
+  });
+  if (!response.ok) throw createRequestError(response.status);
+  return response.blob();
+}
+
+export async function getPageAssetsRequest(apiFetch, pageId) {
+  const body = await requestJson(apiFetch, `/api/v1/pages/${pageId}/assets`, {
+    credentials: "same-origin",
+    method: "GET",
+  });
+  if (!isPlainRecord(body) || !Array.isArray(body.items))
+    throw new Error("NativePOS is unavailable");
+  return body.items.map((item) => {
+    if (!isPlainRecord(item) || !isPlainRecord(item.link))
+      throw new Error("NativePOS is unavailable");
+    return { link: item.link, asset: assetFromResponse(item.asset) };
+  });
+}
+
+export async function attachPageAssetRequest(
+  apiFetch,
+  pageId,
+  assetId,
+  csrfToken,
+) {
+  const body = await requestJson(
+    apiFetch,
+    `/api/v1/pages/${pageId}/assets/${assetId}`,
+    {
+      credentials: "same-origin",
+      headers: csrfHeaders(csrfToken),
+      method: "POST",
+    },
+  );
+  if (!isPlainRecord(body) || !isPlainRecord(body.link))
+    throw new Error("NativePOS is unavailable");
+  return body.link;
+}
+
+export async function createDataSourceRequest(apiFetch, name, csrfToken) {
+  const body = await requestJson(apiFetch, "/api/v1/data-sources", {
+    body: JSON.stringify({ name }),
+    credentials: "same-origin",
+    headers: jsonHeaders(csrfToken),
+    method: "POST",
+  });
+  if (!isPlainRecord(body) || !isPlainRecord(body.source))
+    throw new Error("NativePOS is unavailable");
+  return body.source;
+}
+
+export async function getDefinitionsRequest(apiFetch, sourceId) {
+  const body = await requestJson(
+    apiFetch,
+    `/api/v1/data-sources/${sourceId}/definitions`,
+    { credentials: "same-origin", method: "GET" },
+  );
+  if (!isPlainRecord(body) || !Array.isArray(body.definitions))
+    throw new Error("NativePOS is unavailable");
+  return body.definitions;
+}
+
+export async function createDefinitionRequest(
+  apiFetch,
+  sourceId,
+  definition,
+  csrfToken,
+) {
+  const body = await requestJson(
+    apiFetch,
+    `/api/v1/data-sources/${sourceId}/definitions`,
+    {
+      body: JSON.stringify(definition),
+      credentials: "same-origin",
+      headers: jsonHeaders(csrfToken),
+      method: "POST",
+    },
+  );
+  if (!isPlainRecord(body) || !isPlainRecord(body.definition))
+    throw new Error("NativePOS is unavailable");
+  return body.definition;
+}
+
+export async function getRecordsRequest(apiFetch, sourceId) {
+  const body = await requestJson(
+    apiFetch,
+    `/api/v1/data-sources/${sourceId}/items?limit=100&offset=0`,
+    { credentials: "same-origin", method: "GET" },
+  );
+  if (!isPlainRecord(body) || !Array.isArray(body.records))
+    throw new Error("NativePOS is unavailable");
+  return body.records;
+}
+
+export async function createRecordRequest(
+  apiFetch,
+  sourceId,
+  title,
+  csrfToken,
+) {
+  return recordFromResponse(
+    await requestJson(apiFetch, `/api/v1/data-sources/${sourceId}/items`, {
+      body: JSON.stringify({ title }),
+      credentials: "same-origin",
+      headers: jsonHeaders(csrfToken),
+      method: "POST",
+    }),
+  );
+}
+
+export async function getRecordRequest(apiFetch, recordId) {
+  return recordFromResponse(
+    await requestJson(apiFetch, `/api/v1/records/${recordId}`, {
+      credentials: "same-origin",
+      method: "GET",
+    }),
+  );
+}
+
+export async function setRecordPropertyRequest(
+  apiFetch,
+  recordId,
+  definitionId,
+  value,
+  revisionNumber,
+  csrfToken,
+) {
+  return recordFromResponse(
+    await requestJson(
+      apiFetch,
+      `/api/v1/records/${recordId}/properties/${definitionId}`,
+      {
+        body: JSON.stringify({ value }),
+        credentials: "same-origin",
+        headers: jsonHeaders(csrfToken, {
+          "if-match": `"${revisionNumber}"`,
+        }),
+        method: "PUT",
+      },
+    ),
+  );
+}
+
+export async function addRecordRelationRequest(
+  apiFetch,
+  recordId,
+  definitionId,
+  targetRecordId,
+  revisionNumber,
+  csrfToken,
+) {
+  return recordFromResponse(
+    await requestJson(
+      apiFetch,
+      `/api/v1/records/${recordId}/relations/${definitionId}`,
+      {
+        body: JSON.stringify({ targetRecordId }),
+        credentials: "same-origin",
+        headers: jsonHeaders(csrfToken, {
+          "if-match": `"${revisionNumber}"`,
+        }),
+        method: "POST",
+      },
+    ),
+  );
+}
+
+export async function removeRecordRelationRequest(
+  apiFetch,
+  edgeId,
+  revisionNumber,
+  csrfToken,
+) {
+  return recordFromResponse(
+    await requestJson(apiFetch, `/api/v1/relations/${edgeId}`, {
+      credentials: "same-origin",
+      headers: csrfHeaders(csrfToken, {
+        "if-match": `"${revisionNumber}"`,
+      }),
+      method: "DELETE",
+    }),
+  );
 }
 
 export async function getSessionRequest(apiFetch) {
@@ -359,6 +590,201 @@ function blockDocumentFromResponse(value, pageId) {
   return document;
 }
 
+function recordFromResponse(value) {
+  if (
+    !isPlainRecord(value) ||
+    !isPlainRecord(value.record) ||
+    !isPlainRecord(value.record.item) ||
+    !isPlainRecord(value.record.page) ||
+    !Number.isSafeInteger(value.record.propertyRevisionNumber) ||
+    value.record.propertyRevisionNumber < 1
+  ) {
+    throw new Error("NativePOS is unavailable");
+  }
+  return {
+    ...value.record,
+    outgoing: Array.isArray(value.outgoing) ? value.outgoing : [],
+  };
+}
+
+function assetFromResponse(value) {
+  if (
+    !isPlainRecord(value) ||
+    typeof value.id !== "string" ||
+    value.id.length === 0 ||
+    typeof value.originalFilename !== "string" ||
+    value.originalFilename.length === 0 ||
+    typeof value.mimeType !== "string" ||
+    value.mimeType.length === 0 ||
+    !Number.isSafeInteger(value.byteSize) ||
+    value.byteSize < 0 ||
+    typeof value.createdAt !== "string" ||
+    value.createdAt.length === 0
+  ) {
+    throw new Error("NativePOS is unavailable");
+  }
+  return {
+    id: value.id,
+    originalFilename: value.originalFilename,
+    mimeType: value.mimeType,
+    byteSize: value.byteSize,
+    createdAt: value.createdAt,
+  };
+}
+
+function initializeAssetBrowser(documentObject, apiFetch, callbacks) {
+  const list = documentObject.querySelector("#asset-list");
+  if (!list) return { refresh: async () => {}, reset: () => {} };
+  const fileInput = requiredElement(documentObject, "#asset-file");
+  const upload = requiredElement(documentObject, "#upload-asset");
+  const status = requiredElement(documentObject, "#asset-status");
+  const linkedList = documentObject.querySelector("#page-asset-list");
+  const refreshLinkedButton = documentObject.querySelector(
+    "#refresh-page-assets",
+  );
+  let generation = 0;
+  let pending = false;
+  let pendingToken = null;
+
+  function applyPending() {
+    fileInput.disabled = pending;
+    upload.disabled = pending;
+  }
+
+  function handleError(error, fallback) {
+    if (isAuthenticationError(error)) callbacks.onAuthenticationError();
+    else status.textContent = fallback;
+  }
+
+  function render(assets) {
+    list.replaceChildren(
+      ...assets.map((asset) => {
+        const item = documentObject.createElement("li");
+        const metadata = documentObject.createElement("span");
+        metadata.textContent = `${asset.originalFilename} — ${asset.mimeType} — ${asset.byteSize} bytes`;
+        const button = documentObject.createElement("button");
+        button.type = "button";
+        button.textContent = "Download";
+        button.addEventListener("click", async () => {
+          try {
+            const blob = await downloadAssetRequest(apiFetch, asset.id);
+            const objectUrl = URL.createObjectURL(blob);
+            try {
+              const anchor = documentObject.createElement("a");
+              anchor.href = objectUrl;
+              anchor.download = asset.originalFilename;
+              anchor.click();
+            } finally {
+              URL.revokeObjectURL(objectUrl);
+            }
+          } catch (error) {
+            handleError(error, "Could not download asset.");
+          }
+        });
+        item.append(metadata);
+        item.append(button);
+        const attach = documentObject.createElement("button");
+        attach.type = "button";
+        attach.textContent = "Attach to selected page";
+        attach.addEventListener("click", async () => {
+          const pageId = callbacks.selectedPageId();
+          if (!pageId) {
+            status.textContent = "Select a page first.";
+            return;
+          }
+          try {
+            await attachPageAssetRequest(
+              apiFetch,
+              pageId,
+              asset.id,
+              callbacks.csrfToken(),
+            );
+            status.textContent = "Asset attached to page.";
+            await refreshLinked();
+          } catch (error) {
+            handleError(error, "Could not attach asset.");
+          }
+        });
+        item.append(attach);
+        return item;
+      }),
+    );
+  }
+
+  async function refreshLinked() {
+    if (!linkedList) return;
+    const pageId = callbacks.selectedPageId();
+    if (!pageId) {
+      linkedList.replaceChildren();
+      return;
+    }
+    try {
+      const items = await getPageAssetsRequest(apiFetch, pageId);
+      if (callbacks.selectedPageId() !== pageId) return;
+      linkedList.replaceChildren(
+        ...items.map(({ asset }) => {
+          const item = documentObject.createElement("li");
+          item.textContent = `${asset.originalFilename} — ${asset.mimeType} — ${asset.byteSize} bytes`;
+          return item;
+        }),
+      );
+    } catch (error) {
+      handleError(error, "Could not load linked assets.");
+    }
+  }
+
+  async function refresh() {
+    const requestGeneration = ++generation;
+    try {
+      const assets = await getAssetsRequest(apiFetch);
+      if (requestGeneration !== generation) return;
+      render(assets);
+      status.textContent = "";
+    } catch (error) {
+      if (requestGeneration !== generation) return;
+      handleError(error, "Could not load assets.");
+    }
+  }
+
+  function reset() {
+    generation += 1;
+    pending = false;
+    pendingToken = null;
+    applyPending();
+    list.replaceChildren();
+    linkedList?.replaceChildren();
+    status.textContent = "";
+  }
+
+  upload.addEventListener("click", async () => {
+    const file = fileInput.files?.[0];
+    if (!file || pending) return;
+    const requestGeneration = generation;
+    const token = {};
+    pendingToken = token;
+    pending = true;
+    applyPending();
+    try {
+      await uploadAssetRequest(apiFetch, file, callbacks.csrfToken());
+      if (requestGeneration !== generation) return;
+      status.textContent = "Asset uploaded.";
+      await refresh();
+    } catch (error) {
+      if (requestGeneration !== generation) return;
+      handleError(error, "Could not upload asset.");
+    } finally {
+      if (pendingToken === token) {
+        pending = false;
+        pendingToken = null;
+        applyPending();
+      }
+    }
+  });
+  refreshLinkedButton?.addEventListener("click", refreshLinked);
+
+  return { refresh, refreshLinked, reset };
+}
+
 function editableParagraph(document) {
   if (document.blocks.length === 0) {
     return { blockId: null, revisionNumber: document.revisionNumber, text: "" };
@@ -401,6 +827,320 @@ async function requestJson(apiFetch, url, options) {
   }
   if (!response.ok) throw createRequestError(response.status);
   return body;
+}
+
+function initializeCollectionBrowser(documentObject, apiFetch, callbacks) {
+  const sourceList = documentObject.querySelector("#data-source-list");
+  if (!sourceList) return { refresh: async () => {}, reset: () => {} };
+  const sourceForm = requiredElement(documentObject, "#create-data-source");
+  const sourceName = requiredElement(documentObject, "#new-data-source-name");
+  const panel = requiredElement(documentObject, "#collection-panel");
+  const collectionName = requiredElement(documentObject, "#collection-name");
+  const definitionForm = requiredElement(
+    documentObject,
+    "#create-property-definition",
+  );
+  const definitionName = requiredElement(documentObject, "#new-property-name");
+  const definitionKind = requiredElement(documentObject, "#new-property-kind");
+  const definitionOptions = requiredElement(
+    documentObject,
+    "#new-property-options",
+  );
+  const definitionTarget = requiredElement(
+    documentObject,
+    "#new-property-target",
+  );
+  const recordForm = requiredElement(documentObject, "#create-record");
+  const recordTitleInput = requiredElement(documentObject, "#new-record-title");
+  const recordList = requiredElement(documentObject, "#record-list");
+  const inspector = requiredElement(documentObject, "#record-inspector");
+  const recordTitle = requiredElement(documentObject, "#record-title");
+  const openRecordPage = requiredElement(documentObject, "#open-record-page");
+  const propertyForm = requiredElement(documentObject, "#set-record-property");
+  const propertyDefinition = requiredElement(
+    documentObject,
+    "#record-property-definition",
+  );
+  const propertyValue = requiredElement(
+    documentObject,
+    "#record-property-value",
+  );
+  const relationForm = requiredElement(documentObject, "#add-record-relation");
+  const relationDefinition = requiredElement(
+    documentObject,
+    "#record-relation-definition",
+  );
+  const relationTarget = requiredElement(
+    documentObject,
+    "#record-relation-target",
+  );
+  const relationList = requiredElement(documentObject, "#record-relation-list");
+  const recordRevision = requiredElement(documentObject, "#record-revision");
+  const status = requiredElement(documentObject, "#collection-status");
+  let selectedSource = null;
+  let definitions = [];
+  let selectedRecord = null;
+
+  function handleError(error, fallback) {
+    if (isAuthenticationError(error)) callbacks.onAuthenticationError();
+    else status.textContent = fallback;
+  }
+
+  function renderRecord(record) {
+    selectedRecord = record;
+    inspector.hidden = false;
+    recordTitle.textContent = record.page.title;
+    recordRevision.textContent = `Property revision ${record.propertyRevisionNumber}`;
+    relationList.replaceChildren(
+      ...record.outgoing.map((edge) => {
+        const item = documentObject.createElement("li");
+        const button = documentObject.createElement("button");
+        button.type = "button";
+        button.textContent = `Remove relation to ${edge.targetRecordId}`;
+        button.addEventListener("click", async () => {
+          try {
+            await removeRecordRelationRequest(
+              apiFetch,
+              edge.id,
+              selectedRecord.propertyRevisionNumber,
+              callbacks.csrfToken(),
+            );
+            await selectRecord(selectedRecord.item.id);
+            status.textContent = "Relation removed.";
+          } catch (error) {
+            await handleRecordMutationError(
+              error,
+              "Could not remove relation.",
+            );
+          }
+        });
+        item.append(button);
+        return item;
+      }),
+    );
+  }
+
+  async function selectRecord(id) {
+    try {
+      renderRecord(await getRecordRequest(apiFetch, id));
+      status.textContent = "";
+    } catch (error) {
+      handleError(error, "Could not load record.");
+    }
+  }
+
+  async function loadSelectedSource() {
+    if (!selectedSource) return;
+    const [nextDefinitions, records] = await Promise.all([
+      getDefinitionsRequest(apiFetch, selectedSource.id),
+      getRecordsRequest(apiFetch, selectedSource.id),
+    ]);
+    definitions = nextDefinitions;
+    propertyDefinition.replaceChildren(
+      ...definitions
+        .filter((definition) => definition.kind !== "relation")
+        .map((definition) => {
+          const option = documentObject.createElement("option");
+          option.value = definition.id;
+          option.textContent = definition.name;
+          return option;
+        }),
+    );
+    relationDefinition.replaceChildren(
+      ...definitions
+        .filter((definition) => definition.kind === "relation")
+        .map((definition) => {
+          const option = documentObject.createElement("option");
+          option.value = definition.id;
+          option.textContent = definition.name;
+          return option;
+        }),
+    );
+    recordList.replaceChildren(
+      ...records.map((record) => {
+        const item = documentObject.createElement("li");
+        const button = documentObject.createElement("button");
+        button.type = "button";
+        button.textContent = record.page.title;
+        button.addEventListener("click", () => selectRecord(record.item.id));
+        item.append(button);
+        return item;
+      }),
+    );
+  }
+
+  async function selectSource(source) {
+    callbacks.onSelectSource();
+    selectedSource = source;
+    selectedRecord = null;
+    inspector.hidden = true;
+    panel.hidden = false;
+    collectionName.textContent = source.name;
+    try {
+      await loadSelectedSource();
+      status.textContent = "";
+    } catch (error) {
+      handleError(error, "Could not load collection.");
+    }
+  }
+
+  async function refresh() {
+    const sources = await getDataSourcesRequest(apiFetch);
+    sourceList.replaceChildren(
+      ...sources.map((source) => {
+        const item = documentObject.createElement("li");
+        const button = documentObject.createElement("button");
+        button.type = "button";
+        button.textContent = source.name;
+        button.addEventListener("click", () => selectSource(source));
+        item.append(button);
+        return item;
+      }),
+    );
+  }
+
+  function reset() {
+    selectedSource = null;
+    selectedRecord = null;
+    definitions = [];
+    sourceList.replaceChildren();
+    recordList.replaceChildren();
+    inspector.hidden = true;
+    panel.hidden = true;
+    status.textContent = "";
+  }
+
+  sourceForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    try {
+      const source = await createDataSourceRequest(
+        apiFetch,
+        sourceName.value,
+        callbacks.csrfToken(),
+      );
+      sourceName.value = "";
+      await refresh();
+      await selectSource(source);
+    } catch (error) {
+      handleError(error, "Could not create collection.");
+    }
+  });
+
+  definitionForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!selectedSource) return;
+    const definition = {
+      name: definitionName.value,
+      kind: definitionKind.value,
+    };
+    if (definition.kind === "status") {
+      definition.options = definitionOptions.value
+        .split(",")
+        .map((option) => option.trim())
+        .filter(Boolean);
+    }
+    if (definition.kind === "relation") {
+      definition.targetSourceId = definitionTarget.value;
+    }
+    try {
+      await createDefinitionRequest(
+        apiFetch,
+        selectedSource.id,
+        definition,
+        callbacks.csrfToken(),
+      );
+      definitionName.value = "";
+      await loadSelectedSource();
+      status.textContent = "Field created.";
+    } catch (error) {
+      handleError(error, "Could not create field.");
+    }
+  });
+
+  recordForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!selectedSource) return;
+    try {
+      const record = await createRecordRequest(
+        apiFetch,
+        selectedSource.id,
+        recordTitleInput.value,
+        callbacks.csrfToken(),
+      );
+      recordTitleInput.value = "";
+      await Promise.all([loadSelectedSource(), callbacks.onRecordCreated()]);
+      renderRecord(record);
+      status.textContent = "Record created.";
+    } catch (error) {
+      handleError(error, "Could not create record.");
+    }
+  });
+
+  propertyForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!selectedRecord || !propertyDefinition.value) return;
+    const definition = definitions.find(
+      (entry) => entry.id === propertyDefinition.value,
+    );
+    const value =
+      definition?.kind === "checkbox"
+        ? propertyValue.value.toLowerCase() === "true"
+        : propertyValue.value;
+    try {
+      renderRecord(
+        await setRecordPropertyRequest(
+          apiFetch,
+          selectedRecord.item.id,
+          propertyDefinition.value,
+          value,
+          selectedRecord.propertyRevisionNumber,
+          callbacks.csrfToken(),
+        ),
+      );
+      status.textContent = "Value saved.";
+    } catch (error) {
+      await handleRecordMutationError(error, "Could not save value.");
+    }
+  });
+
+  async function handleRecordMutationError(error, fallback) {
+    if (error instanceof Error && error.statusCode === 409 && selectedRecord) {
+      await selectRecord(selectedRecord.item.id);
+      status.textContent =
+        "This record changed. Review it before saving again.";
+    } else {
+      handleError(error, fallback);
+    }
+  }
+
+  relationForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!selectedRecord || !relationDefinition.value) return;
+    try {
+      await addRecordRelationRequest(
+        apiFetch,
+        selectedRecord.item.id,
+        relationDefinition.value,
+        relationTarget.value,
+        selectedRecord.propertyRevisionNumber,
+        callbacks.csrfToken(),
+      );
+      relationTarget.value = "";
+      await selectRecord(selectedRecord.item.id);
+      status.textContent = "Relation added.";
+    } catch (error) {
+      await handleRecordMutationError(error, "Could not add relation.");
+    }
+  });
+
+  openRecordPage.addEventListener("click", async () => {
+    if (selectedRecord) {
+      panel.hidden = true;
+      await callbacks.onOpenPage(selectedRecord.item.id);
+    }
+  });
+
+  return { refresh, reset };
 }
 
 export async function startBrowserApp(
@@ -459,6 +1199,10 @@ export async function startBrowserApp(
   let restorePendingId = null;
   let archivedListPending = false;
   let archivedPendingGeneration = null;
+  let refreshCollections = async () => {};
+  let resetCollections = () => {};
+  let refreshAssets = async () => {};
+  let resetAssets = () => {};
 
   function isArchivedSelection() {
     return selectedPage?.archivedAt !== null && selectedPage !== null;
@@ -652,6 +1396,8 @@ export async function startBrowserApp(
     pageParent.replaceChildren();
     resetBodyEditor();
     clearNavigation();
+    resetCollections();
+    resetAssets();
     editor.hidden = true;
     empty.hidden = false;
     applySelectionControls();
@@ -707,6 +1453,8 @@ export async function startBrowserApp(
   }
 
   async function selectPage(id) {
+    const collectionPanel = documentObject.querySelector("#collection-panel");
+    if (collectionPanel) collectionPanel.hidden = true;
     const selectionGeneration = ++pageSelectionGeneration;
     archivedListGeneration += 1;
     let metadataLoaded = false;
@@ -754,8 +1502,39 @@ export async function startBrowserApp(
     if (!archivedPagesPanel.hidden) await loadArchivedPages();
   }
 
+  ({ refresh: refreshCollections, reset: resetCollections } =
+    initializeCollectionBrowser(documentObject, apiFetch, {
+      csrfToken: () => csrfTokenFromDocument(documentObject),
+      onAuthenticationError: () =>
+        showLogin("Your session has ended. Please sign in again."),
+      onRecordCreated: refreshActivePages,
+      onOpenPage: selectPage,
+      onSelectSource: () => {
+        pageSelectionGeneration += 1;
+        selectedPage = null;
+        selectedRevisionNumber = null;
+        editor.hidden = true;
+        empty.hidden = true;
+      },
+    }));
+
+  ({ refresh: refreshAssets, reset: resetAssets } = initializeAssetBrowser(
+    documentObject,
+    apiFetch,
+    {
+      csrfToken: () => csrfTokenFromDocument(documentObject),
+      selectedPageId: () => selectedPage?.id ?? null,
+      onAuthenticationError: () =>
+        showLogin("Your session has ended. Please sign in again."),
+    },
+  ));
+
   async function revealWorkspace(generation) {
-    await refreshActivePages();
+    await Promise.all([
+      refreshActivePages(),
+      refreshCollections(),
+      refreshAssets(),
+    ]);
     if (generation !== authenticationGeneration) return false;
     showWorkspace();
     return true;

@@ -4,6 +4,13 @@
 
 ### Added
 
+- Authenticated bounded asset upload/list/download backed by canonical
+  PostgreSQL metadata and verified local filesystem bytes.
+- Safe full-state PostgreSQL plus asset backup/restore with clean-target guards,
+  staged-file compensation, receipt cross-integrity, and post-restore evidence.
+- Disposable PostgreSQL 18 named-volume acceptance proving source and restored
+  application/database restart persistence and exact asset-byte recovery.
+
 - POS Native repository, architecture, ADR and operational-documentation base.
 - Test-first native page creation with revision and audit envelopes.
 - M0 Docker/PostgreSQL development configuration and resumable status record.
@@ -55,6 +62,9 @@
   and conditions for future selective adaptation.
 
 ### Changed
+
+- Full-state PostgreSQL backup now brackets `pg_dump` with matching asset
+  receipt projections and refuses publication if concurrent asset state changes.
 
 - Browser page mutation requests now send CSRF and If-Match proof headers.
 - Runtime composition now closes persistence when web-asset validation fails.

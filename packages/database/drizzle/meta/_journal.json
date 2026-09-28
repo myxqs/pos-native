@@ -43,6 +43,27 @@
       "when": 1790001120986,
       "tag": "0005_good_ghost_rider",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790259020313,
+      "tag": "0006_striped_mastermind",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790276971319,
+      "tag": "0007_pale_micromacro",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790596225065,
+      "tag": "0008_stiff_giant_man",
+      "breakpoints": true
     }
   ]
 }

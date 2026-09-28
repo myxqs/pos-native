@@ -3,13 +3,23 @@ import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import Fastify, { type FastifyInstance } from "fastify";
 import type { AuthenticationService } from "../../../packages/auth/src/session.ts";
+import type { AssetService } from "../../../packages/assets/src/asset-service.ts";
+import type { AssetStore } from "../../../packages/assets/src/asset-storage.ts";
+import type { AssetMetadataRepository } from "../../../packages/database/src/asset-metadata-repository.ts";
+import type { PageAssetLinkRepository } from "../../../packages/database/src/page-asset-link-repository.ts";
 import type { BlockDocumentRepository } from "../../../packages/database/src/block-document-repository.ts";
+import type { DataSourceRepository } from "../../../packages/database/src/data-source-repository.ts";
+import type { DataSourceDependencies } from "../../../packages/domain/src/data-source.ts";
 import type { CreatePageDependencies } from "../../../packages/domain/src/page.ts";
+import type { PageAssetLinkDependencies } from "../../../packages/domain/src/page-asset-link.ts";
 import type { BlockDocumentDependencies } from "../../../packages/domain/src/block-document.ts";
 import type { PageRepository } from "../../../packages/database/src/page-repository.ts";
 import { registerAuthenticationRoutes } from "./auth-routes.ts";
+import { registerAssetRoutes } from "./asset-routes.ts";
 import { registerBlockDocumentRoutes } from "./block-document-routes.ts";
+import { registerDataSourceRoutes } from "./data-source-routes.ts";
 import { registerPageRoutes, type PageAuthorizer } from "./page-routes.ts";
+import { registerPageAssetRoutes } from "./page-asset-routes.ts";
 import {
   readWebAsset,
   resolveWebAssetRoot,
@@ -24,6 +34,15 @@ export interface AppOptions {
   readonly pageDependencies?: CreatePageDependencies;
   readonly blockDocumentRepository?: BlockDocumentRepository;
   readonly blockDocumentDependencies?: BlockDocumentDependencies;
+  readonly dataSourceRepository?: DataSourceRepository;
+  readonly dataSourceDependencies?: DataSourceDependencies;
+  readonly assetService?: Pick<AssetService, "create">;
+  readonly assetRepository?: AssetMetadataRepository;
+  readonly assetStore?: AssetStore;
+  readonly assetRequestId?: () => string;
+  readonly pageAssetLinkRepository?: PageAssetLinkRepository;
+  readonly pageAssetLinkDependencies?: PageAssetLinkDependencies;
+  readonly maxAssetBytes?: number;
   readonly authorize?: PageAuthorizer;
 }
 
@@ -83,6 +102,49 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
       pageRepository: options.pageRepository,
       blockDocumentRepository: options.blockDocumentRepository,
       blockDocumentDependencies: options.blockDocumentDependencies,
+      authorize,
+    });
+  }
+  if (
+    options.pageRepository &&
+    options.assetRepository &&
+    options.pageAssetLinkRepository &&
+    options.pageAssetLinkDependencies &&
+    authorize
+  ) {
+    registerPageAssetRoutes(app, {
+      pageRepository: options.pageRepository,
+      assetRepository: options.assetRepository,
+      pageAssetLinkRepository: options.pageAssetLinkRepository,
+      dependencies: options.pageAssetLinkDependencies,
+      authorize,
+    });
+  }
+  if (
+    options.dataSourceRepository &&
+    options.dataSourceDependencies &&
+    authorize
+  ) {
+    registerDataSourceRoutes(app, {
+      repository: options.dataSourceRepository,
+      dependencies: options.dataSourceDependencies,
+      authorize,
+    });
+  }
+  if (
+    options.assetService &&
+    options.assetRepository &&
+    options.assetStore &&
+    options.assetRequestId &&
+    options.maxAssetBytes &&
+    authorize
+  ) {
+    registerAssetRoutes(app, {
+      assetService: options.assetService,
+      assetRepository: options.assetRepository,
+      assetStore: options.assetStore,
+      requestId: options.assetRequestId,
+      maxAssetBytes: options.maxAssetBytes,
       authorize,
     });
   }

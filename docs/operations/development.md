@@ -10,12 +10,12 @@ be mistaken for a passing integration test:
 
 ```powershell
 $env:TEST_DATABASE_URL = "postgresql://pos_native:password@localhost:5432/pos_native_test"
-npm test -- packages/database/test/postgres-page-repository.integration.test.ts
+npm test -- packages/database/test/postgres-page-repository.integration.test.ts packages/database/test/postgres-block-document-repository.integration.test.ts packages/database/test/postgres-asset-metadata-repository.integration.test.ts --no-file-parallelism
 ```
 
-Without `TEST_DATABASE_URL`, the live suite reports one skipped test. Do not
-claim restart persistence or transactional PostgreSQL verification from the
-in-memory repository tests.
+Without `TEST_DATABASE_URL`, seventeen integration tests across four files are
+skipped. Do not claim restart persistence or transactional PostgreSQL
+verification from the in-memory repository tests.
 
 ## Block-document schema migration preflight
 
@@ -39,7 +39,7 @@ authorizer are supplied. The default `buildApp()` exposes health, manifest, and
 static shell routes but does not expose canonical reads or writes. Test-only
 authorizers must never be used by a production runtime.
 
-## Docker database after Docker is installed
+## Docker database after the engine is available
 
 1. Copy `.env.example` to `.env` and replace the placeholder password locally.
 2. Run `docker compose config` and inspect the rendered configuration.
@@ -56,9 +56,9 @@ The directory must contain exactly the expected index.html, app.js, and
 styles.css files; application startup fails with NativePOS web assets are
 unavailable when an expected file is missing.
 
-This makes the asset location an explicit runtime boundary. It does not yet
-supply a production server composition or prove browser persistence; those
-remain M1 acceptance work.
+This makes the asset location an explicit runtime boundary. The compiled API
+runtime exists, but live browser persistence remains unproven until it is run
+against a disposable PostgreSQL database with an owner account.
 
 ## Compiled API runtime
 

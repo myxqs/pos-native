@@ -8,6 +8,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   unique,
@@ -93,6 +94,133 @@ export const pages = pgTable(
     provenance: jsonb("provenance").$type<Record<string, string>>().notNull(),
   },
   (table) => [index("pages_parent_id_idx").on(table.parentId)],
+);
+
+export const pageAssetLinks = pgTable(
+  "page_asset_links",
+  {
+    id: uuid("id").primaryKey(),
+    pageId: uuid("page_id")
+      .notNull()
+      .references(() => pages.id),
+    assetId: uuid("asset_id")
+      .notNull()
+      .references(() => assets.id),
+    createdAt: createdAt(),
+    provenance: jsonb("provenance").$type<Record<string, string>>().notNull(),
+  },
+  (table) => [
+    uniqueIndex("page_asset_links_page_asset_unique").on(
+      table.pageId,
+      table.assetId,
+    ),
+    index("page_asset_links_page_created_idx").on(
+      table.pageId,
+      table.createdAt,
+      table.id,
+    ),
+  ],
+);
+
+export const dataSources = pgTable("data_sources", {
+  id: uuid("id").primaryKey(),
+  name: text("name").notNull(),
+  createdAt: createdAt(),
+});
+
+export const propertyDefinitions = pgTable(
+  "property_definitions",
+  {
+    id: uuid("id").primaryKey(),
+    sourceId: uuid("source_id")
+      .notNull()
+      .references(() => dataSources.id),
+    name: text("name").notNull(),
+    nameKey: text("name_key").notNull(),
+    kind: text("kind").notNull(),
+    options: jsonb("options").$type<string[]>(),
+    targetSourceId: uuid("target_source_id").references(() => dataSources.id),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    uniqueIndex("property_definitions_source_name_key_unique").on(
+      table.sourceId,
+      table.nameKey,
+    ),
+    check(
+      "property_definitions_kind_supported",
+      sql.raw(
+        `"kind" in ('text', 'number', 'checkbox', 'select', 'multi-select', 'status', 'date', 'datetime', 'url', 'email', 'phone', 'relation')`,
+      ),
+    ),
+    check(
+      "property_definitions_shape_valid",
+      sql.raw(
+        `("kind" = 'relation' and "target_source_id" is not null and "options" is null) or ("kind" in ('select', 'multi-select', 'status') and "target_source_id" is null and "options" is not null) or ("kind" in ('text', 'number', 'checkbox', 'date', 'datetime', 'url', 'email', 'phone') and "target_source_id" is null and "options" is null)`,
+      ),
+    ),
+  ],
+);
+
+export const dataSourceItems = pgTable(
+  "data_source_items",
+  {
+    id: uuid("id")
+      .primaryKey()
+      .references(() => pages.id),
+    sourceId: uuid("source_id")
+      .notNull()
+      .references(() => dataSources.id),
+    currentPropertyRevisionNumber: integer("current_property_revision_number")
+      .notNull()
+      .default(1),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    index("data_source_items_source_id_idx").on(table.sourceId),
+    check(
+      "data_source_items_property_revision_positive",
+      sql.raw('"current_property_revision_number" >= 1'),
+    ),
+  ],
+);
+
+export const propertyValues = pgTable(
+  "property_values",
+  {
+    recordId: uuid("record_id")
+      .notNull()
+      .references(() => dataSourceItems.id),
+    definitionId: uuid("definition_id")
+      .notNull()
+      .references(() => propertyDefinitions.id),
+    value: jsonb("value").$type<Record<string, unknown>>().notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.recordId, table.definitionId] })],
+);
+
+export const relationEdges = pgTable(
+  "relation_edges",
+  {
+    id: uuid("id").primaryKey(),
+    sourceRecordId: uuid("source_record_id")
+      .notNull()
+      .references(() => dataSourceItems.id),
+    definitionId: uuid("definition_id")
+      .notNull()
+      .references(() => propertyDefinitions.id),
+    targetRecordId: uuid("target_record_id")
+      .notNull()
+      .references(() => dataSourceItems.id),
+    createdAt: createdAt(),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("relation_edges_target_record_id_idx").on(table.targetRecordId),
+    uniqueIndex("relation_edges_live_unique")
+      .on(table.sourceRecordId, table.definitionId, table.targetRecordId)
+      .where(sql`"archived_at" is null`),
+  ],
 );
 
 export const blocks = pgTable(

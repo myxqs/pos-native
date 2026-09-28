@@ -2,9 +2,9 @@
 
 ## Current milestone
 
-M2 — Pages and block editing. Hierarchy, archive/restore, and a narrow
-paragraph-body adapter are implemented in source, but the mature editor
-foundation, major block types, links/backlinks, and live PostgreSQL/browser
+M2 — Pages and block editing. Hierarchy, archive/restore, a narrow
+paragraph-body adapter, and first-class page links/backlinks are implemented in
+source, but the mature editor foundation, major block types, and real-browser
 acceptance remain incomplete.
 
 M3 — Structured data sources, records, typed properties, and relations now
@@ -18,7 +18,8 @@ blocked without broader Chrome extension permission.
 Navigation search now has a complete first vertical slice: active page titles
 and paragraphs are queried directly from canonical PostgreSQL state through
 bounded full-text/trigram indexes, an authenticated API, and a minimal safe
-workspace search surface. Links/backlinks remain the next Navigation area.
+workspace search surface. Bounded graph/context bundles remain the next
+Navigation area.
 
 First-class page links and derived backlinks now span domain, transactional
 PostgreSQL persistence, authenticated API, and the selected-page workspace.
@@ -165,13 +166,14 @@ and normal navigation suppresses archived endpoints.
 ## Verification state
 
 - npm run verify: PASS on 2026-09-28 — formatting, lint, strict typecheck, and
-  348 tests passed; 25 opt-in PostgreSQL tests were skipped because the standard
+  363 tests passed; 26 opt-in PostgreSQL tests were skipped because the standard
   command does not set TEST_DATABASE_URL.
-- Live PostgreSQL suite: PASS on 2026-09-28 — all 373 tests passed across 44
+- Live PostgreSQL suite: PASS on 2026-09-28 — all 389 tests passed across 48
   files with a disposable `TEST_DATABASE_URL` and `--no-file-parallelism`,
   including search ranking/index use, archive/restore mutation visibility,
-  page-asset unlink, history, relink, and restart persistence.
-- npm run db:generate and npm run db:migrate: PASS on 2026-09-28 — sixteen
+  page-asset unlink, page links/backlinks, history, relink, corrupt-revision
+  rejection, and restart persistence.
+- npm run db:generate and npm run db:migrate: PASS on 2026-09-28 — seventeen
   tables inspected, no schema drift found, and migrations applied successfully
   to the disposable restored database.
 - npm run build: PASS on 2026-09-28 — production TypeScript build completed.
@@ -196,6 +198,8 @@ and normal navigation suppresses archived endpoints.
   implement the full rich block-editor requirement.
 - Page hierarchy PostgreSQL persistence/serialization and restored real-browser
   readback are live-tested with synthetic state; mobile acceptance remains open.
+- Page links/backlinks are covered by unit, API, browser-controller, and live
+  PostgreSQL acceptance; real-browser interaction remains unclaimed.
 - No personal owner account has been created. Synthetic owner bootstrap is
   accepted only in disposable PostgreSQL environments.
 - Browser file-chooser automation is blocked because the ChatGPT Chrome

@@ -103,6 +103,17 @@ archive mutations and rechecks both endpoints only after acquiring it. A
 concurrent archive and create therefore have a deterministic serial order;
 creation never commits from a stale endpoint-liveness observation.
 
+## Bounded context bundles (current source)
+
+The authenticated page context endpoint derives depth-one active context from
+the root page and existing forward/backlink repositories. It persists nothing,
+never expands neighbours, and returns at most twenty edges per direction and
+forty-one total page identities including the root. Each direction reads one
+extra candidate to report truncation. Edges retain canonical link provenance
+and are explicitly ordered; neighbour nodes are deduplicated and sorted.
+Archived roots are rejected, archived relationships/endpoints are excluded by
+the repository, and malformed or corrupt relationship evidence fails closed.
+
 ## Initial domain boundary
 
 The first vertical slice introduced a pure `createPage` command. It validates

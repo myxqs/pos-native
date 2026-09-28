@@ -25,6 +25,7 @@ import { registerPageRoutes, type PageAuthorizer } from "./page-routes.ts";
 import { registerPageAssetRoutes } from "./page-asset-routes.ts";
 import { registerSearchRoutes } from "./search-routes.ts";
 import { registerPageLinkRoutes } from "./page-link-routes.ts";
+import { registerPageContextRoutes } from "./page-context-routes.ts";
 import {
   readWebAsset,
   resolveWebAssetRoot,
@@ -116,6 +117,12 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
       pageRepository: options.pageRepository,
       repository: options.pageLinkRepository,
       dependencies: options.pageLinkDependencies,
+      authorize,
+    });
+  if (options.pageRepository && options.pageLinkRepository && authorize)
+    registerPageContextRoutes(app, {
+      pageRepository: options.pageRepository,
+      pageLinkRepository: options.pageLinkRepository,
       authorize,
     });
   if (

@@ -46,6 +46,16 @@ lock on a dedicated archive connection, proves the repository connection is
 blocked through `pg_blocking_pids()`, commits the archive, and verifies rejection
 without link, revision, or audit residue for both source and target races.
 
+## Derived page context
+
+`GET /api/v1/pages/:pageId/context?limit=20` is authenticated and read-only.
+The limit is 1–20 per direction; the route fetches `limit + 1`, returns fixed
+depth 1, and reports forward/backlink truncation independently. It performs no
+recursive traversal, mutation, cache write, or N+1 page lookup. No migration is
+required: context is rebuilt on every request from active canonical pages and
+page links. Repository or response-shape corruption returns the fixed
+`page context is unavailable` failure.
+
 ## Block-document schema migration preflight
 
 Migration 0005 adds page body-document revisions, archived block state,

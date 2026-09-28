@@ -152,6 +152,10 @@ and normal navigation suppresses archived endpoints.
   bounded derived backlinks, target search, navigation, and recoverable unlink.
   Creation is serialised with page archive through the shared hierarchy advisory
   transaction lock and rechecks both endpoints after acquiring it.
+- A read-only authenticated context contract derives deterministic depth-one
+  forward/backlink bundles with explicit provenance, per-direction truncation,
+  node deduplication, fixed limits, and fail-closed repository validation. It
+  adds no canonical graph state or migration.
 
 ## Canonical and repository boundaries
 
@@ -168,9 +172,9 @@ and normal navigation suppresses archived endpoints.
 ## Verification state
 
 - npm run verify: PASS on 2026-09-28 — formatting, lint, strict typecheck, and
-  364 tests passed; 28 opt-in PostgreSQL tests were skipped because the standard
+  371 tests passed; 28 opt-in PostgreSQL tests were skipped because the standard
   command does not set TEST_DATABASE_URL.
-- Live PostgreSQL suite: PASS on 2026-09-28 — all 392 tests passed across 48
+- Live PostgreSQL suite: PASS on 2026-09-28 — all 399 tests passed across 49
   files with a disposable `TEST_DATABASE_URL` and `--no-file-parallelism`,
   including search ranking/index use, archive/restore mutation visibility,
   page-asset unlink, page links/backlinks, history, relink, corrupt-revision
@@ -200,7 +204,8 @@ and normal navigation suppresses archived endpoints.
   implement the full rich block-editor requirement.
 - Page hierarchy PostgreSQL persistence/serialization and restored real-browser
   readback are live-tested with synthetic state; mobile acceptance remains open.
-- Page links/backlinks are covered by unit, API, browser-controller, and live
+- Page links/backlinks and the derived depth-one context contract are covered by
+  unit, API, browser-controller, and live
   PostgreSQL acceptance; real-browser interaction remains unclaimed.
 - No personal owner account has been created. Synthetic owner bootstrap is
   accepted only in disposable PostgreSQL environments.

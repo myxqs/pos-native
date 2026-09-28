@@ -1,9 +1,10 @@
 # Canonical Data Model
 
-M1 establishes explicit tables for users, sessions, API tokens, pages, blocks,
-assets, revisions, audit events and idempotency records. Later milestones add
-data sources, records, property definitions/values, relation edges and saved
-views. All tables use POS Native UUID v4 identifiers and explicit foreign keys.
+NativePOS has explicit tables for users, sessions, API tokens, pages, blocks,
+assets, revisions, audit events, idempotency records, data sources, records,
+property definitions/values, structured relation edges, page-asset links, and
+page links. Canonical entities use POS Native UUID v4 identifiers and explicit
+foreign keys. Saved views remain future work.
 
 ## Page hierarchy
 
@@ -71,6 +72,26 @@ relationship and its evidence.
 Because the relationship is canonical PostgreSQL state and asset bytes remain
 in the bounded asset root, the existing full-state database-plus-asset backup
 and restore path preserves both sides without a separate linkage artifact.
+
+## Page links and backlinks
+
+`page_links` stores first-class page-to-page relationships independently of
+structured-data `relation_edges`. Each forward link has a stable UUID,
+source/target page foreign keys, creation time, nullable archive time, and
+creation provenance. A partial unique index permits only one active link for a
+source/target pair.
+
+Unlinking archives rather than deletes the relationship and adds revision and
+`page.unlinked` audit evidence. Relinking creates a distinct UUID, retaining the
+old relationship and its history. Backlinks are bounded derived queries over
+canonical forward links; no duplicate backlink rows are stored. Active queries
+exclude archived links and either archived endpoint, while explicit relationship
+history retains archived evidence.
+
+Creation and unlink mutations persist their relationship, revision, and audit
+changes transactionally. Creation also takes the page-hierarchy advisory
+transaction lock before rechecking both endpoints. It therefore serialises with
+page archive and cannot commit a new link based on a stale liveness read.
 
 `ExternalIdentity(native_entity_id, provider, external_id, metadata)` maps a
 source provider's identifier to a native entity without replacing native

@@ -150,6 +150,8 @@ and normal navigation suppresses archived endpoints.
 - Page links/backlinks are implemented as a separate canonical relationship
   model with migration 0011, active-pair uniqueness, revision/audit evidence,
   bounded derived backlinks, target search, navigation, and recoverable unlink.
+  Creation is serialised with page archive through the shared hierarchy advisory
+  transaction lock and rechecks both endpoints after acquiring it.
 
 ## Canonical and repository boundaries
 
@@ -166,13 +168,13 @@ and normal navigation suppresses archived endpoints.
 ## Verification state
 
 - npm run verify: PASS on 2026-09-28 — formatting, lint, strict typecheck, and
-  363 tests passed; 26 opt-in PostgreSQL tests were skipped because the standard
+  364 tests passed; 28 opt-in PostgreSQL tests were skipped because the standard
   command does not set TEST_DATABASE_URL.
-- Live PostgreSQL suite: PASS on 2026-09-28 — all 389 tests passed across 48
+- Live PostgreSQL suite: PASS on 2026-09-28 — all 392 tests passed across 48
   files with a disposable `TEST_DATABASE_URL` and `--no-file-parallelism`,
   including search ranking/index use, archive/restore mutation visibility,
   page-asset unlink, page links/backlinks, history, relink, corrupt-revision
-  rejection, and restart persistence.
+  rejection, deterministic page-link/archive races, and restart persistence.
 - npm run db:generate and npm run db:migrate: PASS on 2026-09-28 — seventeen
   tables inspected, no schema drift found, and migrations applied successfully
   to the disposable restored database.

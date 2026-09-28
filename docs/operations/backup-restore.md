@@ -177,13 +177,19 @@ backup `bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb` (39,606 bytes, database SHA-256
 `4e3c2329e1ac28fe139b3c6f9eaf3b7d32d25c31e04b855035538361974e6489`,
 manifest SHA-256
 `27480c44ac36dc3f1f6fa9bf8391f6281efe87124ee7cf77a241bfadd8935a49`).
-All fifteen canonical tables had identical row counts and deterministic row
-hashes after clean restore. A duplicate backup failed while leaving the
+All fifteen canonical tables present at the time had identical row counts and
+deterministic row hashes after clean restore. A duplicate backup failed while leaving the
 original manifest unchanged. A second restore into the populated target failed
 while leaving its page count, audit hash, revision count, and session count
 unchanged. Migrations remained compatible, the database container restarted,
 and the loopback application accepted the restored session and retrieved the
 restored page tree and structured record at property revision 3.
+
+The schema now contains seventeen tables after search indexes and canonical
+`page_links` were added. Whole-database `pg_dump`/`pg_restore` naturally covers
+the new relationship, revision, and audit rows, but the fifteen-table rehearsal
+above is historical evidence and must not be represented as current
+seventeen-table acceptance. A refreshed synthetic rehearsal remains required.
 
 ## 2026-09-27 full-state restore rehearsal
 

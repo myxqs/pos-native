@@ -13,12 +13,14 @@ Notion clone, a multi-tenant SaaS product, or Local Steward.
    canonical identifiers, validation, common mutation/audit boundary, ADRs,
    threat model, PostgreSQL schema/migrations, transactional repositories,
    page/block/revision persistence, and filesystem asset abstraction.
-2. **Live persistence acceptance (pending):** a disposable PostgreSQL run must
-   prove migrations and transactional adapters before the source implementation
-   is described as live-persistence ready.
+2. **Live persistence acceptance (current synthetic evidence):** disposable
+   PostgreSQL 18.6 runs prove migrations, transactional adapters, restart
+   persistence, and bounded recovery behavior. Production deployment and
+   personal-data acceptance remain separate gates.
 3. **Private API (current source):** local account/session authentication,
    versioned HTTP API, page/block mutation endpoints, rate limits and security
-   headers. Owner bootstrap and authenticated browser use remain live gates.
+   headers. Synthetic owner bootstrap and authenticated browser flows have live
+   disposable acceptance; production owner creation remains a deployment gate.
 4. **Workspace UI:** the current responsive browser shell provides an active
    hierarchy tree, breadcrumbs, child creation, move, archive, and explicit
    archived-page restore. A React PWA shell and the TipTap/ProseMirror adapter
@@ -96,13 +98,19 @@ bounded derived queries over forward rows. Normal navigation requires both
 endpoints to be live, while explicit history retains archived relationship and
 page evidence.
 
+Page-link creation shares the page-hierarchy advisory transaction lock with
+archive mutations and rechecks both endpoints only after acquiring it. A
+concurrent archive and create therefore have a deterministic serial order;
+creation never commits from a stale endpoint-liveness observation.
+
 ## Initial domain boundary
 
 The first vertical slice introduced a pure `createPage` command. It validates
 input, creates stable native IDs/timestamps, emits a page revision, and emits
 an audit event through one result envelope. The current composition supplies
 both in-memory and PostgreSQL adapters while retaining that stable command
-contract. Live PostgreSQL acceptance remains an explicit environment gate.
+contract. Live PostgreSQL acceptance is opt-in and has passed against disposable
+PostgreSQL 18.6; it is not evidence of production deployment readiness.
 
 ## Reference implementation boundary
 

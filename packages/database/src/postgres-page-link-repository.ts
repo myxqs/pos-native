@@ -16,12 +16,16 @@ import { auditEvents, pageLinks, pages, revisions } from "./schema.ts";
 import type * as schema from "./schema.ts";
 type Database = NodePgDatabase<typeof schema>;
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
+const HIERARCHY_ADVISORY_LOCK_KEY = 1_652_046_113;
 
 export class PostgresPageLinkRepository implements PageLinkRepository {
   constructor(private readonly database: Database) {}
   async create(mutation: CreatePageLinkMutation): Promise<PageLink> {
     try {
       return await this.database.transaction(async (tx) => {
+        await tx.execute(
+          sql`select pg_advisory_xact_lock(${HIERARCHY_ADVISORY_LOCK_KEY})`,
+        );
         await requireLive(tx, mutation.link.sourcePageId);
         await requireLive(tx, mutation.link.targetPageId);
         await tx.insert(pageLinks).values({

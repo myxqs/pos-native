@@ -80,6 +80,20 @@ test("creates a link through authenticated CSRF mutation", async () => {
   });
   await api.close();
 });
+test("reports an endpoint archived during link creation truthfully", async () => {
+  const api = app({
+    create: async () => {
+      throw new PageLinkConflictError("page link endpoint is archived");
+    },
+  });
+  const response = await api.inject({
+    method: "POST",
+    url: `/api/v1/pages/${source}/links/${target}`,
+  });
+  expect(response.statusCode).toBe(409);
+  expect(response.json()).toEqual({ error: "page is archived" });
+  await api.close();
+});
 test("rejects self, missing, archived, duplicate, and unauthorised mutations", async () => {
   let api = app();
   expect(

@@ -40,6 +40,11 @@ no second table. Full PostgreSQL dumps already include this table; recovery
 acceptance should compare `page_links` alongside the other canonical tables.
 Normal list queries exclude archived endpoints, while `history=all` is an
 explicit recovery view.
+Creation takes the same hierarchy advisory transaction lock as page archive and
+then rechecks source and target liveness. The live integration test holds that
+lock on a dedicated archive connection, proves the repository connection is
+blocked through `pg_blocking_pids()`, commits the archive, and verifies rejection
+without link, revision, or audit residue for both source and target races.
 
 ## Block-document schema migration preflight
 
@@ -55,8 +60,8 @@ record the exact failing condition; make a separate, reviewable repair plan
 rather than bypassing the constraint or modifying canonical data ad hoc. The
 generated migration required a reviewed statement-order correction because
 PostgreSQL needs the composite unique target before its composite foreign key.
-That live migration path remains unverified until a configured test database is
-available.
+That migration path has passed in the opt-in disposable PostgreSQL suite; an
+approved production migration still requires a verified backup and preflight.
 
 Page routes are registered only when both a repository and a server-side
 authorizer are supplied. The default `buildApp()` exposes health, manifest, and
@@ -81,8 +86,8 @@ styles.css files; application startup fails with NativePOS web assets are
 unavailable when an expected file is missing.
 
 This makes the asset location an explicit runtime boundary. The compiled API
-runtime exists, but live browser persistence remains unproven until it is run
-against a disposable PostgreSQL database with an owner account.
+runtime and authenticated synthetic browser flow have passed against disposable
+PostgreSQL; production deployment and personal-owner acceptance remain open.
 
 ## Compiled API runtime
 

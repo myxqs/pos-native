@@ -110,6 +110,11 @@ export function registerPageLinkRoutes(
         link: link.parse(await options.repository.create(mutation)),
       });
     } catch (error) {
+      if (
+        error instanceof PageLinkConflictError &&
+        error.message === "page link endpoint is archived"
+      )
+        return reply.code(409).send({ error: "page is archived" });
       if (error instanceof PageLinkConflictError)
         return reply.code(409).send({ error: "page is already linked" });
       return reply.code(500).send({ error: "page link creation failed" });

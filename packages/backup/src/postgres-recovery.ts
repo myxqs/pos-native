@@ -75,15 +75,23 @@ export async function createPostgresApplicationBackup(
   metadata: BackupSourceMetadata,
   options: BackupOperationOptions,
 ): Promise<FilesystemBackupLocation> {
+  const assetsBeforeDump = await driver.listAssets();
+  const databaseDump = await driver.createDatabaseDump();
+  const assetsAfterDump = await driver.listAssets();
+  requireMatchingReceipts(
+    assetsBeforeDump,
+    assetsAfterDump,
+    "PostgreSQL asset receipts changed during backup",
+  );
   return createFilesystemBackup(
     backupRoot,
     {
       metadata,
       async readDatabaseDump() {
-        return driver.createDatabaseDump();
+        return databaseDump;
       },
       async listAssets() {
-        return driver.listAssets();
+        return assetsBeforeDump;
       },
       async readAsset(asset) {
         return assetStore.read(asset.storageKey);
@@ -174,6 +182,7 @@ export async function restorePostgresApplicationBackup(
 function requireMatchingReceipts(
   expected: readonly BackupSourceAsset[],
   actual: readonly BackupSourceAsset[],
+  message = "restored asset receipts do not match backup",
 ): void {
   const actualById = new Map(actual.map((asset) => [asset.assetId, asset]));
   if (
@@ -190,6 +199,6 @@ function requireMatchingReceipts(
       );
     })
   ) {
-    throw new ValidationError("restored asset receipts do not match backup");
+    throw new ValidationError(message);
   }
 }

@@ -63,6 +63,9 @@
 
 ### Changed
 
+- Full-state PostgreSQL backup now brackets `pg_dump` with matching asset
+  receipt projections and refuses publication if concurrent asset state changes.
+
 - Browser page mutation requests now send CSRF and If-Match proof headers.
 - Runtime composition now closes persistence when web-asset validation fails.
 - Stale page writes return 409 rather than overwriting current state.

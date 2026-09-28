@@ -124,6 +124,10 @@ blocked without broader Chrome extension permission.
   retrieval, restart persistence, and full-state recovery. Human-operated
   browser file-chooser/download acceptance, Linux deployment, malware/content
   policy, and personal-data migration remain outside this boundary.
+- Task 9 independent review is complete for all 16 OCR-selected implementation
+  files in `358b854..dec2634`. One confirmed backup snapshot-consistency finding
+  was repaired test-first by bracketing `pg_dump` with matching PostgreSQL asset
+  receipt projections.
 
 ## Canonical and repository boundaries
 
@@ -140,9 +144,9 @@ blocked without broader Chrome extension permission.
 ## Verification state
 
 - npm run verify: PASS on 2026-09-28 — formatting, lint, strict typecheck, and
-  310 tests passed; 19 opt-in PostgreSQL tests were skipped because the standard
+  311 tests passed; 19 opt-in PostgreSQL tests were skipped because the standard
   command does not set TEST_DATABASE_URL.
-- Live PostgreSQL suite: PASS on 2026-09-28 — all 329 tests passed across 37
+- Live PostgreSQL suite: PASS on 2026-09-28 — all 330 tests passed across 37
   files with a disposable `TEST_DATABASE_URL` and `--no-file-parallelism`.
 - npm run db:generate and npm run db:migrate: PASS on 2026-09-28 — fifteen
   tables inspected, no schema drift found, and migrations applied successfully
@@ -159,9 +163,6 @@ blocked without broader Chrome extension permission.
 
 ## Known failures / blockers
 
-- Open Code Review preview and per-file rule resolution completed for the
-  authenticated asset range, but delegated review is blocked because no OCR LLM
-  endpoint/token is configured. No credential or provider setting was changed.
 - The packaged recovery operator is deliberately local and Docker-scoped; it is
   not an encrypted, scheduled, or production credential-management service.
 - A synthetic hashed session survived the dump/restore and application restart
@@ -176,7 +177,8 @@ blocked without broader Chrome extension permission.
   accepted only in disposable PostgreSQL environments.
 - Browser file-chooser automation is blocked because the ChatGPT Chrome
   extension lacks file-URL access. Security permissions were not broadened.
-  Authenticated API byte equality and browser-visible listing pass, but direct
+  Authenticated API byte equality and browser-visible listing pass. Browser
+  download-event capture also times out without a UI or console error, so direct
   browser upload/download automation remains explicitly unclaimed.
 - Filesystem behavior is verified on this Windows host. Linux execution,
   deployment ACLs, crash recovery, and startup orphan reconciliation remain
@@ -212,10 +214,11 @@ blocked without broader Chrome extension permission.
 
 ## Exact next action
 
-Complete Task 9 review and preservation for the authenticated asset vertical,
-then select the next product slice from the local NativePOS roadmap. Do not
-begin Notion work; retain loopback-only deployment and synthetic data until the
-Usable Product Gate.
+Perform the human-operated browser file-chooser and download check when Will is
+available, without broadening Chrome extension permissions. Then select the
+next product slice from the local NativePOS roadmap. Do not begin Notion work;
+retain loopback-only deployment and synthetic data until the Usable Product
+Gate.
 
 ## Commands to resume
 

@@ -59,6 +59,11 @@ a target containing user schemas or objects, and only then sends the bytes to
 `pg_restore --exit-on-error --single-transaction`. Docker-specific mechanics
 remain outside the application runtime behind `DockerPostgresBackupDriver`.
 
+Full-state backup reads the PostgreSQL asset receipt projection immediately
+before and after `pg_dump`. It publishes nothing unless both projections agree
+exactly. This brackets the dump against a concurrent asset commit that could
+otherwise produce a manifest whose asset set differs from the database dump.
+
 ## Local PostgreSQL operator
 
 Build before invoking the script, or use `npm run recovery:postgres -- ...`,
@@ -251,3 +256,15 @@ The rehearsal also proved that duplicate backup, non-empty database, non-empty
 asset-root, and tampered-backup attempts fail without changing the inspected
 accepted state. All inputs were synthetic. The containers, named volumes, and
 workspace were removed after validation.
+
+## 2026-09-28 independent review follow-up
+
+Open Code Review delegation selected and the host reviewed all 16 reviewable
+implementation files in `358b854..dec2634`. One High data-integrity finding was
+confirmed: database dump creation and asset receipt collection used separate,
+unbracketed PostgreSQL snapshots. A concurrent asset commit could therefore
+publish a backup that would fail receipt agreement only after a future restore
+had committed PostgreSQL. Backup creation now compares receipt projections on
+both sides of `pg_dump` and refuses publication if they differ. A regression
+test failed before the repair and passes afterward; the live PostgreSQL suite
+passes 330/330 and a real stable-projection backup verifies successfully.

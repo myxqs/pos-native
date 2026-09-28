@@ -131,6 +131,48 @@ test("creates a full-state backup from only PostgreSQL-declared opaque asset key
   expect(created.manifest.assets[0]).toMatchObject(receipt);
 });
 
+test("publishes nothing when PostgreSQL asset receipts change across the database dump", async () => {
+  const root = await isolatedRoot();
+  const assetId = asNativeId("11111111-1111-4111-8111-111111111111");
+  const storageKey = asAssetStorageKey(`asset-${assetId}`);
+  const bytes = encoder.encode("concurrent asset");
+  const receipt = {
+    assetId,
+    storageKey,
+    byteSize: bytes.byteLength,
+    sha256: sha256ForBytes(bytes),
+  };
+  const events: string[] = [];
+  let projection = 0;
+  const driver = fixtureDriver();
+  driver.listAssets = async () => {
+    events.push("assets");
+    projection += 1;
+    return projection === 1 ? [] : [receipt];
+  };
+  driver.createDatabaseDump = async () => {
+    events.push("database");
+    return Uint8Array.from(databaseBytes);
+  };
+
+  await expect(
+    createPostgresApplicationBackup(
+      root,
+      driver,
+      readingStore(async () => bytes),
+      {
+        schemaVersion: "0007",
+        applicationVersion: "0.1.0",
+        databaseDumpFormat: "postgresql-custom-v1",
+        assetStoreFormat: "filesystem-v1",
+      },
+      options,
+    ),
+  ).rejects.toThrow("PostgreSQL asset receipts changed during backup");
+  expect(events).toEqual(["assets", "database", "assets"]);
+  await expect(readdir(root)).resolves.toEqual([]);
+});
+
 test("publishes nothing when a PostgreSQL-declared asset fails verification", async () => {
   const root = await isolatedRoot();
   const assetId = asNativeId("11111111-1111-4111-8111-111111111111");

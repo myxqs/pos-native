@@ -4,6 +4,7 @@ export * from "./block-document.ts";
 export * from "./data-source.ts";
 export * from "./ids.ts";
 export * from "./idempotency.ts";
+export * from "./machine.ts";
 export * from "./page.ts";
 export * from "./page-asset-link.ts";
 export * from "./page-link.ts";

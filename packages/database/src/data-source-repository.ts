@@ -54,6 +54,17 @@ export interface DataSourceItemSummary {
   readonly propertyRevisionNumber: number;
 }
 
+export interface RecordHistoryEntry {
+  readonly id: NativeId;
+  readonly timestamp: string;
+  readonly actorType: string;
+  readonly actorId: string;
+  readonly action: string;
+  readonly targetId: NativeId;
+  readonly source: string;
+  readonly requestId: NativeId | null;
+}
+
 export interface ListBounds {
   readonly limit: number;
   readonly offset: number;
@@ -98,6 +109,10 @@ export interface DataSourceRepository {
   ): Promise<RelationEdge>;
   outgoingRelations(recordId: NativeId): Promise<readonly RelationEdge[]>;
   incomingRelations(recordId: NativeId): Promise<readonly RelationEdge[]>;
+  history(
+    recordId: NativeId,
+    limit: number,
+  ): Promise<readonly RecordHistoryEntry[]>;
 }
 
 interface ItemState {
@@ -415,6 +430,34 @@ export class InMemoryDataSourceRepository implements DataSourceRepository {
     return [...this.#state.edges.values()].filter(
       (edge) => edge.targetRecordId === recordId && edge.archivedAt === null,
     );
+  }
+
+  async history(
+    recordId: NativeId,
+    limit: number,
+  ): Promise<readonly RecordHistoryEntry[]> {
+    this.#requireItem(this.#state, recordId);
+    validateListBounds({ limit, offset: 0 });
+    return this.#state.audits
+      .filter((event) => event.targetId === recordId)
+      .sort(
+        (left, right) =>
+          right.timestamp.localeCompare(left.timestamp) ||
+          right.id.localeCompare(left.id),
+      )
+      .slice(0, limit)
+      .map((event) =>
+        Object.freeze({
+          id: event.id,
+          timestamp: event.timestamp,
+          actorType: event.actorType,
+          actorId: event.actorId,
+          action: event.action,
+          targetId: event.targetId,
+          source: event.source,
+          requestId: event.requestId ?? null,
+        }),
+      );
   }
 
   revisionsFor(

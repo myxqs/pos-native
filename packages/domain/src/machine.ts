@@ -12,13 +12,11 @@ export type MachineCapability =
   | "context.get"
   | "history.get"
   | "property.set"
-  | "property.clear"
   | "relation.add"
   | "relation.remove"
   | "entity.update-title"
   | "entity.archive"
-  | "entity.restore"
-  | "property.bulk";
+  | "entity.restore";
 
 const nativeCapabilities = Object.freeze([
   "schema.describe",
@@ -32,13 +30,11 @@ const dataSourceCapabilities = Object.freeze([
   ...nativeCapabilities,
   "relation.traverse",
   "property.set",
-  "property.clear",
   "relation.add",
   "relation.remove",
   "entity.update-title",
   "entity.archive",
   "entity.restore",
-  "property.bulk",
 ] satisfies MachineCapability[]);
 
 export interface MachineEntityTypeDescription {

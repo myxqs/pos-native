@@ -9,6 +9,7 @@
   ],
   "scripts": {
     "test": "vitest run",
+    "test:m5-benchmark": "vitest run packages/database/test/m5-retrieval-benchmark.test.ts",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",

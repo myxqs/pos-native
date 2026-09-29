@@ -252,6 +252,18 @@ export class MachineKnowledgeService {
     });
   }
 
+  async history(recordId: string, limit: number) {
+    validateMachineBounds({ limit });
+    const id = asNativeId(recordId);
+    if (!(await this.repository.getItem(id)))
+      throw new MachineContractError("NOT_FOUND", "entity does not exist");
+    const entries = await this.repository.history(id, limit);
+    return Object.freeze({
+      entries: Object.freeze(entries),
+      truncated: entries.length === limit,
+    });
+  }
+
   async #allSources() {
     const values = [];
     for (let offset = 0; offset < MAX_SCAN; offset += 200) {

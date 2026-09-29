@@ -26,6 +26,8 @@ import { registerPageAssetRoutes } from "./page-asset-routes.ts";
 import { registerSearchRoutes } from "./search-routes.ts";
 import { registerPageLinkRoutes } from "./page-link-routes.ts";
 import { registerPageContextRoutes } from "./page-context-routes.ts";
+import { registerMachineRoutes } from "./machine-routes.ts";
+import { MachineKnowledgeService } from "../../../packages/database/src/machine-knowledge-service.ts";
 import {
   readWebAsset,
   resolveWebAssetRoot,
@@ -161,6 +163,13 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
     registerDataSourceRoutes(app, {
       repository: options.dataSourceRepository,
       dependencies: options.dataSourceDependencies,
+      authorize,
+    });
+    registerMachineRoutes(app, {
+      service: new MachineKnowledgeService(
+        options.dataSourceRepository,
+        options.dataSourceDependencies,
+      ),
       authorize,
     });
   }

@@ -87,6 +87,28 @@ test.skipIf(!databaseUrl)(
       expect(source.statusCode).toBe(201);
       expect(record.statusCode).toBe(201);
       expect(record.headers.etag).toBe('"1"');
+      const machineQuery = await runtime.app.inject({
+        method: "POST",
+        url: "/api/v1/machine/query",
+        headers,
+        payload: {
+          entityTypeId: source.json().source.id,
+          ids: [record.json().record.item.id],
+          limit: 1,
+        },
+      });
+      expect(machineQuery.statusCode).toBe(200);
+      expect(machineQuery.json()).toMatchObject({
+        items: [{ id: record.json().record.item.id }],
+        truncated: false,
+      });
+      const history = await runtime.app.inject({
+        method: "GET",
+        url: `/api/v1/machine/entities/${record.json().record.item.id}/history?limit=10`,
+        headers,
+      });
+      expect(history.statusCode).toBe(200);
+      expect(history.body).not.toContain("snapshot");
     } finally {
       await runtime.close();
     }

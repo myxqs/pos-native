@@ -241,4 +241,17 @@ describe("machine knowledge service", () => {
       }),
     ).rejects.toBeInstanceOf(MachineContractError);
   });
+
+  test("returns bounded audit history without raw snapshots", async () => {
+    const history = await service.history(aliceId, 10);
+    expect(history.entries.length).toBeGreaterThan(0);
+    expect(history.entries[0]).toMatchObject({
+      actorId: "fixture",
+      source: "m5-test",
+      targetId: aliceId,
+    });
+    expect(JSON.stringify(history)).not.toContain("before");
+    expect(JSON.stringify(history)).not.toContain("after");
+    expect(JSON.stringify(history)).not.toContain("snapshot");
+  });
 });

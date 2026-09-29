@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 import type { AuditEvent, Revision } from "../../domain/src/audit.ts";
@@ -433,6 +433,30 @@ export class PostgresDataSourceRepository implements DataSourceRepository {
           ),
         )
     ).map(edgeFromRow);
+  }
+
+  async history(recordId: NativeId, limit: number) {
+    validateListBounds({ limit, offset: 0 });
+    await requireItem(this.database, recordId);
+    return (
+      await this.database
+        .select()
+        .from(auditEvents)
+        .where(eq(auditEvents.targetId, recordId))
+        .orderBy(desc(auditEvents.occurredAt), desc(auditEvents.id))
+        .limit(limit)
+    ).map((event) =>
+      Object.freeze({
+        id: asNativeId(event.id),
+        timestamp: event.occurredAt.toISOString(),
+        actorType: event.actorType,
+        actorId: event.actorId,
+        action: event.action,
+        targetId: asNativeId(event.targetId),
+        source: event.source,
+        requestId: event.requestId ? asNativeId(event.requestId) : null,
+      }),
+    );
   }
 
   async incomingRelations(

@@ -13,15 +13,17 @@ repository. It includes PostgreSQL schema migrations and persistence adapters,
 a compiled Fastify API runtime, and a restrained responsive browser shell. The
 authenticated API covers sessions, pages, page hierarchy/archive operations,
 canonical block documents, structured data, the bounded M5 machine knowledge
-interface, and bounded local asset
-upload/list/download. Pages can retain audited links to uploaded assets through
+interface, the private M6 production-local Docker runtime, and bounded local
+asset upload/list/download. Pages can retain audited links to uploaded assets through
 an audited, recoverably archived PostgreSQL relationship, and the browser shell exercises these
 product boundaries.
 
 Disposable PostgreSQL integration, synthetic owner bootstrap, restart
 persistence, and full-state PostgreSQL plus asset backup/restore have passed.
-This is not yet a proven live deployment: human browser file-chooser/download,
-Linux/home-server operations, mobile, rich editor, PWA/offline, and
+M6 proves loopback-only continuous local operation, explicit machine-token
+authentication, durable named-volume restart, and isolated full-state recovery.
+Windows reboot acceptance remains a manual human gate. This is not a public
+deployment: human browser file-chooser/download, mobile, rich editor, PWA/offline, and
 external-provider acceptance remain separate gates. No personal data or Notion
 content has been imported.
 
@@ -41,6 +43,9 @@ npm ci
 npm run verify
 npm run build
 ```
+
+Production-local setup and PowerShell operator commands are documented in
+`docs/operations/deployment.md`.
 
 The lockfile pins the project dependencies. Standard verification does not
 need a running PostgreSQL service; its live PostgreSQL integration tests are

@@ -2,6 +2,8 @@
 
 ## Current milestone
 
+M6 - COMPLETE for the private production-local runtime. Docker Compose runs the compiled API and PostgreSQL with durable database and asset volumes, loopback API publication, no database publication, explicit service-token machine authentication, migration-gated readiness, bounded logs, PowerShell operations, full-state backup, and isolated restore. The Windows Task Scheduler definition is prepared but deliberately not installed; an actual reboot remains a human acceptance step. MCP, ChatGPT connectivity, public exposure, and Notion migration remain deferred.
+
 M5 - COMPLETE for the provider-disconnected, synthetic machine-first boundary.
 Schema discovery, typed bounded retrieval, graph traversal, compact context,
 redacted history, and the existing optimistic/audited atomic mutation routes

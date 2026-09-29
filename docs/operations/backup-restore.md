@@ -1,5 +1,11 @@
 # Backup and Restore Operations
 
+## M6 production-local wrapper
+
+`scripts/nativepos.ps1 -Action Backup` is the supported production-local entry point. It copies canonical bytes from the Compose `asset-data` volume into a private staging directory, invokes the verified PostgreSQL recovery operator, and publishes the manifest only after database and asset verification. The backup therefore covers both durable named volumes; caches and built images are reconstructable and are not backed up. The manifest contains no connection string, database password, service token, or original asset byte content.
+
+`-Action Restore` accepts only a `pos_native_recovery_*` database, a backup UUID, and `-ConfirmRestore`. It restores into a new database and a distinct named asset volume, leaving the primary database and primary asset volume untouched. Recovery acceptance must start a separate loopback-only application against those targets and verify readiness, a representative M5 retrieval, and exact asset bytes before the backup is considered operationally proven.
+
 ## Current verified boundary
 
 NativePOS has a versioned, local `pos-native-backup` directory format and a

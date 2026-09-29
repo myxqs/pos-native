@@ -43,6 +43,8 @@ test.skipIf(!databaseUrl)(
           new URL("../../web", import.meta.url),
         ),
         POS_ASSET_ROOT: "synthetic-unused-asset-root",
+        POS_SERVICE_TOKEN:
+          "synthetic-production-data-test-token-0123456789abcdef",
       },
       {
         createPersistence: () => ({

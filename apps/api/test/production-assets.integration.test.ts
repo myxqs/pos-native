@@ -51,6 +51,8 @@ test.skipIf(!databaseUrl)(
         ),
         POS_ASSET_ROOT: assetRoot,
         POS_MAX_ASSET_BYTES: "1024",
+        POS_SERVICE_TOKEN:
+          "synthetic-production-asset-test-token-0123456789abcdef",
       },
       {
         createPersistence: () => ({

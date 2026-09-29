@@ -4,6 +4,8 @@
 
 ### Added
 
+- M6 private production-local Docker Compose runtime with durable PostgreSQL and asset volumes, loopback-only API publication, explicit service-token machine authentication, migration-aware readiness, bounded logs, PowerShell operator commands, full-state backup/isolated restore, and an uninstalled bounded-retry Windows logon-task definition.
+
 - M5 authenticated machine interface with deterministic schema discovery,
   bounded typed queries, cycle-safe relation traversal, budgeted context,
   redacted audit history, and a 64-case synthetic retrieval/mutation benchmark.

@@ -19,7 +19,7 @@ test("operator exposes bounded safe lifecycle and full-state recovery commands",
     "Backup",
     "Restore",
   ])
-    expect(script).toContain(`\"${action}\"`);
+    expect(script).toContain(`"${action}"`);
   expect(script).toContain("MaxDockerAttempts = 12");
   expect(script).toContain(
     "Docker did not become ready within the bounded startup window",

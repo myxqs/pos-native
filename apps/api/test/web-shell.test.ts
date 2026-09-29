@@ -897,6 +897,39 @@ test("serves an accessible NativePOS browser shell", async () => {
   await app.close();
 });
 
+test("serves workspace action buttons without flex shrinking", async () => {
+  const app = buildApp();
+  const response = await app.inject({ method: "GET", url: "/styles.css" });
+
+  expect(response.statusCode).toBe(200);
+  expect(response.body).toMatch(
+    /\.form-row > button \{\s+flex: 0 0 auto;\s*\}/,
+  );
+  await app.close();
+});
+
+test("stacks workspace navigation before editor actions are clipped", async () => {
+  const app = buildApp();
+  const response = await app.inject({ method: "GET", url: "/styles.css" });
+
+  expect(response.statusCode).toBe(200);
+  expect(response.body).toMatch(
+    /@media \(max-width: 960px\) \{[\s\S]*?\.app-shell \{[\s\S]*?grid-template-columns: 1fr;/,
+  );
+  await app.close();
+});
+
+test("stacks sidebar form actions at compact workspace widths", async () => {
+  const app = buildApp();
+  const response = await app.inject({ method: "GET", url: "/styles.css" });
+
+  expect(response.statusCode).toBe(200);
+  expect(response.body).toMatch(
+    /@media \(max-width: 960px\) \{[\s\S]*?\.app-shell > aside \.form-row \{[\s\S]*?flex-direction: column;/,
+  );
+  await app.close();
+});
+
 test("serves shell files from an explicit packaged asset root", async () => {
   const root = mkdtempSync(join(tmpdir(), "nativepos-web-assets-"));
   writeFileSync(join(root, "index.html"), "<h1>Packaged NativePOS</h1>");

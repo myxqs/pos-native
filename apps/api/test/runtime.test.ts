@@ -26,6 +26,8 @@ function runtimeEnvironment(
     DATABASE_URL: "postgresql://pos_native:password@localhost:5432/pos_native",
     POS_ASSET_ROOT: "synthetic-asset-root",
     POS_WEB_ASSET_ROOT: webAssetRoot,
+    POS_SERVICE_TOKEN:
+      "runtime-service-token-abcdefghijklmnopqrstuvwxyz-0123456789",
     ...overrides,
   };
 }
@@ -41,6 +43,11 @@ test("rejects missing or unsafe runtime configuration before composing services"
   ).toThrow("NativePOS runtime configuration is invalid");
   expect(() =>
     parseRuntimeConfiguration(runtimeEnvironment({ POS_ASSET_ROOT: "   " })),
+  ).toThrow("NativePOS runtime configuration is invalid");
+  expect(() =>
+    parseRuntimeConfiguration(
+      runtimeEnvironment({ POS_SERVICE_TOKEN: "short" }),
+    ),
   ).toThrow("NativePOS runtime configuration is invalid");
   for (const value of ["0", "-1", "1.5", "9007199254740992", "nope"]) {
     expect(() =>

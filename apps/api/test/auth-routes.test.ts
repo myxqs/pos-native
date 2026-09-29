@@ -8,6 +8,7 @@ import {
 import { InMemoryPageRepository } from "../../../packages/database/src/page-repository.ts";
 import { logoutRequest } from "../../web/app.js";
 import { buildApp } from "../src/app.ts";
+import { ServiceTokenAuthenticator } from "../src/service-token.ts";
 
 async function authenticatedApp() {
   const store = new InMemoryAuthenticationStore([
@@ -111,6 +112,45 @@ test("returns the same generic response for invalid login credentials", async ()
   expect(response.statusCode).toBe(401);
   expect(response.json()).toEqual({ error: "invalid credentials" });
   await app.close();
+});
+
+test("allows service bearer mutations without CSRF and rejects invalid bearer tokens", async () => {
+  const serviceToken = "service-token-abcdefghijklmnopqrstuvwxyz-0123456789";
+  const machineApp = buildApp({
+    authenticationService: new AuthenticationService(
+      new InMemoryAuthenticationStore([]),
+      {
+        now: () => new Date("2026-09-29T12:00:00.000Z"),
+        randomToken: () => "unused",
+        sessionId: () => "22222222-2222-4222-8222-222222222222",
+      },
+    ),
+    serviceTokenAuthenticator: new ServiceTokenAuthenticator(
+      serviceToken,
+      "nativepos-mcp",
+    ),
+    pageRepository: new InMemoryPageRepository(),
+    pageDependencies: {
+      newId: () => "33333333-3333-4333-8333-333333333333",
+      now: () => new Date("2026-09-29T12:00:00.000Z"),
+    },
+  });
+  const denied = await machineApp.inject({
+    method: "POST",
+    url: "/api/v1/pages",
+    headers: { authorization: "Bearer invalid" },
+    payload: { title: "Denied" },
+  });
+  const allowed = await machineApp.inject({
+    method: "POST",
+    url: "/api/v1/pages",
+    headers: { authorization: `Bearer ${serviceToken}` },
+    payload: { title: "Machine page" },
+  });
+  expect(denied.statusCode).toBe(401);
+  expect(denied.body).not.toContain(serviceToken);
+  expect(allowed.statusCode).toBe(201);
+  await machineApp.close();
 });
 
 test("browser logout helper completes a CSRF-bound Fastify logout without a JSON body", async () => {

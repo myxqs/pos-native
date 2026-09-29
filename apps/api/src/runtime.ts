@@ -33,6 +33,7 @@ import * as schema from "../../../packages/database/src/schema.ts";
 import type { BlockDocumentDependencies } from "../../../packages/domain/src/block-document.ts";
 import type { CreatePageDependencies } from "../../../packages/domain/src/page.ts";
 import { buildApp } from "./app.ts";
+import { ServiceTokenAuthenticator } from "./service-token.ts";
 
 const runtimeEnvironmentSchema = z.object({
   DATABASE_URL: z
@@ -55,6 +56,8 @@ const runtimeEnvironmentSchema = z.object({
     .optional(),
   POS_LISTEN_HOST: z.enum(["127.0.0.1", "::1", "0.0.0.0", "::"]).optional(),
   POS_PORT: z.coerce.number().int().min(1).max(65_535).optional(),
+  POS_SERVICE_TOKEN: z.string().min(43).max(512),
+  POS_SERVICE_TOKEN_ID: z.string().trim().min(1).max(120).optional(),
 });
 
 export interface RuntimeConfiguration {
@@ -64,6 +67,8 @@ export interface RuntimeConfiguration {
   readonly maxAssetBytes: number;
   readonly host: "127.0.0.1" | "::1" | "0.0.0.0" | "::";
   readonly port: number;
+  readonly serviceToken: string;
+  readonly serviceTokenId: string;
 }
 
 export interface RuntimePersistence {
@@ -112,6 +117,9 @@ export function parseRuntimeConfiguration(
     maxAssetBytes: parsed.data.POS_MAX_ASSET_BYTES ?? DEFAULT_MAX_ASSET_BYTES,
     host: parsed.data.POS_LISTEN_HOST ?? "127.0.0.1",
     port: parsed.data.POS_PORT ?? 3000,
+    serviceToken: parsed.data.POS_SERVICE_TOKEN,
+    serviceTokenId:
+      parsed.data.POS_SERVICE_TOKEN_ID ?? "nativepos-local-service",
   };
 }
 
@@ -185,6 +193,10 @@ export async function createProductionRuntime(
           }
         : {}),
       secureCookies: true,
+      serviceTokenAuthenticator: new ServiceTokenAuthenticator(
+        configuration.serviceToken,
+        configuration.serviceTokenId,
+      ),
       webAssetRoot: configuration.webAssetRoot,
     });
 

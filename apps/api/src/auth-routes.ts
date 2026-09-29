@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import type { AuthenticationService } from "../../../packages/auth/src/session.ts";
 import type { PageAuthorizer } from "./page-routes.ts";
+import type { ServiceTokenAuthenticator } from "./service-token.ts";
 
 const loginBody = z
   .object({
@@ -14,6 +15,7 @@ const loginBody = z
 export interface AuthenticationRouteOptions {
   readonly authenticationService: AuthenticationService;
   readonly secureCookies: boolean;
+  readonly serviceTokenAuthenticator?: ServiceTokenAuthenticator;
 }
 
 export function registerAuthenticationRoutes(
@@ -56,7 +58,10 @@ export function registerAuthenticationRoutes(
     },
   );
 
-  const authorize = createAuthorizer(options.authenticationService);
+  const authorize = createAuthorizer(
+    options.authenticationService,
+    options.serviceTokenAuthenticator,
+  );
 
   app.get("/api/v1/auth/session", async (request, reply) => {
     const authorization = await authorize(request, false);
@@ -88,8 +93,15 @@ export function registerAuthenticationRoutes(
 
 function createAuthorizer(
   authenticationService: AuthenticationService,
+  serviceTokenAuthenticator?: ServiceTokenAuthenticator,
 ): PageAuthorizer {
   return async (request: FastifyRequest, requireCsrf: boolean) => {
+    const serviceActor = serviceTokenAuthenticator?.authenticate(
+      typeof request.headers.authorization === "string"
+        ? request.headers.authorization
+        : undefined,
+    );
+    if (serviceActor) return { ok: true, actor: serviceActor };
     const sessionToken = request.cookies.pos_session;
     if (!sessionToken) {
       return { ok: false, statusCode: 401, error: "authentication required" };

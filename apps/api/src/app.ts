@@ -28,6 +28,7 @@ import { registerPageLinkRoutes } from "./page-link-routes.ts";
 import { registerPageContextRoutes } from "./page-context-routes.ts";
 import { registerMachineRoutes } from "./machine-routes.ts";
 import { MachineKnowledgeService } from "../../../packages/database/src/machine-knowledge-service.ts";
+import type { ServiceTokenAuthenticator } from "./service-token.ts";
 import {
   readWebAsset,
   resolveWebAssetRoot,
@@ -55,6 +56,7 @@ export interface AppOptions {
   readonly pageLinkRepository?: PageLinkRepository;
   readonly pageLinkDependencies?: PageLinkDependencies;
   readonly authorize?: PageAuthorizer;
+  readonly serviceTokenAuthenticator?: ServiceTokenAuthenticator;
 }
 
 export function buildApp(options: AppOptions = {}): FastifyInstance {
@@ -93,6 +95,9 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
     ? registerAuthenticationRoutes(app, {
         authenticationService: options.authenticationService,
         secureCookies: options.secureCookies ?? false,
+        ...(options.serviceTokenAuthenticator
+          ? { serviceTokenAuthenticator: options.serviceTokenAuthenticator }
+          : {}),
       })
     : options.authorize;
 

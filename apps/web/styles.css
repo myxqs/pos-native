@@ -227,6 +227,10 @@ select:disabled {
     align-items: stretch;
     flex-direction: column;
   }
+  .app-shell > aside .sidebar-top {
+    align-items: stretch;
+    flex-direction: column;
+  }
   main {
     padding-top: 2rem;
   }

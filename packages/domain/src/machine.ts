@@ -157,6 +157,80 @@ export function validateMachineBounds(input: { readonly limit: number }): {
   return Object.freeze({ limit: input.limit });
 }
 
+export type MachineComparison = "eq" | "contains" | "gt" | "gte" | "lt" | "lte";
+
+export interface MachinePropertyFilter {
+  readonly propertyId: string;
+  readonly operator: MachineComparison;
+  readonly value: string | boolean;
+}
+
+export interface MachineQuery {
+  readonly entityTypeId: string;
+  readonly ids?: readonly string[];
+  readonly title?: string;
+  readonly properties?: readonly MachinePropertyFilter[];
+  readonly relationTargetId?: string;
+  readonly archived?: boolean;
+  readonly sort?: "title" | "createdAt";
+  readonly direction?: "asc" | "desc";
+  readonly limit: number;
+  readonly cursor?: string;
+}
+
+export interface MachineEntitySummary {
+  readonly id: string;
+  readonly entityTypeId: string;
+  readonly title: string;
+  readonly archived: boolean;
+  readonly createdAt: string;
+  readonly modifiedAt: string;
+  readonly revision: number;
+  readonly properties: Readonly<Record<string, unknown>>;
+  readonly provenance: Readonly<{ source: string; actorId: string }>;
+}
+
+export interface MachineQueryResult {
+  readonly items: readonly MachineEntitySummary[];
+  readonly nextCursor: string | null;
+  readonly truncated: boolean;
+}
+
+export interface MachineTraversalRequest {
+  readonly rootId: string;
+  readonly direction: "outgoing" | "incoming" | "both";
+  readonly relationshipId?: string;
+  readonly depth: number;
+  readonly nodeLimit: number;
+}
+
+export interface MachineTraversalResult {
+  readonly rootId: string;
+  readonly nodes: readonly MachineEntitySummary[];
+  readonly edges: readonly {
+    id: string;
+    definitionId: string;
+    sourceId: string;
+    targetId: string;
+  }[];
+  readonly truncated: boolean;
+  readonly cyclesSuppressed: number;
+}
+
+export interface MachineContextRequest {
+  readonly recordId: string;
+  readonly maxProperties: number;
+  readonly maxRelations: number;
+}
+
+export interface MachineContextResult {
+  readonly entity: MachineEntitySummary;
+  readonly relations: MachineTraversalResult["edges"];
+  readonly included: Readonly<{ properties: number; relations: number }>;
+  readonly omitted: Readonly<{ properties: number; relations: number }>;
+  readonly continuation: readonly string[];
+}
+
 function nativePageDescription(): MachineEntityTypeDescription {
   return Object.freeze({
     id: "page",

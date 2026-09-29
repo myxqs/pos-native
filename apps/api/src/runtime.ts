@@ -34,6 +34,7 @@ import type { BlockDocumentDependencies } from "../../../packages/domain/src/blo
 import type { CreatePageDependencies } from "../../../packages/domain/src/page.ts";
 import { buildApp } from "./app.ts";
 import { ServiceTokenAuthenticator } from "./service-token.ts";
+import { createRuntimeReadiness, type RuntimeReadiness } from "./readiness.ts";
 
 const runtimeEnvironmentSchema = z.object({
   DATABASE_URL: z
@@ -80,6 +81,7 @@ export interface RuntimePersistence {
   readonly pageAssetLinkRepository?: PageAssetLinkRepository;
   readonly searchRepository?: SearchRepository;
   readonly pageLinkRepository?: PageLinkRepository;
+  readonly readiness?: RuntimeReadiness;
   close(): Promise<void>;
 }
 
@@ -132,6 +134,7 @@ export async function createProductionRuntime(
     dependencies.createPersistence ?? createPostgresPersistence
   )(configuration);
   const now = dependencies.now ?? (() => new Date());
+  const startedAt = now();
   const newId = dependencies.newId ?? randomUUID;
 
   try {
@@ -198,6 +201,11 @@ export async function createProductionRuntime(
         configuration.serviceTokenId,
       ),
       webAssetRoot: configuration.webAssetRoot,
+      ...(persistence.readiness ? { readiness: persistence.readiness } : {}),
+      runtimeProfile: "production-local",
+      applicationVersion: process.env.npm_package_version ?? "0.1.0",
+      startedAt,
+      now,
     });
 
     return {
@@ -223,6 +231,12 @@ export async function startProductionRuntime(
 ): Promise<ProductionRuntime> {
   const runtime = await createProductionRuntime(environment, dependencies);
   try {
+    const readiness = await runtime.app.inject({
+      method: "GET",
+      url: "/ready",
+    });
+    if (readiness.statusCode !== 200)
+      throw new Error("NativePOS persistence is not ready");
     await runtime.app.listen({
       host: runtime.configuration.host,
       port: runtime.configuration.port,
@@ -249,6 +263,7 @@ function createPostgresPersistence(
     pageAssetLinkRepository: new PostgresPageAssetLinkRepository(database),
     searchRepository: new PostgresSearchRepository(database),
     pageLinkRepository: new PostgresPageLinkRepository(database),
+    readiness: createRuntimeReadiness(pool, 12),
     async close(): Promise<void> {
       await pool.end();
     },

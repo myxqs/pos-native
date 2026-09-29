@@ -29,6 +29,7 @@ import { registerPageContextRoutes } from "./page-context-routes.ts";
 import { registerMachineRoutes } from "./machine-routes.ts";
 import { MachineKnowledgeService } from "../../../packages/database/src/machine-knowledge-service.ts";
 import type { ServiceTokenAuthenticator } from "./service-token.ts";
+import type { RuntimeReadiness } from "./readiness.ts";
 import {
   readWebAsset,
   resolveWebAssetRoot,
@@ -57,6 +58,11 @@ export interface AppOptions {
   readonly pageLinkDependencies?: PageLinkDependencies;
   readonly authorize?: PageAuthorizer;
   readonly serviceTokenAuthenticator?: ServiceTokenAuthenticator;
+  readonly readiness?: RuntimeReadiness;
+  readonly runtimeProfile?: string;
+  readonly applicationVersion?: string;
+  readonly startedAt?: Date;
+  readonly now?: () => Date;
 }
 
 export function buildApp(options: AppOptions = {}): FastifyInstance {
@@ -80,6 +86,18 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
     service: "pos-native-api",
   }));
 
+  app.get(
+    "/ready",
+    { config: { rateLimit: false } },
+    async (_request, reply) => {
+      const result = await (options.readiness?.check() ??
+        Promise.resolve({ ready: false, schemaVersion: "unknown" as const }));
+      return reply
+        .code(result.ready ? 200 : 503)
+        .send({ status: result.ready ? "ready" : "not-ready" });
+    },
+  );
+
   app.get("/api/v1/system/manifest", { config: { rateLimit: false } }, () => ({
     apiVersion: "v1",
     service: "pos-native-api",
@@ -100,6 +118,30 @@ export function buildApp(options: AppOptions = {}): FastifyInstance {
           : {}),
       })
     : options.authorize;
+
+  if (authorize) {
+    app.get("/api/v1/system/status", async (request, reply) => {
+      const authorization = await authorize(request, false);
+      if (!authorization.ok)
+        return reply
+          .code(authorization.statusCode)
+          .send({ error: authorization.error });
+      const readiness = await (options.readiness?.check() ??
+        Promise.resolve({ ready: false, schemaVersion: "unknown" as const }));
+      const startedAt = options.startedAt ?? new Date();
+      const now = options.now ?? (() => new Date());
+      return {
+        applicationVersion: options.applicationVersion ?? "development",
+        profile: options.runtimeProfile ?? "development",
+        uptimeSeconds: Math.max(
+          0,
+          Math.floor((now().getTime() - startedAt.getTime()) / 1000),
+        ),
+        ready: readiness.ready,
+        schemaVersion: readiness.schemaVersion,
+      };
+    });
+  }
 
   if (options.pageRepository && options.pageDependencies && authorize) {
     registerPageRoutes(app, {

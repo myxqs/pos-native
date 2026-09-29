@@ -215,6 +215,24 @@ test("closes persistence when the configured listener cannot start", async () =>
     );
   }
 });
+test("refuses startup when persistence is not migration-ready", async () => {
+  const persistence: RuntimePersistence = {
+    authenticationStore: new InMemoryAuthenticationStore([]),
+    pageRepository: new InMemoryPageRepository(),
+    blockDocumentRepository: new InMemoryBlockDocumentRepository(),
+    readiness: {
+      check: async () => ({ ready: false, schemaVersion: "incompatible" }),
+    },
+    close: vi.fn(async () => undefined),
+  };
+  await expect(
+    startProductionRuntime(runtimeEnvironment(), {
+      createPersistence: () => persistence,
+      createAssetStore: async () => inMemoryAssetStore(),
+    }),
+  ).rejects.toThrow("NativePOS persistence is not ready");
+  expect(persistence.close).toHaveBeenCalledOnce();
+});
 test("closes persistence when web application composition fails", async () => {
   const persistence: RuntimePersistence = {
     authenticationStore: new InMemoryAuthenticationStore([]),

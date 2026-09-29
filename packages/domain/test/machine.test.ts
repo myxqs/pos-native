@@ -49,7 +49,12 @@ describe("machine discovery contracts", () => {
     expect(listMachineEntityTypes([])[0]).toMatchObject({
       id: "page",
       kind: "native",
-      capabilities: expect.arrayContaining(["entity.get", "entity.query"]),
+      capabilities: [
+        "schema.describe",
+        "entity.update-title",
+        "entity.archive",
+        "entity.restore",
+      ],
     });
   });
 

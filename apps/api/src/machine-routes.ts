@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 
-import { MachineKnowledgeService } from "../../../packages/database/src/machine-knowledge-service.ts";
+import type { MachineKnowledgeService } from "../../../packages/database/src/machine-knowledge-service.ts";
 import {
   MachineContractError,
   type MachineQuery,

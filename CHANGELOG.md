@@ -4,6 +4,10 @@
 
 ### Added
 
+- M5 authenticated machine interface with deterministic schema discovery,
+  bounded typed queries, cycle-safe relation traversal, budgeted context,
+  redacted audit history, and a 64-case synthetic retrieval/mutation benchmark.
+
 - Authenticated bounded asset upload/list/download backed by canonical
   PostgreSQL metadata and verified local filesystem bytes.
 - Safe full-state PostgreSQL plus asset backup/restore with clean-target guards,

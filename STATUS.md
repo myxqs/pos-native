@@ -2,6 +2,13 @@
 
 ## Current milestone
 
+M5 - COMPLETE for the provider-disconnected, synthetic machine-first boundary.
+Schema discovery, typed bounded retrieval, graph traversal, compact context,
+redacted history, and the existing optimistic/audited atomic mutation routes
+form a coherent agent-facing HTTP surface. Bulk mutation and a thin MCP adapter
+are explicitly deferred; no Notion data was imported and Notion remains
+canonical.
+
 M4 — COMPLETE for the repository-local synthetic structured-data and
 Navigation boundary. Structured data sources, records, typed properties,
 relations, assets and recoverable relationships now have domain, in-memory,

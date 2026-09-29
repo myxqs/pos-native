@@ -5,6 +5,7 @@ import {
   createDataSourceItem,
   createPropertyDefinition,
 } from "../../domain/src/data-source.ts";
+import { MachineContractError } from "../../domain/src/machine.ts";
 import { InMemoryDataSourceRepository } from "../src/data-source-repository.ts";
 import { MachineKnowledgeService } from "../src/machine-knowledge-service.ts";
 
@@ -107,4 +108,87 @@ describe("M5 deterministic synthetic retrieval benchmark", () => {
       expect(first.nextCursor).toEqual(expect.any(String));
     },
   );
+
+  test("case 61 rejects an unbounded dataset request", async () => {
+    await expect(
+      service.query({ entityTypeId: sourceId, limit: 100 }),
+    ).rejects.toBeInstanceOf(MachineContractError);
+  });
+
+  test("case 62 assembles budgeted context with omission evidence", async () => {
+    const result = await service.context({
+      recordId: recordIds[0]!,
+      maxProperties: 0,
+      maxRelations: 0,
+    });
+    expect(result.included).toEqual({ properties: 0, relations: 0 });
+    expect(result.omitted.properties).toBe(1);
+  });
+
+  test("case 63 updates one property and rejects a stale retry", async () => {
+    const id = recordIds[0]! as never;
+    const updated = await repository.setProperty(
+      id,
+      statusId as never,
+      { value: "Done", expectedPropertyRevisionNumber: 2, ...actor },
+      dependencies,
+    );
+    expect(updated.page.title).toBe("Action 00");
+    expect(updated.values[statusId]).toMatchObject({ value: "Done" });
+    await expect(
+      repository.setProperty(
+        id,
+        statusId as never,
+        { value: "Open", expectedPropertyRevisionNumber: 2, ...actor },
+        dependencies,
+      ),
+    ).rejects.toThrow("stale property revision");
+  });
+
+  test("case 64 adds, traverses and removes a relation", async () => {
+    const source = (await repository.getSource(sourceId as never))!;
+    const definition = createPropertyDefinition(
+      source,
+      {
+        name: "Related action",
+        kind: "relation",
+        targetSourceId: source.id,
+        ...actor,
+      },
+      dependencies,
+    );
+    await repository.createDefinition(source.id, definition);
+    const edge = await repository.addRelation(
+      recordIds[1]! as never,
+      definition.definition.id,
+      recordIds[2]! as never,
+      { expectedPropertyRevisionNumber: 2, ...actor },
+      dependencies,
+    );
+    const graph = await service.traverse({
+      rootId: recordIds[1]!,
+      direction: "outgoing",
+      depth: 1,
+      nodeLimit: 2,
+    });
+    expect(graph.nodes.map((node) => node.id)).toEqual([
+      recordIds[1],
+      recordIds[2],
+    ]);
+    await repository.removeRelation(
+      edge.id,
+      { expectedPropertyRevisionNumber: 3, ...actor },
+      dependencies,
+    );
+    expect(
+      (
+        await service.traverse({
+          rootId: recordIds[1]!,
+          direction: "outgoing",
+          depth: 1,
+          nodeLimit: 2,
+        })
+      ).edges,
+    ).toEqual([]);
+  });
 });

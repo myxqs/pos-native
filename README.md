@@ -12,7 +12,8 @@ The active implementation is the TypeScript/PostgreSQL architecture in this
 repository. It includes PostgreSQL schema migrations and persistence adapters,
 a compiled Fastify API runtime, and a restrained responsive browser shell. The
 authenticated API covers sessions, pages, page hierarchy/archive operations,
-canonical block documents, structured data, and bounded local asset
+canonical block documents, structured data, the bounded M5 machine knowledge
+interface, and bounded local asset
 upload/list/download. Pages can retain audited links to uploaded assets through
 an audited, recoverably archived PostgreSQL relationship, and the browser shell exercises these
 product boundaries.
@@ -57,6 +58,10 @@ unset.
 - `docs/superpowers/plans/` — test-first delivery plans.
 
 ## Safety boundary
+
+The M5 machine interface is documented in
+`docs/architecture/m5-machine-interface.md`. A dedicated thin MCP adapter is
+deferred; agents do not receive direct database access.
 
 POS Native must never use external identities as canonical IDs, execute
 untrusted code, or mutate data outside its validated, auditable domain layer.

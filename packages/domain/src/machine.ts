@@ -20,10 +20,9 @@ export type MachineCapability =
 
 const nativeCapabilities = Object.freeze([
   "schema.describe",
-  "entity.get",
-  "entity.query",
-  "context.get",
-  "history.get",
+  "entity.update-title",
+  "entity.archive",
+  "entity.restore",
 ] satisfies MachineCapability[]);
 
 const dataSourceCapabilities = Object.freeze([

@@ -11,3 +11,7 @@ reconciliation, retrieval evaluation, and backup/restore rehearsals establish
 the evidence for a possible cutover. M11 cutover requires separate explicit
 user approval only after every product, migration, integrity, retrieval,
 backup, and restore acceptance gate passes.
+
+M7 hardening establishes only the synthetic rehearsal and human-review
+preconditions in `docs/operations/migration-readiness.md`. It does not add an
+importer, authorise source access, or advance the M10/M11 gates.

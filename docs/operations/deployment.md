@@ -36,7 +36,7 @@ Machine clients send `Authorization: Bearer <POS_SERVICE_TOKEN>`. Missing or inv
 
 ## Backup and isolated restore
 
-`Backup` writes a timestamped, checksummed full-state backup below `POS_BACKUP_ROOT`. It includes the PostgreSQL custom dump, every canonical asset byte from `asset-data`, and a non-secret version manifest. Retention defaults to 14 and must be between 1 and 365.
+`Backup` writes a timestamped, checksummed full-state backup below `POS_BACKUP_ROOT`. It includes the PostgreSQL custom dump, every canonical asset byte from `asset-data`, and a non-secret version manifest. Retention defaults to 14 and must be between 1 and 365. Backups beyond that limit are reported and preserved by default; permanent pruning occurs only when the operator deliberately adds `-ConfirmPruneBackups` to a `Backup` command.
 
 Restore is deliberately limited to a new recovery database and distinct asset volume:
 
@@ -48,6 +48,7 @@ Restore is deliberately limited to a new recovery database and distinct asset vo
 ```
 
 The command refuses the configured production database and requires explicit confirmation. See `backup-restore.md` for the manifest and clean-target rules.
+It verifies the selected backup before it creates either recovery target.
 
 ## Windows auto-start
 

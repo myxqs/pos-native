@@ -2,6 +2,14 @@
 
 ## Current milestone
 
+M7 - IMPLEMENTATION COMPLETE, final environment-dependent validation pending.
+Runtime readiness now verifies the exact ordered migration ledger through
+`0011`, restore verifies backup integrity before creating recovery targets, and
+backup retention preserves recovery evidence unless pruning is explicitly
+confirmed. `docs/operations/migration-readiness.md` defines the synthetic
+rehearsal, rollback, verification, and human gates. No personal data was
+migrated and no cutover, external integration, or public exposure was enabled.
+
 M6 - COMPLETE for the private production-local runtime. Docker Compose runs the compiled API and PostgreSQL with durable database and asset volumes, loopback API publication, no database publication, explicit service-token machine authentication, migration-gated readiness, bounded logs, PowerShell operations, full-state backup, and isolated restore. The Windows Task Scheduler definition is prepared but deliberately not installed; an actual reboot remains a human acceptance step. MCP, ChatGPT connectivity, public exposure, and Notion migration remain deferred.
 
 M5 - COMPLETE for the provider-disconnected, synthetic machine-first boundary.

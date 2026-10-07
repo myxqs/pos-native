@@ -36,6 +36,12 @@ import { buildApp } from "./app.ts";
 import { ServiceTokenAuthenticator } from "./service-token.ts";
 import { createRuntimeReadiness, type RuntimeReadiness } from "./readiness.ts";
 
+const EXPECTED_MIGRATION_TIMESTAMPS = [
+  1789420876521, 1789420933138, 1789916191706, 1789918547356,
+  1789920671878, 1790001120986, 1790259020313, 1790276971319,
+  1790596225065, 1790613086786, 1790619573654, 1790621300817,
+] as const;
+
 const runtimeEnvironmentSchema = z.object({
   DATABASE_URL: z
     .string()
@@ -263,7 +269,7 @@ function createPostgresPersistence(
     pageAssetLinkRepository: new PostgresPageAssetLinkRepository(database),
     searchRepository: new PostgresSearchRepository(database),
     pageLinkRepository: new PostgresPageLinkRepository(database),
-    readiness: createRuntimeReadiness(pool, 12),
+    readiness: createRuntimeReadiness(pool, EXPECTED_MIGRATION_TIMESTAMPS),
     async close(): Promise<void> {
       await pool.end();
     },

@@ -13,18 +13,24 @@ interface QueryClient {
 
 export function createRuntimeReadiness(
   client: QueryClient,
-  expectedMigrationCount: number,
+  expectedMigrationTimestamps: readonly number[],
 ): RuntimeReadiness {
   return {
     async check(): Promise<ReadinessResult> {
       try {
         const result = await client.query(
-          "select count(*)::int migration_count from drizzle.__drizzle_migrations",
+          "select created_at::text created_at from drizzle.__drizzle_migrations order by created_at asc",
         );
-        const count = (
-          result.rows[0] as { migration_count?: unknown } | undefined
-        )?.migration_count;
-        if (count !== expectedMigrationCount)
+        const actual = result.rows.map(
+          (row) => (row as { created_at?: unknown }).created_at,
+        );
+        if (
+          actual.length !== expectedMigrationTimestamps.length ||
+          actual.some(
+            (createdAt, index) =>
+              createdAt !== String(expectedMigrationTimestamps[index]),
+          )
+        )
           return { ready: false, schemaVersion: "incompatible" };
         return { ready: true, schemaVersion: "0011" };
       } catch {

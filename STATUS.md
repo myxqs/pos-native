@@ -2,7 +2,7 @@
 
 ## Current milestone
 
-M7 - IMPLEMENTATION COMPLETE, security dependency approval pending.
+M7 - COMPLETE for synthetic migration-rehearsal readiness.
 Runtime readiness now verifies the exact ordered migration ledger through
 `0011`, restore verifies backup integrity before creating recovery targets, and
 backup retention preserves recovery evidence unless pruning is explicitly
@@ -14,9 +14,13 @@ benchmark passes 64/64; the serial live PostgreSQL suite passes 497 tests with
 only the separately gated recovery test skipped; and the current-schema
 17-table backup/restore/restart acceptance passes separately. Schema generation
 reports no drift and the production image builds. The production dependency
-audit currently reports three moderate advisories (Fastify, `fast-uri`, and
-`ip-address`); applying dependency updates requires explicit human approval, so
-M7 is not declared complete while that gate remains red.
+audit reports zero vulnerabilities after compatible updates to Fastify 5.12.5,
+`fast-uri` 3.1.8/4.2.1, and `ip-address` 10.7.3. An additional operator-level
+rehearsal created and verified a fresh backup, restored it into
+`pos_native_recovery_m7_20261007` with a distinct asset target, matched counts
+and deterministic hashes for all 17 canonical tables, and passed authenticated
+readback after separate application and PostgreSQL restarts. No personal data
+was used and no real migration or cutover was authorised.
 
 M6 - COMPLETE for the private production-local runtime. Docker Compose runs the compiled API and PostgreSQL with durable database and asset volumes, loopback API publication, no database publication, explicit service-token machine authentication, migration-gated readiness, bounded logs, PowerShell operations, full-state backup, and isolated restore. The Windows Task Scheduler definition is prepared but deliberately not installed; an actual reboot remains a human acceptance step. MCP, ChatGPT connectivity, public exposure, and Notion migration remain deferred.
 

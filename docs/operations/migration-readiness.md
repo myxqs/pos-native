@@ -141,3 +141,27 @@ Before accepting a rehearsal, a human reviews source authorisation and absence
 of real data, exact commit/schema/manifest/logs, all reconciliation and skipped
 items, recovery/restart evidence, security/privacy boundaries, and the explicit
 statement that Notion remains canonical and M11 is not authorised.
+
+## 2026-10-07 synthetic rehearsal evidence
+
+The M7 closure rehearsal used only generated NativePOS records in an isolated
+PostgreSQL 18.6 container on loopback. The packaged recovery operator created
+backup `51878f32-ebff-48ae-847e-153918bf39f7`, independently verified manifest
+SHA-256 `f173938f12627049f9f0c2487a33fa0ba95053ee816c88e14a51af2f201c4dbb`,
+and restored it into the fresh database
+`pos_native_recovery_m7_20261007` with a distinct empty asset target.
+
+Source and recovery counts plus deterministic content hashes matched for all
+17 canonical tables. A separate loopback-only recovery application reported
+health and readiness, schema `0011`, and the `production-local` profile.
+Authenticated bearer search returned the preserved `Alpha Workspace` result;
+an invalid bearer failed with 401. The same authenticated result remained
+available after separate application and PostgreSQL restarts. The automated
+current-schema acceptance also passed its page-link history, revisions, audit,
+derived search, and restart comparisons.
+
+The first standalone application probe deliberately lacked the production
+restart policy and exited when PostgreSQL restarted. That failure was retained
+and diagnosed; the fresh probe using the production `unless-stopped` policy
+passed. This evidence does not change any real-data, human-review, source
+authorisation, Notion, or cutover gate above.

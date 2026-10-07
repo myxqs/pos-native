@@ -30,11 +30,13 @@
 ### Task 1: Exact migration-ledger readiness
 
 **Files:**
+
 - Modify: `apps/api/src/readiness.ts`
 - Modify: `apps/api/src/runtime.ts`
 - Test: `apps/api/test/readiness.test.ts`
 
 **Interfaces:**
+
 - Consumes: ordered `created_at` values from `drizzle.__drizzle_migrations`
 - Produces: the existing `RuntimeReadiness.check()` result contract
 
@@ -46,10 +48,12 @@
 ### Task 2: Recovery operator preflight and explicit pruning
 
 **Files:**
+
 - Modify: `scripts/nativepos.ps1`
 - Test: `apps/api/test/operations-scripts.test.ts`
 
 **Interfaces:**
+
 - Consumes: existing recovery `verify` command and backup retention setting
 - Produces: `-ConfirmPruneBackups` and verify-before-target behavior
 
@@ -61,11 +65,13 @@
 ### Task 3: Migration-rehearsal runbook and milestone evidence
 
 **Files:**
+
 - Create: `docs/operations/migration-readiness.md`
 - Modify: `STATUS.md`
 - Modify: `docs/architecture/migration.md`
 
 **Interfaces:**
+
 - Produces: human-review gates and exact preflight/rehearsal/rollback/post-check steps
 
 - [ ] Document supported synthetic scope, unsupported/deferred scope, backup requirement, dry run, rollback, verification, and human gates.

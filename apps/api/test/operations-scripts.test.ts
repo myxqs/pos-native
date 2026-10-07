@@ -33,6 +33,29 @@ test("operator exposes bounded safe lifecycle and full-state recovery commands",
   );
 });
 
+test("operator verifies recovery input before creating targets and preserves backups unless pruning is confirmed", async () => {
+  const script = await read("scripts/nativepos.ps1");
+  const restoreStart = script.indexOf("function Invoke-Restore");
+  const restoreEnd = script.indexOf("Wait-Docker", restoreStart);
+  const restore = script.slice(restoreStart, restoreEnd);
+  const verify = restore.indexOf("'verify'");
+  const createDatabase = restore.indexOf("'createdb'");
+  const createAssetTarget = restore.indexOf("CreateDirectory($assetTarget)");
+
+  expect(script).toContain("[switch]$ConfirmPruneBackups");
+  const pruneGuard = script.indexOf("if ($ConfirmPruneBackups)");
+  const pruneLoop = script.indexOf("foreach ($directory in $old)");
+  const removeBackup = script.indexOf(
+    "Remove-Item -LiteralPath $directory.FullName",
+  );
+  expect(pruneGuard).toBeGreaterThan(-1);
+  expect(pruneGuard).toBeLessThan(pruneLoop);
+  expect(pruneLoop).toBeLessThan(removeBackup);
+  expect(verify).toBeGreaterThan(-1);
+  expect(verify).toBeLessThan(createDatabase);
+  expect(verify).toBeLessThan(createAssetTarget);
+});
+
 test("Task Scheduler script defaults to definition generation and never hides installation", async () => {
   const script = await read("scripts/nativepos-task.ps1");
   expect(script).toContain('[ValidateSet("Generate", "Install", "Uninstall")]');

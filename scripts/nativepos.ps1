@@ -8,6 +8,7 @@ param(
   [string]$BackupId,
   [string]$RecoveryDatabase,
   [switch]$ConfirmRestore,
+  [switch]$ConfirmPruneBackups,
   [int]$MaxDockerAttempts = 12,
   [int]$DockerRetrySeconds = 5
 )
@@ -88,9 +89,13 @@ function Invoke-Backup {
     $retention = if ($environment.POS_BACKUP_RETENTION -match '^\d+$') { [int]$environment.POS_BACKUP_RETENTION } else { 14 }
     if ($retention -lt 1 -or $retention -gt 365) { throw "NativePOS backup retention is invalid" }
     $old = Get-ChildItem -LiteralPath $backupRoot -Directory | Where-Object Name -Match '^backup-[0-9a-f-]{36}$' | Sort-Object LastWriteTimeUtc -Descending | Select-Object -Skip $retention
-    foreach ($directory in $old) {
-      if ([IO.Path]::GetFullPath($directory.Parent.FullName) -ne $backupRoot) { throw "NativePOS backup retention target is unsafe" }
-      Remove-Item -LiteralPath $directory.FullName -Recurse -Force
+    if ($ConfirmPruneBackups) {
+      foreach ($directory in $old) {
+        if ([IO.Path]::GetFullPath($directory.Parent.FullName) -ne $backupRoot) { throw "NativePOS backup retention target is unsafe" }
+        Remove-Item -LiteralPath $directory.FullName -Recurse -Force
+      }
+    } elseif (@($old).Count -gt 0) {
+      [Console]::Error.WriteLine("NativePOS backup retention limit exceeded; backups were preserved. Re-run Backup with ConfirmPruneBackups to remove excess canonical backups.")
     }
     $result | ConvertTo-Json -Compress
   } finally {
@@ -105,10 +110,11 @@ function Invoke-Restore {
   $environment = Get-Environment
   if ($RecoveryDatabase -eq $environment.POSTGRES_DB) { throw "Production database restore is prohibited by this operator" }
   $postgres = Get-ContainerId 'postgres'
-  Invoke-External docker @('exec', $postgres, 'createdb', '--username', $environment.POSTGRES_USER, '--owner', $environment.POSTGRES_USER, $RecoveryDatabase)
   $assetTarget = Join-Path ([IO.Path]::GetFullPath($environment.POS_BACKUP_ROOT)) ("restore-" + $BackupId)
-  [IO.Directory]::CreateDirectory($assetTarget) | Out-Null
   Invoke-External npm @('run', 'build')
+  Invoke-External node @((Join-Path $RepositoryRoot 'scripts\postgres-recovery.mjs'), 'verify', '--backup-root', $environment.POS_BACKUP_ROOT, '--backup-id', $BackupId, '--max-bytes', '1073741824')
+  Invoke-External docker @('exec', $postgres, 'createdb', '--username', $environment.POSTGRES_USER, '--owner', $environment.POSTGRES_USER, $RecoveryDatabase)
+  [IO.Directory]::CreateDirectory($assetTarget) | Out-Null
   Invoke-External node @((Join-Path $RepositoryRoot 'scripts\postgres-recovery.mjs'), 'restore', '--container', $postgres, '--database', $RecoveryDatabase, '--user', $environment.POSTGRES_USER, '--asset-root', $assetTarget, '--backup-root', $environment.POS_BACKUP_ROOT, '--backup-id', $BackupId, '--max-bytes', '1073741824')
   $volume = "${ProjectName}-${RecoveryDatabase}-asset-data"
   Invoke-External docker @('volume', 'create', $volume)
